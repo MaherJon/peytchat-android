@@ -47,6 +47,8 @@ pub struct EventPayload {
     pub chat_id: Option<u32>,
     pub msg_id: Option<u32>,
     pub contact_id: Option<u32>,
+    pub progress: Option<u16>,
+    pub comment: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

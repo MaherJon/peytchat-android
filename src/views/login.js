@@ -52,8 +52,20 @@ export function renderLogin(onSuccess) {
     const btn = document.getElementById("login-btn");
     btn.disabled = true;
     btn.textContent = "登录中…";
-    const unlisten = await onEvent("ConfigureProgress", () => {
-      btn.textContent = "登录中…";
+    const unlisten = await onEvent("ConfigureProgress", (p) => {
+      const progress = p.progress;
+      const comment = p.comment || "";
+      if (progress === 0) {
+        btn.textContent = "登录失败…";
+      } else if (progress >= 1000) {
+        btn.textContent = "登录成功，正在进入…";
+      } else if (progress > 0) {
+        const pct = Math.floor(progress / 10);
+        btn.textContent = `登录中… ${pct}%`;
+      }
+      if (comment) {
+        console.log("[configure]", comment);
+      }
     });
     try {
       await call("login", { email, password, advanced: adv });
