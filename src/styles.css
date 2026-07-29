@@ -1,0 +1,14 @@
+:root {
+  --bg: #fff;
+  --fg: #000;
+  --border: #e5e5e5;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 14px;
+}
+#app { height: 100vh; }
