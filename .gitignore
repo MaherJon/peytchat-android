@@ -5,3 +5,4 @@ src-tauri/target
 core/.git
 core/
 .superpowers/
+debug.log

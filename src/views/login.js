@@ -104,13 +104,21 @@ export function renderLogin(onSuccess) {
     const btn = document.getElementById("quick-btn");
     btn.disabled = true;
     btn.textContent = "创建中…";
-    const unlisten = await attachProgress(btn, "成功，正在进入…");
+    // Attach progress non-blocking; if listen fails it won't block the call.
+    let unlisten = null;
+    onEvent("ConfigureProgress", (p) => {
+      const progress = p.progress;
+      if (progress === 0) btn.textContent = "失败…";
+      else if (progress >= 1000) btn.textContent = "成功，正在进入…";
+      else if (progress > 0) btn.textContent = `${Math.floor(progress / 10)}%`;
+      if (p.comment) console.log("[configure]", p.comment);
+    }).then((u) => { unlisten = u; }).catch(() => {});
     try {
       await call("create_chatmail_account", { displayName });
-      unlisten();
+      if (unlisten) unlisten();
       onSuccess();
     } catch {
-      unlisten();
+      if (unlisten) unlisten();
       btn.disabled = false;
       btn.textContent = "开始聊天";
     }

@@ -12,6 +12,20 @@ use crate::dto::{AdvancedLogin, ChatDto, ContactDto, MsgDto, ProfileDto};
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
 
+/// Debug log to project dir (stderr is swallowed by macOS GUI).
+fn dbg(msg: impl AsRef<str>) {
+    use std::io::Write;
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../debug.log");
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+    {
+        let _ = writeln!(f, "{}", msg.as_ref());
+        let _ = f.flush();
+    }
+}
+
 fn parse_socket(s: &Option<String>) -> Socket {
     match s.as_deref() {
         Some("ssl") => Socket::Ssl,
@@ -90,21 +104,24 @@ pub async fn create_chatmail_account(
     state: State<'_, AppState>,
     display_name: String,
 ) -> AppResult<u32> {
+    dbg(format!("[chatmail] start, display_name={display_name}"));
     let id = {
         let mut accounts = state.accounts.lock().await;
         accounts.add_account().await?
     };
+    dbg(format!("[chatmail] add_account ok, id={id}"));
     let ctx = {
         let accounts = state.accounts.lock().await;
         accounts
             .get_account(id)
             .ok_or_else(|| AppError::Core("account gone".into()))?
     };
+    dbg("[chatmail] got context, calling add_transport_from_qr...");
 
-    // One call: POST relay /new → parse {email,password} → configure → start_io.
-    ctx.add_transport_from_qr("dcaccount:https://nine.testrun.org/new")
+    ctx.add_transport_from_qr("dcaccount:nine.testrun.org")
         .await
         .map_err(|e| {
+            dbg(format!("[chatmail] add_transport_from_qr FAILED: {e}"));
             let msg = e.to_string().to_lowercase();
             if msg.contains("network") || msg.contains("connection") || msg.contains("timeout") {
                 AppError::Network(msg)
@@ -112,16 +129,18 @@ pub async fn create_chatmail_account(
                 AppError::Core(e.to_string())
             }
         })?;
+    dbg("[chatmail] add_transport_from_qr ok, setting display name...");
 
-    // Display name is the only user-chosen identity; relay assigns random addr.
     ctx.set_config(Config::Displayname, Some(&display_name))
         .await?;
+    dbg("[chatmail] display name set, selecting account...");
 
     {
         let mut accounts = state.accounts.lock().await;
         accounts.select_account(id).await?;
     }
     state.set_current(id);
+    dbg(format!("[chatmail] done, id={id}"));
     Ok(id)
 }
 
