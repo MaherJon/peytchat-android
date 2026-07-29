@@ -29,6 +29,9 @@ pub fn run() {
             commands::get_chatlist,
             commands::get_chat_msgs,
             commands::send_text,
+            commands::get_contacts,
+            commands::create_group,
+            commands::add_group_member,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

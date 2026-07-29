@@ -49,6 +49,13 @@ pub struct EventPayload {
     pub contact_id: Option<u32>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct ContactDto {
+    pub id: u32,
+    pub name: String,
+    pub addr: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

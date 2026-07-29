@@ -2,13 +2,13 @@ use deltachat::chat::{self, Chat, ChatItem};
 use deltachat::chatlist::Chatlist;
 use deltachat::config::Config;
 use deltachat::constants::Chattype;
-use deltachat::contact::Contact;
+use deltachat::contact::{Contact, ContactId};
 use deltachat::login_param::{EnteredCertificateChecks, EnteredLoginParam};
 use deltachat::message::{self, MessageState};
 use deltachat::provider::Socket;
 use tauri::State;
 
-use crate::dto::{AdvancedLogin, ChatDto, MsgDto, ProfileDto};
+use crate::dto::{AdvancedLogin, ChatDto, ContactDto, MsgDto, ProfileDto};
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
 
@@ -174,4 +174,55 @@ pub async fn send_text(
     let chat_id = deltachat::chat::ChatId::new(chat_id);
     let msg_id = chat::send_text_msg(&ctx, chat_id, text).await?;
     Ok(msg_id.to_u32())
+}
+
+#[tauri::command]
+pub async fn get_contacts(state: State<'_, AppState>) -> AppResult<Vec<ContactDto>> {
+    let ctx = state.current().await.ok_or(AppError::Core("no account".into()))?;
+    let ids = Contact::get_all(&ctx, 0, None).await?;
+    let mut out = Vec::new();
+    for id in ids {
+        if id == ContactId::SELF || id == ContactId::INFO || id == ContactId::DEVICE {
+            continue;
+        }
+        let c = Contact::get_by_id(&ctx, id).await?;
+        out.push(ContactDto {
+            id: id.to_u32(),
+            name: c.get_display_name().to_string(),
+            addr: c.get_addr().to_string(),
+        });
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+pub async fn create_group(
+    state: State<'_, AppState>,
+    name: String,
+    member_emails: Vec<String>,
+) -> AppResult<u32> {
+    let ctx = state.current().await.ok_or(AppError::Core("no account".into()))?;
+    let chat_id = chat::create_group(&ctx, &name).await?;
+    for email in member_emails {
+        let email = email.trim();
+        if email.is_empty() {
+            continue;
+        }
+        let cid = Contact::create(&ctx, "", email).await?;
+        chat::add_contact_to_chat(&ctx, chat_id, cid).await?;
+    }
+    Ok(chat_id.to_u32())
+}
+
+#[tauri::command]
+pub async fn add_group_member(
+    state: State<'_, AppState>,
+    chat_id: u32,
+    email: String,
+) -> AppResult<u32> {
+    let ctx = state.current().await.ok_or(AppError::Core("no account".into()))?;
+    let chat_id = deltachat::chat::ChatId::new(chat_id);
+    let cid = Contact::create(&ctx, "", &email).await?;
+    chat::add_contact_to_chat(&ctx, chat_id, cid).await?;
+    Ok(cid.to_u32())
 }
