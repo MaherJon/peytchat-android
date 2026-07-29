@@ -18,9 +18,15 @@ impl AppState {
     pub async fn new(dir: PathBuf) -> AppResult<Self> {
         tokio::fs::create_dir_all(&dir).await?;
         let accounts = Accounts::new(dir, true).await?;
+        let current_id = accounts.get_selected_account_id();
+        if let Some(id) = current_id {
+            if let Some(ctx) = accounts.get_account(id) {
+                ctx.start_io().await;
+            }
+        }
         Ok(Self {
             accounts: Arc::new(Mutex::new(accounts)),
-            current_id: StdMutex::new(None),
+            current_id: StdMutex::new(current_id),
         })
     }
 
@@ -50,6 +56,29 @@ mod tests {
             accounts.add_account().await.unwrap()
         };
         state.set_current(id);
+        assert_eq!(*state.current_id.lock().unwrap(), Some(id));
+        assert!(state.current().await.is_some());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_state_restart_restores_selected_account() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("accounts");
+
+        // First boot: create state, add an account, and persist selection
+        // (mirrors the login command, which calls select_account to persist).
+        let id = {
+            let state = AppState::new(dir.clone()).await.unwrap();
+            assert!(state.current().await.is_none());
+
+            let mut accounts = state.accounts.lock().await;
+            let id = accounts.add_account().await.unwrap();
+            accounts.select_account(id).await.unwrap();
+            id
+        };
+
+        // Second boot: reopen the same directory; current_id should be restored.
+        let state = AppState::new(dir.clone()).await.unwrap();
         assert_eq!(*state.current_id.lock().unwrap(), Some(id));
         assert!(state.current().await.is_some());
     }
