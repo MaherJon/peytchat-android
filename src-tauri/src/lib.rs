@@ -28,6 +28,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::is_configured,
             commands::login,
+            commands::create_chatmail_account,
             commands::get_self_profile,
             commands::get_chatlist,
             commands::get_chat_msgs,

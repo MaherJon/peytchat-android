@@ -4,46 +4,121 @@ export function renderLogin(onSuccess) {
   const app = document.getElementById("app");
   app.innerHTML = `
     <div class="login-wrap">
-      <form id="login-form" class="login-form">
+      <div class="login-form">
         <h1>Peytchat</h1>
-        <input id="email" type="email" placeholder="邮箱" required autocomplete="username" />
-        <input id="password" type="password" placeholder="密码" required autocomplete="current-password" />
-        <button type="button" id="advanced-toggle" class="link">高级设置</button>
-        <div id="advanced" class="advanced" hidden>
-          <input id="imap_host" placeholder="IMAP 主机" />
-          <input id="imap_port" type="number" placeholder="IMAP 端口" />
-          <select id="imap_security">
-            <option value="">IMAP 安全（自动）</option>
-            <option value="ssl">SSL/TLS</option>
-            <option value="tls">STARTTLS</option>
-            <option value="plain">明文</option>
-          </select>
-          <input id="imap_user" placeholder="IMAP 用户名" />
-          <input id="smtp_host" placeholder="SMTP 主机" />
-          <input id="smtp_port" type="number" placeholder="SMTP 端口" />
-          <select id="smtp_security">
-            <option value="">SMTP 安全（自动）</option>
-            <option value="ssl">SSL/TLS</option>
-            <option value="tls">STARTTLS</option>
-            <option value="plain">明文</option>
-          </select>
-          <input id="smtp_user" placeholder="SMTP 用户名" />
-          <input id="smtp_password" type="password" placeholder="SMTP 密码" />
+        <div class="tabs">
+          <button type="button" class="tab active" data-tab="quick">快速开始</button>
+          <button type="button" class="tab" data-tab="email">邮箱登录</button>
         </div>
-        <button type="submit" id="login-btn">登录</button>
+
+        <form id="quick-form" class="tab-panel" hidden>
+          <p class="hint">输入显示名，自动创建 nine.testrun.org 免费账号，立即开始聊天。</p>
+          <input id="display-name" type="text" placeholder="显示名（如：张三）" required maxlength="60" />
+          <button type="submit" id="quick-btn">开始聊天</button>
+        </form>
+
+        <form id="email-form" class="tab-panel" hidden>
+          <input id="email" type="email" placeholder="邮箱" required autocomplete="username" />
+          <input id="password" type="password" placeholder="密码" required autocomplete="current-password" />
+          <button type="button" id="advanced-toggle" class="link">高级设置</button>
+          <div id="advanced" class="advanced" hidden>
+            <input id="imap_host" placeholder="IMAP 主机" />
+            <input id="imap_port" type="number" placeholder="IMAP 端口" />
+            <select id="imap_security">
+              <option value="">IMAP 安全（自动）</option>
+              <option value="ssl">SSL/TLS</option>
+              <option value="tls">STARTTLS</option>
+              <option value="plain">明文</option>
+            </select>
+            <input id="imap_user" placeholder="IMAP 用户名" />
+            <input id="smtp_host" placeholder="SMTP 主机" />
+            <input id="smtp_port" type="number" placeholder="SMTP 端口" />
+            <select id="smtp_security">
+              <option value="">SMTP 安全（自动）</option>
+              <option value="ssl">SSL/TLS</option>
+              <option value="tls">STARTTLS</option>
+              <option value="plain">明文</option>
+            </select>
+            <input id="smtp_user" placeholder="SMTP 用户名" />
+            <input id="smtp_password" type="password" placeholder="SMTP 密码" />
+          </div>
+          <button type="submit" id="login-btn">登录</button>
+        </form>
+
         <div id="error" class="error" style="display:none"></div>
-      </form>
+      </div>
     </div>
   `;
 
+  // Tab switching.
+  const tabs = app.querySelectorAll(".tab");
+  const panels = { quick: app.querySelector("#quick-form"), email: app.querySelector("#email-form") };
+  tabs.forEach((t) => {
+    t.addEventListener("click", () => {
+      tabs.forEach((x) => x.classList.remove("active"));
+      t.classList.add("active");
+      Object.entries(panels).forEach(([k, p]) => {
+        p.hidden = k !== t.dataset.tab;
+      });
+      clearError();
+    });
+  });
+  // Show quick panel by default.
+  panels.quick.hidden = false;
+  panels.email.hidden = true;
+
+  // Advanced toggle (email tab).
   const toggle = document.getElementById("advanced-toggle");
   const advanced = document.getElementById("advanced");
   toggle.addEventListener("click", () => {
     advanced.hidden = !advanced.hidden;
   });
 
-  const form = document.getElementById("login-form");
-  form.addEventListener("submit", async (e) => {
+  // ConfigureProgress listener factory.
+  async function attachProgress(btn, doneText) {
+    const unlisten = await onEvent("ConfigureProgress", (p) => {
+      const progress = p.progress;
+      const comment = p.comment || "";
+      if (progress === 0) {
+        btn.textContent = "失败…";
+      } else if (progress >= 1000) {
+        btn.textContent = doneText;
+      } else if (progress > 0) {
+        const pct = Math.floor(progress / 10);
+        btn.textContent = `${pct}%`;
+      }
+      if (comment) {
+        console.log("[configure]", comment);
+      }
+    });
+    return unlisten;
+  }
+
+  // Quick start: create chatmail account.
+  const quickForm = document.getElementById("quick-form");
+  quickForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    clearError();
+    const displayName = document.getElementById("display-name").value.trim();
+    if (!displayName) return;
+    const btn = document.getElementById("quick-btn");
+    btn.disabled = true;
+    btn.textContent = "创建中…";
+    const unlisten = await attachProgress(btn, "成功，正在进入…");
+    try {
+      await call("create_chatmail_account", { displayName });
+      unlisten();
+      onSuccess();
+    } catch {
+      unlisten();
+      btn.disabled = false;
+      btn.textContent = "开始聊天";
+    }
+  });
+
+  // Email login.
+  const emailForm = document.getElementById("email-form");
+  emailForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     clearError();
     const email = document.getElementById("email").value.trim();
@@ -52,21 +127,7 @@ export function renderLogin(onSuccess) {
     const btn = document.getElementById("login-btn");
     btn.disabled = true;
     btn.textContent = "登录中…";
-    const unlisten = await onEvent("ConfigureProgress", (p) => {
-      const progress = p.progress;
-      const comment = p.comment || "";
-      if (progress === 0) {
-        btn.textContent = "登录失败…";
-      } else if (progress >= 1000) {
-        btn.textContent = "登录成功，正在进入…";
-      } else if (progress > 0) {
-        const pct = Math.floor(progress / 10);
-        btn.textContent = `登录中… ${pct}%`;
-      }
-      if (comment) {
-        console.log("[configure]", comment);
-      }
-    });
+    const unlisten = await attachProgress(btn, "登录成功，正在进入…");
     try {
       await call("login", { email, password, advanced: adv });
       unlisten();

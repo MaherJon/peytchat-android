@@ -86,6 +86,46 @@ pub async fn login(
 }
 
 #[tauri::command]
+pub async fn create_chatmail_account(
+    state: State<'_, AppState>,
+    display_name: String,
+) -> AppResult<u32> {
+    let id = {
+        let mut accounts = state.accounts.lock().await;
+        accounts.add_account().await?
+    };
+    let ctx = {
+        let accounts = state.accounts.lock().await;
+        accounts
+            .get_account(id)
+            .ok_or_else(|| AppError::Core("account gone".into()))?
+    };
+
+    // One call: POST relay /new → parse {email,password} → configure → start_io.
+    ctx.add_transport_from_qr("dcaccount:https://nine.testrun.org/new")
+        .await
+        .map_err(|e| {
+            let msg = e.to_string().to_lowercase();
+            if msg.contains("network") || msg.contains("connection") || msg.contains("timeout") {
+                AppError::Network(msg)
+            } else {
+                AppError::Core(e.to_string())
+            }
+        })?;
+
+    // Display name is the only user-chosen identity; relay assigns random addr.
+    ctx.set_config(Config::Displayname, Some(&display_name))
+        .await?;
+
+    {
+        let mut accounts = state.accounts.lock().await;
+        accounts.select_account(id).await?;
+    }
+    state.set_current(id);
+    Ok(id)
+}
+
+#[tauri::command]
 pub async fn get_self_profile(state: State<'_, AppState>) -> AppResult<ProfileDto> {
     let ctx = state
         .current()

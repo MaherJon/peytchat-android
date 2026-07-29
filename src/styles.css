@@ -35,6 +35,12 @@ body {
 }
 .login-form button { cursor: pointer; border-color: var(--fg); }
 .login-form button:disabled { opacity: 0.5; cursor: default; }
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.tab { flex: 1; padding: 10px; background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; color: var(--fg); font-size: 14px; }
+.tab.active { border-bottom-color: var(--fg); font-weight: 600; }
+.tab-panel { display: flex; flex-direction: column; gap: 10px; }
+.tab-panel[hidden] { display: none; }
+.hint { margin: 0; font-size: 12px; color: #888; line-height: 1.5; }
 .advanced { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
 .link { background: none; border: none; color: var(--fg); text-decoration: underline; cursor: pointer; text-align: left; padding: 4px 0; }
 .error { color: var(--fg); background: #f2f2f2; padding: 8px; border-radius: 4px; font-size: 13px; }
