@@ -20,6 +20,35 @@ pub struct ProfileDto {
     pub addr: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct ChatDto {
+    pub chat_id: u32,
+    pub name: String,
+    pub is_group: bool,
+    pub last_msg: Option<String>,
+    pub last_ts: Option<i64>,
+    pub unread: u32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MsgDto {
+    pub msg_id: u32,
+    pub from_id: u32,
+    pub from_name: String,
+    pub text: String,
+    pub ts: i64,
+    pub is_out: bool,
+    pub state: String,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct EventPayload {
+    pub typ: String,
+    pub chat_id: Option<u32>,
+    pub msg_id: Option<u32>,
+    pub contact_id: Option<u32>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

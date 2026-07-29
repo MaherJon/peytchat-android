@@ -1,6 +1,7 @@
 mod commands;
 mod dto;
 mod error;
+mod events;
 mod state;
 
 use tauri::Manager;
@@ -16,6 +17,8 @@ pub fn run() {
             let state = tauri::async_runtime::block_on(async move {
                 AppState::new(accounts_dir).await
             })?;
+            let handle = app.handle().clone();
+            events::spawn_event_forwarder(handle, state.accounts.clone());
             app.manage(state);
             Ok(())
         })
@@ -23,6 +26,9 @@ pub fn run() {
             commands::is_configured,
             commands::login,
             commands::get_self_profile,
+            commands::get_chatlist,
+            commands::get_chat_msgs,
+            commands::send_text,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
