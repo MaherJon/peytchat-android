@@ -17,8 +17,12 @@ tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "1"
+anyhow = "1"
 # netwatch 0.5.0 (transitive via deltachat->iroh) uses socket2::Type::RAW, which
 # is gated behind socket2 0.5's `all` feature. Core's workspace enables `all`
 # transitively via hyper-util; peytchat builds deltachat standalone without that
 # unification, so enable `all` explicitly here.
 socket2 = { version = "0.5", features = ["all"] }
+
+[dev-dependencies]
+tempfile = "3"

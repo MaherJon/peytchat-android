@@ -4845,12 +4845,14 @@ dependencies = [
 name = "peytchat"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "deltachat",
  "serde",
  "serde_json",
  "socket2 0.5.10",
  "tauri",
  "tauri-build",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
 ]
