@@ -11,7 +11,7 @@ export async function call(cmd, args) {
 }
 
 export async function onEvent(typ, cb) {
-  await listen("dc-event", (e) => {
+  return listen("dc-event", (e) => {
     if (e.payload && e.payload.typ === typ) cb(e.payload);
   });
 }

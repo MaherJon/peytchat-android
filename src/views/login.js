@@ -1,4 +1,4 @@
-import { call, clearError, showError } from "../api.js";
+import { call, clearError, onEvent, showError } from "../api.js";
 
 export function renderLogin(onSuccess) {
   const app = document.getElementById("app");
@@ -52,10 +52,15 @@ export function renderLogin(onSuccess) {
     const btn = document.getElementById("login-btn");
     btn.disabled = true;
     btn.textContent = "登录中…";
+    const unlisten = await onEvent("ConfigureProgress", () => {
+      btn.textContent = "登录中…";
+    });
     try {
       await call("login", { email, password, advanced: adv });
+      unlisten();
       onSuccess();
     } catch {
+      unlisten();
       btn.disabled = false;
       btn.textContent = "登录";
     }

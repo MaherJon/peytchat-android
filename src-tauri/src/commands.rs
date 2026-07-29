@@ -60,7 +60,19 @@ pub async fn login(
         param.certificate_checks = EnteredCertificateChecks::Automatic;
     }
 
-    ctx.add_or_update_transport(&mut param).await?;
+    if let Err(e) = ctx.add_or_update_transport(&mut param).await {
+        let msg = e.to_string().to_lowercase();
+        let mapped = if msg.contains("auth") || msg.contains("login") || msg.contains("password") {
+            AppError::AuthFailed
+        } else if msg.contains("network") || msg.contains("connection") || msg.contains("timeout") {
+            AppError::Network(msg)
+        } else if msg.contains("autoconfig") || msg.contains("provider") {
+            AppError::AutoconfigNotFound
+        } else {
+            AppError::Core(e.to_string())
+        };
+        return Err(mapped);
+    }
     ctx.start_io().await;
 
     {
