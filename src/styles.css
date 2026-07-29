@@ -12,3 +12,30 @@ body {
   font-size: 14px;
 }
 #app { height: 100vh; }
+.login-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 320px;
+}
+.login-form h1 { margin: 0 0 8px; font-size: 22px; }
+.login-form input, .login-form select, .login-form button {
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 14px;
+}
+.login-form button { cursor: pointer; border-color: var(--fg); }
+.login-form button:disabled { opacity: 0.5; cursor: default; }
+.advanced { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.link { background: none; border: none; color: var(--fg); text-decoration: underline; cursor: pointer; text-align: left; padding: 4px 0; }
+.error { color: var(--fg); background: #f2f2f2; padding: 8px; border-radius: 4px; font-size: 13px; }
+.main-placeholder { display: flex; align-items: center; justify-content: center; height: 100%; color: #888; }
