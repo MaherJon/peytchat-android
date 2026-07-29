@@ -1,6 +1,7 @@
 import { call, onEvent } from "../api.js";
 import { state } from "../state.js";
 import { renderChatView } from "./chatView.js";
+import { openCreateGroupDialog } from "./group.js";
 
 export async function renderChatList() {
   const app = document.getElementById("app");
@@ -20,7 +21,7 @@ export async function renderChatList() {
   `;
 
   document.getElementById("new-group").addEventListener("click", () => {
-    window.dispatchEvent(new CustomEvent("peytchat:new-group"));
+    openCreateGroupDialog(async () => { await refreshChatlist(); });
   });
 
   await refreshChatlist();
