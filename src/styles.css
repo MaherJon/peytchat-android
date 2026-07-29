@@ -79,3 +79,47 @@ body {
 .dialog-actions { display: flex; justify-content: flex-end; gap: 12px; }
 .dialog-actions button { padding: 8px 16px; border: 1px solid var(--fg); border-radius: 4px; cursor: pointer; }
 .dialog-actions button:last-child { background: var(--fg); color: var(--bg); }
+
+/* Sidebar actions row */
+.sidebar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.sidebar-actions .link { padding: 2px 0; }
+
+/* Chat tag (group/self) */
+.chat-tag { display: inline-block; margin-right: 6px; padding: 0 5px; font-size: 10px; border: 1px solid var(--border); border-radius: 3px; color: #888; vertical-align: middle; }
+
+/* Contact request badge */
+.badge-request { background: transparent; color: var(--fg); border: 1px solid var(--fg); border-radius: 10px; padding: 1px 7px; font-size: 11px; flex-shrink: 0; }
+
+/* Chat header */
+.chat-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 600; }
+.chat-header #chat-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Contact request panel */
+.request-actions { padding: 24px 16px; display: flex; flex-direction: column; gap: 14px; align-items: center; justify-content: center; flex: 1; }
+.request-hint { margin: 0; font-size: 13px; color: #555; text-align: center; line-height: 1.6; }
+.request-buttons { display: flex; gap: 12px; }
+.request-buttons button { padding: 8px 16px; border: 1px solid var(--fg); border-radius: 4px; cursor: pointer; }
+.request-buttons button:first-child { background: var(--fg); color: var(--bg); }
+
+/* Member list in chat info */
+.member-list { list-style: none; margin: 0; padding: 0; max-height: 280px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; }
+.member-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.member-item:last-child { border-bottom: none; }
+.member-meta { flex: 1; min-width: 0; }
+.member-name { font-weight: 500; }
+.member-addr { font-size: 12px; color: #888; }
+.member-item .avatar { width: 28px; height: 28px; font-size: 12px; }
+
+.info-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+.add-member-form { display: flex; gap: 8px; margin-top: 10px; }
+.add-member-form input { flex: 1; padding: 8px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; }
+.add-member-form button { padding: 8px 14px; border: 1px solid var(--fg); background: var(--fg); color: var(--bg); border-radius: 4px; cursor: pointer; }
+
+/* QR code dialog */
+.qr-area { display: flex; align-items: center; justify-content: center; padding: 8px; }
+#qr-canvas { border: 1px solid var(--border); border-radius: 4px; }
+#qr-text { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; resize: none; }
+
+/* Hint text in dialogs */
+.dialog .hint { margin: 0 0 4px; }
+.dialog code { background: #f2f2f2; padding: 1px 4px; border-radius: 3px; font-size: 12px; }

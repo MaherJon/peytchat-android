@@ -6,9 +6,10 @@ use deltachat::contact::{Contact, ContactId};
 use deltachat::login_param::{EnteredCertificateChecks, EnteredLoginParam};
 use deltachat::message::{self, MessageState};
 use deltachat::provider::Socket;
+use deltachat::securejoin;
 use tauri::State;
 
-use crate::dto::{AdvancedLogin, ChatDto, ContactDto, MsgDto, ProfileDto};
+use crate::dto::{AdvancedLogin, ChatDto, ChatInfoDto, ContactDto, MemberDto, MsgDto, ProfileDto};
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
 
@@ -178,6 +179,8 @@ pub async fn get_chatlist(state: State<'_, AppState>) -> AppResult<Vec<ChatDto>>
         let chat_id = list.get_chat_id(i)?;
         let chat = Chat::load_from_db(&ctx, chat_id).await?;
         let is_group = chat.get_type() == Chattype::Group;
+        let is_contact_request = chat.is_contact_request();
+        let is_self_talk = chat.is_self_talk();
         let (last_msg, last_ts) = if let Some(msg_id) = list.get_msg_id(i)? {
             let m = message::Message::load_from_db(&ctx, msg_id).await?;
             (Some(m.get_text()), Some(m.get_timestamp()))
@@ -189,12 +192,65 @@ pub async fn get_chatlist(state: State<'_, AppState>) -> AppResult<Vec<ChatDto>>
             chat_id: chat_id.to_u32(),
             name: chat.get_name().to_string(),
             is_group,
+            is_contact_request,
+            is_self_talk,
             last_msg,
             last_ts,
             unread,
         });
     }
     Ok(out)
+}
+
+#[tauri::command]
+pub async fn get_chat_info(
+    state: State<'_, AppState>,
+    chat_id: u32,
+) -> AppResult<ChatInfoDto> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or_else(|| AppError::Core("no account".into()))?;
+    let chat_id = deltachat::chat::ChatId::new(chat_id);
+    let chat = Chat::load_from_db(&ctx, chat_id).await?;
+    let is_group = chat.get_type() == Chattype::Group;
+    let is_contact_request = chat.is_contact_request();
+    let is_self_talk = chat.is_self_talk();
+
+    let mut members = Vec::new();
+    for cid in chat::get_chat_contacts(&ctx, chat_id).await? {
+        let c = Contact::get_by_id(&ctx, cid).await?;
+        members.push(MemberDto {
+            contact_id: cid.to_u32(),
+            name: c.get_display_name().to_string(),
+            addr: c.get_addr().to_string(),
+            is_self: cid == ContactId::SELF,
+        });
+    }
+    // For 1:1 chats, get_chat_contacts does NOT include SELF; add the other
+    // side's info is already there, but if list is empty (self-talk), we still
+    // want to show self.
+    if members.is_empty() && is_self_talk {
+        let self_id = ctx.get_id();
+        let name = ctx.get_config(Config::Displayname).await?.unwrap_or_default();
+        let addr = ctx.get_config(Config::ConfiguredAddr).await?.unwrap_or_default();
+        members.push(MemberDto {
+            contact_id: 1, // SELF is always 1
+            name,
+            addr,
+            is_self: true,
+        });
+        let _ = self_id; // suppress unused warning
+    }
+
+    Ok(ChatInfoDto {
+        chat_id: chat_id.to_u32(),
+        name: chat.get_name().to_string(),
+        is_group,
+        is_contact_request,
+        is_self_talk,
+        members,
+    })
 }
 
 #[tauri::command]
@@ -296,4 +352,89 @@ pub async fn add_group_member(
     let cid = Contact::create(&ctx, "", &email).await?;
     chat::add_contact_to_chat(&ctx, chat_id, cid).await?;
     Ok(cid.to_u32())
+}
+
+/// Create a 1:1 chat with the given email. If a chat already exists
+/// (including a contact-request chat), returns the existing chat id.
+#[tauri::command]
+pub async fn create_chat_by_email(
+    state: State<'_, AppState>,
+    email: String,
+) -> AppResult<u32> {
+    let ctx = state.current().await.ok_or(AppError::Core("no account".into()))?;
+    let email = email.trim().to_string();
+    if email.is_empty() {
+        return Err(AppError::Core("邮箱不能为空".into()));
+    }
+    let cid = Contact::create(&ctx, "", &email).await?;
+    let chat_id = deltachat::chat::ChatId::create_for_contact(&ctx, cid).await?;
+    Ok(chat_id.to_u32())
+}
+
+/// Accept a contact-request chat so the user can reply.
+#[tauri::command]
+pub async fn accept_chat(state: State<'_, AppState>, chat_id: u32) -> AppResult<()> {
+    let ctx = state.current().await.ok_or(AppError::Core("no account".into()))?;
+    let chat_id = deltachat::chat::ChatId::new(chat_id);
+    chat_id.accept(&ctx).await?;
+    Ok(())
+}
+
+/// Block a contact-request chat (and its contact).
+#[tauri::command]
+pub async fn block_chat(state: State<'_, AppState>, chat_id: u32) -> AppResult<()> {
+    let ctx = state.current().await.ok_or(AppError::Core("no account".into()))?;
+    let chat_id = deltachat::chat::ChatId::new(chat_id);
+    chat_id.block(&ctx).await?;
+    Ok(())
+}
+
+/// Delete a chat (also used to dismiss a contact request).
+#[tauri::command]
+pub async fn delete_chat(state: State<'_, AppState>, chat_id: u32) -> AppResult<()> {
+    let ctx = state.current().await.ok_or(AppError::Core("no account".into()))?;
+    let chat_id = deltachat::chat::ChatId::new(chat_id);
+    chat_id.delete(&ctx).await?;
+    Ok(())
+}
+
+/// Leave a group chat (removes SELF from the member list).
+#[tauri::command]
+pub async fn leave_group(state: State<'_, AppState>, chat_id: u32) -> AppResult<()> {
+    let ctx = state.current().await.ok_or(AppError::Core("no account".into()))?;
+    let chat_id = deltachat::chat::ChatId::new(chat_id);
+    chat::remove_contact_from_chat(&ctx, chat_id, ContactId::SELF).await?;
+    Ok(())
+}
+
+/// Mark all messages in a chat as noticed (clears unread badge).
+#[tauri::command]
+pub async fn mark_chat_noticed(state: State<'_, AppState>, chat_id: u32) -> AppResult<()> {
+    let ctx = state.current().await.ok_or(AppError::Core("no account".into()))?;
+    let chat_id = deltachat::chat::ChatId::new(chat_id);
+    chat::marknoticed_chat(&ctx, chat_id).await?;
+    Ok(())
+}
+
+/// Returns the user's own SecureJoin QR code (e.g. `OPENPGP4FPR:...`)
+/// that another Delta Chat user can scan to add you as a verified contact.
+/// Pass `chat_id = None` for the personal QR, or a group chat id for a group-invite QR.
+#[tauri::command]
+pub async fn get_securejoin_qr(
+    state: State<'_, AppState>,
+    chat_id: Option<u32>,
+) -> AppResult<String> {
+    let ctx = state.current().await.ok_or(AppError::Core("no account".into()))?;
+    let chat_id = chat_id.map(deltachat::chat::ChatId::new);
+    let qr = securejoin::get_securejoin_qr(&ctx, chat_id).await?;
+    Ok(qr)
+}
+
+/// Perform a SecureJoin by scanning a `dccontact:` / `dcgroup:` / `DCACCOUNT:` URL.
+/// Returns the resulting chat id (for `dccontact:` it's the 1:1 chat with the new verified contact).
+#[tauri::command]
+pub async fn secure_join(state: State<'_, AppState>, qr: String) -> AppResult<u32> {
+    let ctx = state.current().await.ok_or(AppError::Core("no account".into()))?;
+    let chat_id = securejoin::join_securejoin(&ctx, &qr).await?;
+    Ok(chat_id.to_u32())
 }

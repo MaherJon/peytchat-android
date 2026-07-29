@@ -25,9 +25,29 @@ pub struct ChatDto {
     pub chat_id: u32,
     pub name: String,
     pub is_group: bool,
+    pub is_contact_request: bool,
+    pub is_self_talk: bool,
     pub last_msg: Option<String>,
     pub last_ts: Option<i64>,
     pub unread: u32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MemberDto {
+    pub contact_id: u32,
+    pub name: String,
+    pub addr: String,
+    pub is_self: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ChatInfoDto {
+    pub chat_id: u32,
+    pub name: String,
+    pub is_group: bool,
+    pub is_contact_request: bool,
+    pub is_self_talk: bool,
+    pub members: Vec<MemberDto>,
 }
 
 #[derive(Debug, Serialize)]

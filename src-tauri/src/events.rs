@@ -47,6 +47,38 @@ pub fn spawn_event_forwarder(app: AppHandle, accounts: Arc<Mutex<Accounts>>) {
                     progress: Some(progress),
                     comment,
                 },
+                EventType::ChatlistItemChanged { chat_id } => EventPayload {
+                    typ: "ChatlistItemChanged".into(),
+                    chat_id: chat_id.map(|x| x.to_u32()),
+                    msg_id: None,
+                    contact_id: None,
+                    progress: None,
+                    comment: None,
+                },
+                EventType::ChatModified(chat_id) => EventPayload {
+                    typ: "ChatModified".into(),
+                    chat_id: Some(chat_id.to_u32()),
+                    msg_id: None,
+                    contact_id: None,
+                    progress: None,
+                    comment: None,
+                },
+                EventType::SecurejoinJoinerProgress { contact_id, progress } => EventPayload {
+                    typ: "SecurejoinJoinerProgress".into(),
+                    chat_id: None,
+                    msg_id: None,
+                    contact_id: Some(contact_id.to_u32()),
+                    progress: Some(progress),
+                    comment: None,
+                },
+                EventType::SecurejoinInviterProgress { contact_id, progress, .. } => EventPayload {
+                    typ: "SecurejoinInviterProgress".into(),
+                    chat_id: None,
+                    msg_id: None,
+                    contact_id: Some(contact_id.to_u32()),
+                    progress: Some(progress),
+                    comment: None,
+                },
                 _ => continue,
             };
             let _ = app.emit("dc-event", payload);
