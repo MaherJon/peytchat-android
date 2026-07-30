@@ -160,7 +160,19 @@ pub async fn get_self_profile(state: State<'_, AppState>) -> AppResult<ProfileDt
     let id = ctx.get_id();
     let name = ctx.get_config(Config::Displayname).await?;
     let addr = ctx.get_config(Config::ConfiguredAddr).await?;
-    Ok(ProfileDto { id, name, addr })
+    let self_contact = Contact::get_by_id(&ctx, ContactId::SELF).await?;
+    let avatar = self_contact
+        .get_profile_image(&ctx)
+        .await?
+        .map(|p| p.to_string_lossy().to_string());
+    let color = Some(self_contact.get_color());
+    Ok(ProfileDto {
+        id,
+        name,
+        addr,
+        avatar,
+        color,
+    })
 }
 
 fn state_str(s: MessageState) -> &'static str {
@@ -226,11 +238,18 @@ pub async fn get_chat_info(
     let mut members = Vec::new();
     for cid in chat::get_chat_contacts(&ctx, chat_id).await? {
         let c = Contact::get_by_id(&ctx, cid).await?;
+        let avatar = c
+            .get_profile_image(&ctx)
+            .await?
+            .map(|p| p.to_string_lossy().to_string());
+        let color = Some(c.get_color());
         members.push(MemberDto {
             contact_id: cid.to_u32(),
             name: c.get_display_name().to_string(),
             addr: c.get_addr().to_string(),
             is_self: cid == ContactId::SELF,
+            avatar,
+            color,
         });
     }
     // For 1:1 chats, get_chat_contacts does NOT include SELF; add the other
@@ -240,11 +259,19 @@ pub async fn get_chat_info(
         let self_id = ctx.get_id();
         let name = ctx.get_config(Config::Displayname).await?.unwrap_or_default();
         let addr = ctx.get_config(Config::ConfiguredAddr).await?.unwrap_or_default();
+        let self_contact = Contact::get_by_id(&ctx, ContactId::SELF).await?;
+        let avatar = self_contact
+            .get_profile_image(&ctx)
+            .await?
+            .map(|p| p.to_string_lossy().to_string());
+        let color = Some(self_contact.get_color());
         members.push(MemberDto {
             contact_id: 1, // SELF is always 1
             name,
             addr,
             is_self: true,
+            avatar,
+            color,
         });
         let _ = self_id; // suppress unused warning
     }
@@ -890,14 +917,45 @@ pub async fn leave_channel(
 #[tauri::command]
 pub async fn update_profile(
     state: State<'_, AppState>,
-    name: String,
+    name: Option<String>,
+    avatar_path: Option<String>, // None=不改, Some(path)=设置, Some("")=删除
 ) -> AppResult<()> {
     let ctx = state
         .current()
         .await
         .ok_or(AppError::Core("no account".into()))?;
-    ctx.set_config(Config::Displayname, Some(&name)).await?;
+    if let Some(n) = name {
+        ctx.set_config(Config::Displayname, Some(&n)).await?;
+    }
+    if let Some(ap) = avatar_path {
+        let value = if ap.is_empty() { None } else { Some(ap.as_str()) };
+        ctx.set_config(Config::Selfavatar, value).await?;
+    }
     Ok(())
+}
+
+/// Task 13: 把前端 <input type="file"> 选中的字节写入临时文件,返回路径。
+/// 然后前端用此路径调 update_profile({avatarPath: path}) 让 core 复制到 blobdir。
+/// 不引入 tauri-plugin-dialog 依赖(避免 Cargo + capabilities 改动)。
+#[tauri::command]
+pub async fn save_avatar_from_bytes(bytes: Vec<u8>, ext: String) -> AppResult<String> {
+    let dir = std::env::temp_dir().join("peytchat-avatars");
+    tokio::fs::create_dir_all(&dir).await?;
+    let safe_ext = ext.trim_start_matches('.').to_lowercase();
+    let safe_ext = if safe_ext.is_empty() || !safe_ext.chars().all(|c| c.is_ascii_alphanumeric()) {
+        "png".to_string()
+    } else {
+        safe_ext
+    };
+    let filename = format!(
+        "avatar-{}-{}.{}",
+        std::process::id(),
+        chrono::Utc::now().timestamp_millis(),
+        safe_ext
+    );
+    let path = dir.join(filename);
+    tokio::fs::write(&path, &bytes).await?;
+    Ok(path.to_string_lossy().to_string())
 }
 
 #[tauri::command]

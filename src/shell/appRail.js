@@ -1,4 +1,4 @@
-import { call } from "../api.js";
+import { call, transformBlobURL } from "../api.js";
 import { state } from "../state.js";
 import { showToast } from "../toast.js";
 import { saveState } from "../persist.js";
@@ -18,6 +18,13 @@ export async function renderAppRail() {
   rail.className = "app-rail";
   // Task 12: renderWorkspaces 现在异步(并行拉取各 ws 真实未读),先 await 再拼字符串。
   const workspacesHtml = await renderWorkspaces();
+  // Task 13: 底部头像支持 avatar 图片, fallback 首字母 + Contact::get_color() 背景色。
+  const avatarUrl = state.self?.avatar ? await transformBlobURL(state.self.avatar) : null;
+  const bg = colorHex(state.self?.color);
+  const letter = (state.self?.name || "?").charAt(0).toUpperCase() || "?";
+  const avatarHtml = avatarUrl
+    ? `<img src="${escapeAttr(avatarUrl)}" class="app-avatar" alt="me" />`
+    : `<div class="app-avatar" style="background:${bg}">${escapeHtml(letter)}</div>`;
   rail.innerHTML = `
     <div class="app-icon ${state.currentApp === "chat" ? "active" : ""}" data-app="chat" title="Chat · 聊天">Ch</div>
     <div class="app-icon disabled" data-app="work" title="Work · 协作（SP5 启用）">Wk</div>
@@ -26,10 +33,16 @@ export async function renderAppRail() {
     ${workspacesHtml}
     <div class="app-flex"></div>
     <div class="app-icon settings" title="设置">·</div>
-    <div class="app-avatar">${escapeHtml((state.self?.name || "?").charAt(0).toUpperCase())}</div>
+    ${avatarHtml}
   `;
   bindAppIcons();
   bindWorkspaceIcons();
+}
+
+// Task 13: 把 Contact::get_color() 返回的 u32 转成 #rrggbb。null/undefined → 默认 #222。
+function colorHex(c) {
+  if (!c && c !== 0) return "#222";
+  return "#" + (c & 0xffffff).toString(16).padStart(6, "0");
 }
 
 // Task 12: 真实未读聚合 — 调 get_chatlist 取所有 chat,筛出属于该 ws 的

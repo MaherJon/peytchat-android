@@ -59,7 +59,9 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   width: 36px; height: 36px; background: #222; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: 11px; font-weight: 600; cursor: pointer;
+  color: #e5e5e5; object-fit: cover; overflow: hidden;
 }
+.app-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 .app-separator { width: 24px; height: 1px; background: #1f1f1f; margin: 6px 0; }
 .app-flex { flex: 1; }
 .app-ws-icon {
@@ -110,7 +112,10 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   width: 32px; height: 32px; background: #222; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: 12px; font-weight: 600; color: #e5e5e5; flex-shrink: 0;
+  overflow: hidden;
 }
+.home-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.ct-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 .home-content { flex: 1; min-width: 0; }
 .home-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .home-name { font-size: 11px; font-weight: 500; color: #e5e5e5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -152,7 +157,8 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .rd-search input { width: 100%; padding: 5px 8px; background: #0a0a0a; border: 1px solid #222; border-radius: 3px; color: #e5e5e5; font-size: 10px; font-family: inherit; }
 .rd-group { color: var(--text-weak); font-size: 9px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; margin: 8px 0 4px; padding: 0 16px; }
 .rd-member { padding: 4px 16px; display: flex; align-items: center; gap: 8px; }
-.rd-avatar { width: 20px; height: 20px; background: #222; border-radius: 50%; font-size: 9px; display: flex; align-items: center; justify-content: center; }
+.rd-avatar { width: 24px; height: 24px; background: #222; border-radius: 50%; font-size: 10px; font-weight: 600; color: #e5e5e5; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; }
+.rd-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 .rd-member .rd-name { font-size: 11px; }
 .rd-member.muted .rd-name { color: var(--text-mute); }
 .detail-expand { position: absolute; right: 0; top: 50%; transform: translateY(-50%); width: 20px; height: 40px; background: #0a0a0a; border: 1px solid #1a1a1a; border-right: none; border-radius: 4px 0 0 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #888; z-index: 10; }
@@ -451,3 +457,33 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .rd-pin-from { font-size: 10px; font-weight: 600; color: #e5e5e5; margin-bottom: 2px; }
 .rd-pin-text { font-size: 10px; color: #888; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .rd-pin-time { font-size: 9px; color: #555; margin-top: 4px; }
+
+/* Task 13: 头像样式 — 各处头像统一规则(图片用 object-fit: cover;字母用 flex 居中)。
+   按任务简报 Step 10 尺寸:app-avatar 36px / msg-avatar 28px / home-avatar 32px /
+   rd-avatar 24px(已在 .rd-avatar 定义)/ member-detail-avatar 80px /
+   settings-avatar 64px。
+   font-size:msg 11px / home 12px / settings-letter 28px / member-detail 32px。
+   注:这些尺寸不全在全局调色板,但 brief Step 10 明确给定,按 brief 执行。*/
+.msg-avatar {
+  width: 28px; height: 28px; background: #222; border-radius: 50%;
+  font-size: 11px; font-weight: 600; color: #e5e5e5;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; overflow: hidden;
+}
+.msg-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.msg-row { display: flex; gap: 10px; align-items: flex-start; }
+.msg-row .msg-body { flex: 1; min-width: 0; }
+.member-detail-avatar {
+  width: 80px; height: 80px; background: #222; border-radius: 50%;
+  font-size: 32px; font-weight: 600; color: #e5e5e5;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; overflow: hidden;
+}
+.member-detail-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.settings-avatar { width: 64px; height: 64px; margin: 0 auto 12px; }
+.settings-avatar-img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; }
+.settings-avatar-letter {
+  width: 64px; height: 64px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; font-weight: 600; color: #e5e5e5;
+}

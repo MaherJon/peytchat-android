@@ -1,4 +1,4 @@
-import { call } from "../api.js";
+import { call, transformBlobURL } from "../api.js";
 import { state } from "../state.js";
 import { showToast } from "../toast.js";
 import hljs from "highlight.js/lib/core";
@@ -46,6 +46,16 @@ export async function renderMessage(m) {
   const replyMark = m.quote_from ? `<span class="msg-reply-mark">↩ reply to ${escapeHtml(m.quote_from)}</span>` : "";
   const quoteBlock = m.quote_text ? `<div class="msg-quote">${escapeHtml(m.quote_from || '')}: ${escapeHtml(m.quote_text.slice(0, 80))}</div>` : "";
   const textHtml = renderText(m.text);
+  // Task 13: 发送者头像 — 从 state.currentMembers 查找 member.avatar/color。
+  // state.currentMembers 由 renderChatView 调用 get_chat_info 时填充。
+  // 找不到时 fallback 首字母 + 默认背景色 #222。
+  const member = state.currentMembers?.find((mm) => mm.contact_id === m.from_id);
+  const avatarUrl = member?.avatar ? await transformBlobURL(member.avatar) : null;
+  const bg = colorHex(member?.color);
+  const letter = (m.from_name || "?").charAt(0).toUpperCase() || "?";
+  const avatarHtml = avatarUrl
+    ? `<img src="${escapeHtml(avatarUrl)}" class="msg-avatar" alt="" />`
+    : `<div class="msg-avatar" style="background:${bg}">${escapeHtml(letter)}</div>`;
   // 附件渲染（view_type != Text）
   let attachmentHtml = "";
   if (m.view_type && m.view_type !== "Text" && m.file) {
@@ -107,25 +117,36 @@ export async function renderMessage(m) {
     : "";
   return `
     <div class="msg${stateClass}" data-msg="${m.msg_id}" style="position:relative">
-      <div class="msg-meta">
-        <span class="msg-name">${escapeHtml(m.from_name)}</span>
-        <span class="msg-time">${formatTs(m.ts)}</span>
-        ${roleTag}${replyMark}
-        ${pinBtn} ${replyBtn} ${reactBtn} ${delBtn}
-        ${stateHtml} ${resendBtn}
-      </div>
-      ${quoteBlock}
-      <div class="msg-text">${textHtml}</div>
-      ${attachmentHtml}
-      ${reactionsHtml}
-      <div class="msg-reaction-picker" id="rp-${m.msg_id}">
-        <span data-emoji="👍">↑</span>
-        <span data-emoji="➕">+</span>
-        <span data-emoji="★">★</span>
-        <span data-emoji="!">!</span>
+      <div class="msg-row">
+        ${avatarHtml}
+        <div class="msg-body">
+          <div class="msg-meta">
+            <span class="msg-name">${escapeHtml(m.from_name)}</span>
+            <span class="msg-time">${formatTs(m.ts)}</span>
+            ${roleTag}${replyMark}
+            ${pinBtn} ${replyBtn} ${reactBtn} ${delBtn}
+            ${stateHtml} ${resendBtn}
+          </div>
+          ${quoteBlock}
+          <div class="msg-text">${textHtml}</div>
+          ${attachmentHtml}
+          ${reactionsHtml}
+          <div class="msg-reaction-picker" id="rp-${m.msg_id}">
+            <span data-emoji="👍">↑</span>
+            <span data-emoji="➕">+</span>
+            <span data-emoji="★">★</span>
+            <span data-emoji="!">!</span>
+          </div>
+        </div>
       </div>
     </div>
   `;
+}
+
+// Task 13: 把 Contact::get_color() 返回的 u32 转成 #rrggbb。null/undefined → 默认 #222。
+function colorHex(c) {
+  if (!c && c !== 0) return "#222";
+  return "#" + (c & 0xffffff).toString(16).padStart(6, "0");
 }
 
 function getRoleName(contactId) {

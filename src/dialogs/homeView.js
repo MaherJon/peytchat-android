@@ -1,4 +1,4 @@
-import { call } from "../api.js";
+import { call, transformBlobURL } from "../api.js";
 import { state } from "../state.js";
 import { showToast } from "../toast.js";
 import { renderChatView } from "../chat/chatView.js";
@@ -24,6 +24,12 @@ function avatarLetter(name) {
   if (!name) return "?";
   const chars = [...name];
   return chars[0]?.toUpperCase() || "?";
+}
+
+// Task 13: 把 Contact::get_color() 返回的 u32 转成 #rrggbb。null/undefined → 默认 #222。
+function colorHex(c) {
+  if (!c && c !== 0) return "#222";
+  return "#" + (c & 0xffffff).toString(16).padStart(6, "0");
 }
 
 export async function renderHomeView() {
@@ -63,6 +69,15 @@ export async function renderHomeView() {
       </div>
     `;
   }).join("");
+  // Task 13: 底部 .ct-user 显示自己的头像(若有 avatar,否则首字母 + color 背景)。
+  // 列表项 .home-item 暂不显示头像(ChatDto 无 avatar/color 字段,需扩 ChatDto 才能取;
+  // 出范围。后续 task 若要列表头像,需补 ChatDto.avatar/color)。
+  const selfAvatarUrl = state.self?.avatar ? await transformBlobURL(state.self.avatar) : null;
+  const selfBg = colorHex(state.self?.color);
+  const selfLetter = (state.self?.name || "?").charAt(0).toUpperCase() || "?";
+  const selfAvatarHtml = selfAvatarUrl
+    ? `<img src="${escapeHtml(selfAvatarUrl)}" class="ct-avatar" alt="me" />`
+    : `<div class="ct-avatar" style="background:${selfBg}">${escapeHtml(selfLetter)}</div>`;
   tree.innerHTML = `
     <div class="ct-header" style="display:flex;justify-content:space-between;align-items:center">
       <div>
@@ -73,7 +88,7 @@ export async function renderHomeView() {
     </div>
     <div class="ct-list">${items || '<div class="guide-card" style="height:auto;padding:24px 16px"><div>还没有会话</div><div style="font-size:9px;color:#555;margin-top:4px">点 + 添加好友或创建群</div></div>'}</div>
     <div class="ct-user" style="cursor:pointer">
-      <div class="ct-avatar">${escapeHtml(state.self?.name?.charAt(0) || "?")}</div>
+      ${selfAvatarHtml}
       <div>
         <div class="ct-username">${escapeHtml(state.self?.name || "me")}</div>
       </div>

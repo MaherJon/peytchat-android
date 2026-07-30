@@ -16,6 +16,17 @@ export async function onEvent(typ, cb) {
   });
 }
 
+// Task 13: 把 blobdir 绝对路径转成 webview 可加载的 asset:// URL。
+// 失败时返回 null,调用方需自行 fallback 到首字母头像。
+export async function transformBlobURL(path) {
+  if (!path) return null;
+  try {
+    return await call("get_asset_url", { path });
+  } catch {
+    return null;
+  }
+}
+
 export function showError(err) {
   const el = document.getElementById("error");
   if (!el) return;

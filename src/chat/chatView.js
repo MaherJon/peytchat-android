@@ -59,6 +59,14 @@ export async function renderChatView(chatId) {
       const pins = await call("get_channel_pins", { chatId });
       pinCount = pins.length;
     } catch {}
+    // Task 13: 拉取 chat_info 并把 members 存入 state.currentMembers,
+    // 供 message.js 查找发送者的 avatar/color。失败时清空,避免显示上一个频道的成员。
+    try {
+      const info = await call("get_chat_info", { chatId });
+      state.currentMembers = info.members || [];
+    } catch {
+      state.currentMembers = [];
+    }
     // 渲染骨架
     main.innerHTML = `
       <div class="chat-header">

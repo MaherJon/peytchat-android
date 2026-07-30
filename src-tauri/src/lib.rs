@@ -69,6 +69,7 @@ pub fn run() {
             commands::delete_channel,
             commands::leave_channel,
             commands::update_profile,
+            commands::save_avatar_from_bytes,
             commands::get_my_qr,
             commands::logout,
             commands::delete_msg,

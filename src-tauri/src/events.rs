@@ -127,6 +127,15 @@ pub fn spawn_event_forwarder(app: AppHandle, accounts: Arc<Mutex<Accounts>>) {
                     comment: None,
                     text: None,
                 },
+                EventType::SelfavatarChanged => EventPayload {
+                    typ: "SelfavatarChanged".into(),
+                    chat_id: None,
+                    msg_id: None,
+                    contact_id: None,
+                    progress: None,
+                    comment: None,
+                    text: None,
+                },
                 EventType::ConfigureProgress { progress, comment } => EventPayload {
                     typ: "ConfigureProgress".into(),
                     chat_id: None,

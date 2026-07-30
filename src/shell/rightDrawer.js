@@ -1,8 +1,25 @@
-import { call } from "../api.js";
+import { call, transformBlobURL } from "../api.js";
 import { state } from "../state.js";
 import { saveState } from "../persist.js";
 import { renderSettingsPanel } from "../dialogs/settingsPanel.js";
 import { showToast } from "../toast.js";
+
+// Task 13: 把 Contact::get_color() 返回的 u32 转成 #rrggbb。null/undefined → 默认 #222。
+function colorHex(c) {
+  if (!c && c !== 0) return "#222";
+  return "#" + (c & 0xffffff).toString(16).padStart(6, "0");
+}
+
+// Task 13: 渲染单个成员头像 HTML(图片 or 首字母 + color 背景)。
+// 异步因 transformBlobURL 调 Tauri 命令。
+async function renderAvatarHtml(member) {
+  const url = member?.avatar ? await transformBlobURL(member.avatar) : null;
+  const bg = colorHex(member?.color);
+  const letter = (member?.name || "?").charAt(0).toUpperCase() || "?";
+  return url
+    ? `<img src="${escapeHtml(url)}" class="rd-avatar" alt="" />`
+    : `<div class="rd-avatar" style="background:${bg}">${escapeHtml(letter)}</div>`;
+}
 
 export function renderRightDrawer() {
   const drawer = document.getElementById("right-drawer");
@@ -107,18 +124,28 @@ async function renderMembers(body) {
       if (!order.includes(name) && grouped.has(name)) order.push(name);
     }
     const searchHtml = `<div class="rd-search"><input id="rd-member-search" placeholder="搜索成员..." /></div>`;
-    const html = order
-      .filter((name) => grouped.has(name) && grouped.get(name).length > 0)
-      .map((name) => {
-        const list = grouped.get(name);
-        const items = list.map((m) => `
-          <div class="rd-member ${m.is_self ? '' : 'muted'}" data-name="${escapeHtml(m.name)}" ${m.is_self ? '' : `data-cid="${m.contact_id}" style="cursor:pointer"`}>
-            <div class="rd-avatar">${escapeHtml(m.name.charAt(0).toUpperCase())}</div>
-            <span class="rd-name">${escapeHtml(m.name)}</span>
-          </div>
-        `).join("");
-        return `<div class="rd-group">${escapeHtml(name.toUpperCase())} · ${list.length}</div>${items}`;
-      }).join("");
+    // Task 13: 并行渲染每个分组成员的头像(每个 member 一个 transformBlobURL 调用,
+    // 用 Promise.all 串成一个数组,再 join 成 HTML 字符串)。
+    const sectionResults = await Promise.all(
+      order
+        .filter((name) => grouped.has(name) && grouped.get(name).length > 0)
+        .map(async (name) => {
+          const list = grouped.get(name);
+          const items = await Promise.all(
+            list.map(async (m) => {
+              const avatarHtml = await renderAvatarHtml(m);
+              return `
+              <div class="rd-member ${m.is_self ? '' : 'muted'}" data-name="${escapeHtml(m.name)}" ${m.is_self ? '' : `data-cid="${m.contact_id}" style="cursor:pointer"`}>
+                ${avatarHtml}
+                <span class="rd-name">${escapeHtml(m.name)}</span>
+              </div>
+            `;
+            })
+          );
+          return `<div class="rd-group">${escapeHtml(name.toUpperCase())} · ${list.length}</div>${items.join("")}`;
+        })
+    );
+    const html = sectionResults.join("");
     body.innerHTML = searchHtml + (html || `<div style="padding:16px;color:#555">无成员</div>`);
     const searchInput = body.querySelector("#rd-member-search");
     if (searchInput) {

@@ -1,9 +1,15 @@
-import { call } from "../api.js";
+import { call, transformBlobURL } from "../api.js";
 import { showToast } from "../toast.js";
 import { state } from "../state.js";
 import { renderChatView } from "../chat/chatView.js";
 import { renderHomeView } from "./homeView.js";
 import { renderRightDrawer } from "../shell/rightDrawer.js";
+
+// Task 13: 把 Contact::get_color() 返回的 u32 转成 #rrggbb。null/undefined → 默认 #222。
+function colorHex(c) {
+  if (!c && c !== 0) return "#222";
+  return "#" + (c & 0xffffff).toString(16).padStart(6, "0");
+}
 
 export async function renderMemberDetail(body, contactId) {
   body.innerHTML = `<div class="spinner"><span></span></div>`;
@@ -14,11 +20,18 @@ export async function renderMemberDetail(body, contactId) {
       body.innerHTML = `<div style="padding:16px;color:#555">成员不存在</div>`;
       return;
     }
+    // Task 13: 大头像 — 80×80,图片优先,否则首字母 + color 背景。
+    const avatarUrl = member.avatar ? await transformBlobURL(member.avatar) : null;
+    const bg = colorHex(member.color);
+    const letter = (member.name || "?").charAt(0).toUpperCase() || "?";
+    const avatarHtml = avatarUrl
+      ? `<img src="${escapeHtml(avatarUrl)}" class="member-detail-avatar" alt="" />`
+      : `<div class="member-detail-avatar" style="background:${bg}">${escapeHtml(letter)}</div>`;
     body.innerHTML = `
       <div class="rd-group">成员详情</div>
       <div style="padding:0 16px 8px;display:flex;flex-direction:column;gap:8px">
         <div style="display:flex;align-items:center;gap:10px;margin:8px 0">
-          <div class="rd-avatar" style="width:32px;height:32px;font-size:13px">${escapeHtml(member.name.charAt(0).toUpperCase())}</div>
+          ${avatarHtml}
           <div>
             <div style="font-size:12px;font-weight:600;color:#e5e5e5">${escapeHtml(member.name)}</div>
             <div style="font-size:9px;color:#555">${escapeHtml(member.addr || "")}</div>

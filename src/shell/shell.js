@@ -81,6 +81,15 @@ export async function renderShell() {
   });
   onEvent("ContactsChanged", refreshSidebar);
 
+  // Task 13: 自己的头像变了(本机设置 or 多设备同步) → 刷新 state.self + appRail 底部头像。
+  // 不重渲染整个 shell,只更新 rail。
+  onEvent("SelfavatarChanged", async () => {
+    try {
+      state.self = await call("get_self_profile");
+      renderAppRail();
+    } catch {}
+  });
+
   // Task 8: 消息状态/反应/删除/会话删除等 13 个事件 handler
   onEvent("MsgDelivered", (e) => updateMsgState(e.msg_id, "delivered"));
   onEvent("MsgFailed", (e) => updateMsgState(e.msg_id, "failed"));

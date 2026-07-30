@@ -18,6 +18,8 @@ pub struct ProfileDto {
     pub id: u32,
     pub name: Option<String>,
     pub addr: Option<String>,
+    pub avatar: Option<String>, // blobdir 绝对路径
+    pub color: Option<u32>,     // Contact::get_color() 返回的 u32
 }
 
 #[derive(Debug, Serialize)]
@@ -38,6 +40,8 @@ pub struct MemberDto {
     pub name: String,
     pub addr: String,
     pub is_self: bool,
+    pub avatar: Option<String>,
+    pub color: Option<u32>,
 }
 
 #[derive(Debug, Serialize)]

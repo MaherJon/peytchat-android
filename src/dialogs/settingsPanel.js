@@ -1,4 +1,4 @@
-import { call } from "../api.js";
+import { call, transformBlobURL } from "../api.js";
 import { showToast } from "../toast.js";
 import { state } from "../state.js";
 import { refreshWorkspaces, renderAppRail } from "../shell/appRail.js";
@@ -9,6 +9,12 @@ import { showQrOverlay } from "./qrShow.js";
 
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// Task 13: 把 Contact::get_color() 返回的 u32 转成 #rrggbb,用于头像首字母背景色。
+function colorHex(c) {
+  if (!c && c !== 0) return "#222";
+  return "#" + (c & 0xffffff).toString(16).padStart(6, "0");
 }
 
 export async function renderSettingsPanel(body) {
@@ -30,9 +36,20 @@ async function renderAccountSettings(body) {
     profile = await call("get_self_profile");
     state.self = profile;
   } catch {}
+  const avatarUrl = profile?.avatar ? await transformBlobURL(profile.avatar) : null;
+  const bg = colorHex(profile?.color);
+  const letter = (profile?.name || "?").charAt(0).toUpperCase() || "?";
+  const avatarHtml = avatarUrl
+    ? `<img src="${esc(avatarUrl)}" class="settings-avatar-img" alt="avatar" />`
+    : `<div class="settings-avatar-letter" style="background:${bg}">${esc(letter)}</div>`;
   body.innerHTML = `
     <div class="rd-group">账号</div>
     <div style="padding:0 16px 8px;display:flex;flex-direction:column;gap:8px">
+      <div class="settings-avatar">${avatarHtml}</div>
+      <div style="display:flex;gap:8px">
+        <button id="acc-change-avatar" style="flex:1;background:#161616;border:1px solid #222;color:#e5e5e5;padding:6px;border-radius:4px;font-size:11px;cursor:pointer">更换头像</button>
+        <button id="acc-clear-avatar" style="flex:1;background:transparent;border:1px solid #222;color:#888;padding:6px;border-radius:4px;font-size:11px;cursor:pointer">删除头像</button>
+      </div>
       <label style="font-size:9px;color:#555">显示名</label>
       <input id="acc-name" value="${esc(profile?.name || "")}" style="background:#0a0a0a;border:1px solid #222;border-radius:4px;padding:6px 10px;color:#e5e5e5;font-size:11px" />
       <label style="font-size:9px;color:#555">邮箱(只读)</label>
@@ -40,14 +57,48 @@ async function renderAccountSettings(body) {
       <button id="acc-save" style="background:#161616;border:1px solid #222;color:#e5e5e5;padding:6px;border-radius:4px;font-size:11px;cursor:pointer;margin-top:4px">保存</button>
       <button id="acc-qr" style="background:transparent;border:1px solid #222;color:#888;padding:6px;border-radius:4px;font-size:11px;cursor:pointer">我的二维码</button>
       <button id="acc-logout" style="background:transparent;border:1px solid #222;color:#555;padding:6px;border-radius:4px;font-size:11px;cursor:pointer;margin-top:12px">登出</button>
+      <input id="acc-avatar-file" type="file" accept="image/*" style="display:none" />
     </div>
   `;
+  // Task 13: 更换头像 — 用隐藏的 <input type="file"> 触发文件选择,
+  // 读取为 ArrayBuffer → save_avatar_from_bytes 写临时文件 → update_profile 设 Selfavatar。
+  // 不依赖 tauri-plugin-dialog(避免 Cargo + capabilities 改动)。
+  document.getElementById("acc-change-avatar").onclick = () => {
+    document.getElementById("acc-avatar-file").click();
+  };
+  document.getElementById("acc-avatar-file").onchange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const buf = await file.arrayBuffer();
+      const bytes = Array.from(new Uint8Array(buf));
+      const ext = (file.name.split(".").pop() || "png").toLowerCase();
+      const path = await call("save_avatar_from_bytes", { bytes, ext });
+      await call("update_profile", { name: null, avatarPath: path });
+      state.self = await call("get_self_profile");
+      renderAppRail();
+      await renderAccountSettings(body);
+      showToast("头像已更新");
+    } catch (err) {
+      showToast("头像更新失败: " + (err.message || String(err)));
+    }
+  };
+  document.getElementById("acc-clear-avatar").onclick = async () => {
+    try {
+      await call("update_profile", { name: null, avatarPath: "" });
+      state.self = await call("get_self_profile");
+      renderAppRail();
+      await renderAccountSettings(body);
+      showToast("头像已删除");
+    } catch (e) { showToast("删除失败: " + (e.message || String(e))); }
+  };
   document.getElementById("acc-save").onclick = async () => {
     const name = document.getElementById("acc-name").value.trim();
     if (!name) return;
     try {
-      await call("update_profile", { name });
+      await call("update_profile", { name, avatarPath: null });
       state.self = await call("get_self_profile");
+      renderAppRail();
       showToast("已保存");
     } catch (e) { showToast(e.message || String(e)); }
   };
