@@ -8,6 +8,8 @@ import { renderHomeView } from "../dialogs/homeView.js";
 import { loadState, saveState } from "../persist.js";
 import { openSearch, closeSearch } from "../dialogs/search.js";
 import { hideContextMenu } from "../dialogs/contextMenu.js";
+import { showToast } from "../toast.js";
+import { stateLabel, renderReactionsHtml } from "../chat/message.js";
 
 export async function renderShell() {
   const app = document.getElementById("app");
@@ -78,6 +80,31 @@ export async function renderShell() {
     if (state.homeMode) renderHomeView();
   });
   onEvent("ContactsChanged", refreshSidebar);
+
+  // Task 8: 消息状态/反应/删除/会话删除等 13 个事件 handler
+  onEvent("MsgDelivered", (e) => updateMsgState(e.msg_id, "delivered"));
+  onEvent("MsgFailed", (e) => updateMsgState(e.msg_id, "failed"));
+  onEvent("MsgDeleted", (e) => removeMsg(e.msg_id));
+  onEvent("ReactionsChanged", (e) => refreshMsgReactions(e.msg_id));
+  onEvent("MsgRead", (e) => updateMsgState(e.msg_id, "read"));
+  onEvent("MsgsNoticed", () => { /* 未读分隔线清除,UI 自然刷新 */ });
+  onEvent("ChatDeleted", (e) => {
+    // 从 state.channels 移除
+    state.channels = state.channels.filter((c) => c.chat_id !== e.chat_id);
+    if (state.currentChatId === e.chat_id) {
+      state.currentChatId = null;
+      document.getElementById("chat-main").innerHTML = `<div class="empty">选择一个频道</div>`;
+    }
+    renderChannelTree();
+  });
+  onEvent("ChatEphemeralTimerModified", () => {}); // no-op
+  onEvent("IncomingReaction", (e) => refreshMsgReactions(e.msg_id));
+  onEvent("IncomingMsgBunch", () => {}); // no-op
+  onEvent("SecurejoinJoinerProgress", () => {}); // no-op
+  onEvent("SecurejoinInviterProgress", () => {}); // no-op
+  onEvent("WebxdcStatusUpdate", () => {}); // no-op
+  onEvent("WebxdcRealtimeData", () => {}); // no-op
+  onEvent("WebxdcInstanceDeleted", () => {}); // no-op
 
   // 全局快捷键
   document.addEventListener("keydown", async (e) => {
@@ -177,4 +204,57 @@ async function refreshSidebar() {
     renderChannelTree();
   }
   saveState();
+}
+
+// Task 8 helpers: 消息状态/删除/反应实时更新
+function updateMsgState(msgId, newState) {
+  const msg = state.messages.find((m) => m.msg_id === msgId);
+  if (msg) {
+    msg.state = newState;
+    const el = document.querySelector(`[data-msg="${msgId}"]`);
+    if (el) {
+      const stateEl = el.querySelector(".msg-state");
+      if (stateEl) stateEl.textContent = stateLabel(newState);
+      el.classList.remove("state-pending", "state-delivered", "state-failed", "state-read");
+      el.classList.add("state-" + newState);
+    }
+  }
+}
+
+function removeMsg(msgId) {
+  state.messages = state.messages.filter((m) => m.msg_id !== msgId);
+  const el = document.querySelector(`[data-msg="${msgId}"]`);
+  if (el) el.remove();
+}
+
+async function refreshMsgReactions(msgId) {
+  try {
+    const reactions = await call("get_reactions", { msgId });
+    const msgEl = document.querySelector(`[data-msg="${msgId}"]`);
+    if (!msgEl) return;
+    let el = msgEl.querySelector(".msg-reactions");
+    const html = renderReactionsHtml(reactions, msgId);
+    if (el) {
+      el.innerHTML = html;
+    } else if (html) {
+      // 之前没有 reactions 节点,新建一个插入到 reaction picker 之前
+      el = document.createElement("div");
+      el.className = "msg-reactions";
+      el.innerHTML = html;
+      const picker = msgEl.querySelector(".msg-reaction-picker");
+      if (picker) msgEl.insertBefore(el, picker);
+      else msgEl.appendChild(el);
+    }
+    // 重新绑定 reaction toggle(新 capsules 没有 listener)
+    if (el) {
+      el.querySelectorAll(".msg-reaction").forEach((r) => {
+        r.addEventListener("click", async () => {
+          const emoji = r.dataset.emoji;
+          try {
+            await call("send_reaction", { chatId: state.currentChatId, msgId, emoji });
+          } catch (e) { showToast(e.message || String(e)); }
+        });
+      });
+    }
+  } catch {}
 }

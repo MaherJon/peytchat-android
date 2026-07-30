@@ -408,3 +408,14 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .msg-attachment.file .file-name { font-size: 10px; font-weight: 500; color: #e5e5e5; }
 .msg-attachment.file .file-meta { font-size: 9px; color: #555; margin-top: 1px; }
 .img-fullscreen-overlay { background: rgba(0,0,0,0.9); }
+
+/* Task 8: 消息发送状态指示 + 重发按钮 */
+.msg-state { font-size: 9px; color: #555; margin-left: 4px; }
+.msg-state.state-delivered { color: #888; }
+.msg-state.state-read { color: #e5e5e5; }
+.msg-state.state-failed { color: #e5e5e5; }
+.msg-resend {
+  font-size: 9px; color: #e5e5e5; margin-left: 6px;
+  cursor: pointer; border: 1px solid #222; padding: 0 4px; border-radius: 3px;
+}
+.msg-resend:hover { background: #1f1f1f; }

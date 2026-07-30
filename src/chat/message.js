@@ -31,6 +31,13 @@ function formatBytes(bytes) {
   return (bytes / 1024 / 1024).toFixed(1) + " MB";
 }
 
+// Task 8: 消息发送状态文本 (pending/delivered/failed/read)
+// 在 message.js 中定义并 export,shell.js updateMsgState 引用之,
+// 把"消息渲染相关逻辑"集中在 message.js。
+export function stateLabel(s) {
+  return { pending: "··", delivered: "✓", failed: "!", read: "✓✓" }[s] || "";
+}
+
 export async function renderMessage(m) {
   const isOut = m.is_out;
   const stateClass = m._state ? ` ${m._state}` : "";
@@ -91,6 +98,13 @@ export async function renderMessage(m) {
   const replyBtn = `<span class="msg-reply-btn" data-msg="${m.msg_id}" title="reply">reply</span>`;
   const reactBtn = `<span class="msg-react-btn" data-msg="${m.msg_id}" title="react">+</span>`;
   const delBtn = isOut ? `<span class="msg-del-btn" data-msg="${m.msg_id}" title="delete">del</span>` : "";
+  // Task 8: 仅出消息显示发送状态;失败时附加重发按钮
+  const stateHtml = isOut
+    ? `<span class="msg-state state-${m.state || "pending"}" data-msg-state="${m.msg_id}">${stateLabel(m.state)}</span>`
+    : "";
+  const resendBtn = isOut && m.state === "failed"
+    ? `<span class="msg-resend" data-msg-id="${m.msg_id}">重发</span>`
+    : "";
   return `
     <div class="msg${stateClass}" data-msg="${m.msg_id}" style="position:relative">
       <div class="msg-meta">
@@ -98,6 +112,7 @@ export async function renderMessage(m) {
         <span class="msg-time">${formatTs(m.ts)}</span>
         ${roleTag}${replyMark}
         ${pinBtn} ${replyBtn} ${reactBtn} ${delBtn}
+        ${stateHtml} ${resendBtn}
       </div>
       ${quoteBlock}
       <div class="msg-text">${textHtml}</div>
@@ -159,21 +174,30 @@ function escapeRegex(s) {
 async function renderReactions(msgId) {
   try {
     const reactions = await call("get_reactions", { msgId });
-    if (!reactions || reactions.length === 0) return "";
-    const mapEmoji = (emoji) => {
-      const e = emoji.trim();
-      if (e === "👍" || e === "+1" || e === "thumbsup") return "↑";
-      if (e === "➕" || e === "plus") return "+";
-      return e;
-    };
-    const capsules = reactions.map((r) => {
-      const symbol = mapEmoji(r.emoji);
-      return `<span class="msg-reaction" data-msg="${msgId}" data-emoji="${escapeAttr(r.emoji)}">${escapeHtml(symbol)} ${r.count}</span>`;
-    }).join("");
-    return `<div class="msg-reactions">${capsules}</div>`;
+    const html = renderReactionsHtml(reactions, msgId);
+    return html ? `<div class="msg-reactions">${html}</div>` : "";
   } catch {
     return "";
   }
+}
+
+// Task 8: 抽取纯函数,供 shell.js refreshMsgReactions 直接复用
+// (避免每次反应变更都重新渲染整个消息行)
+// 输入: get_reactions 返回的数组;输出: 内部 capsules HTML(不含外层 .msg-reactions 包裹),
+// 调用方负责包裹: renderMessage 用 `<div class="msg-reactions">${html}</div>`,
+// refreshMsgReactions 直接赋给已有 .msg-reactions 元素的 innerHTML。
+export function renderReactionsHtml(reactions, msgId) {
+  if (!reactions || reactions.length === 0) return "";
+  const mapEmoji = (emoji) => {
+    const e = emoji.trim();
+    if (e === "👍" || e === "+1" || e === "thumbsup") return "↑";
+    if (e === "➕" || e === "plus") return "+";
+    return e;
+  };
+  return reactions.map((r) => {
+    const symbol = mapEmoji(r.emoji);
+    return `<span class="msg-reaction" data-msg="${msgId}" data-emoji="${escapeAttr(r.emoji)}">${escapeHtml(symbol)} ${r.count}</span>`;
+  }).join("");
 }
 
 export function bindMessageActions(container) {
@@ -242,6 +266,23 @@ export function bindMessageActions(container) {
       try {
         await call("delete_msg", { msgId: Number(msgId) });
       } catch (e) { showToast(e.message || String(e)); }
+    });
+  });
+  // Task 8: 重发失败消息(仅 is_out + state=failed 时渲染此按钮)
+  // 注意: removeMsg 逻辑在 shell.js 中,这里就近实现(避免 message.js 反向依赖 shell.js)
+  container.querySelectorAll(".msg-resend").forEach((el) => {
+    el.addEventListener("click", async () => {
+      const msgId = Number(el.dataset.msgId);
+      const msg = state.messages.find((m) => m.msg_id === msgId);
+      if (msg) {
+        try {
+          await call("send_text", { chatId: state.currentChatId, text: msg.text });
+          // 移除旧的失败消息行 + 从 state.messages 清除
+          const msgEl = document.querySelector(`[data-msg="${msgId}"]`);
+          if (msgEl) msgEl.remove();
+          state.messages = state.messages.filter((m) => m.msg_id !== msgId);
+        } catch (e) { showToast("重发失败: " + (e.message || String(e))); }
+      }
     });
   });
   // 图片点击放大(全屏 overlay)

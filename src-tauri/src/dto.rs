@@ -71,6 +71,8 @@ pub struct EventPayload {
     pub contact_id: Option<u32>,
     pub progress: Option<u16>,
     pub comment: Option<String>,
+    // IncomingMsg 事件携带消息摘要,供通知使用(无需再调一次 get_chat_msgs)
+    pub text: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
