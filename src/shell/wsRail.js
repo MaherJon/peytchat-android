@@ -16,7 +16,14 @@ export function renderWsRail() {
   const icons = state.workspaces.map((ws) => {
     const cls = state.currentWsId === ws.id && !state.homeMode ? "ws-icon active" : "ws-icon inactive";
     const label = ws.icon || (ws.name || "?").charAt(0).toUpperCase();
-    return `<div class="${cls}" data-id="${ws.id}" title="${escapeAttr(ws.name)}">${escapeHtml(label)}</div>`;
+    // 聚合未读:仅当前 ws 用 state.channels,其他 ws 显示 0(简化)
+    const wsUnread = (state.currentWsId === ws.id)
+      ? state.channels.reduce((sum, c) => sum + (c.unread || 0), 0)
+      : 0;
+    return `<div class="ws-icon-wrap">
+    <div class="${cls}" data-id="${ws.id}" title="${escapeAttr(ws.name)}">${escapeHtml(label)}</div>
+    <span class="ws-badge ${wsUnread > 0 ? "" : "zero"}">${wsUnread}</span>
+  </div>`;
   }).join("");
   const homeCls = state.homeMode ? "ws-icon home active" : "ws-icon home";
   rail.innerHTML = `
