@@ -1,6 +1,36 @@
-import { call } from "../api.js";
+import { call, transformBlobURL } from "../api.js";
 import { state } from "../state.js";
+import { showToast } from "../toast.js";
 import { renderChatView } from "../chat/chatView.js";
+import { showContextMenu } from "./contextMenu.js";
+import { openHomePlus } from "./homePlus.js";
+import { renderContactRequest } from "./contactRequest.js";
+
+function formatRelativeTime(ts) {
+  if (!ts) return "";
+  const now = Date.now() / 1000;
+  const diff = now - ts;
+  const date = new Date(ts * 1000);
+  if (diff < 60) return "刚刚";
+  if (diff < 3600) return Math.floor(diff / 60) + " 分";
+  if (diff < 86400) {
+    return date.getHours().toString().padStart(2, "0") + ":" + date.getMinutes().toString().padStart(2, "0");
+  }
+  if (diff < 86400 * 2) return "昨天";
+  return (date.getMonth() + 1).toString().padStart(2, "0") + "-" + date.getDate().toString().padStart(2, "0");
+}
+
+function avatarLetter(name) {
+  if (!name) return "?";
+  const chars = [...name];
+  return chars[0]?.toUpperCase() || "?";
+}
+
+// Task 13: 把 Contact::get_color() 返回的 u32 转成 #rrggbb。null/undefined → 默认 var(--border-strong)。
+function colorHex(c) {
+  if (!c && c !== 0) return "var(--border-strong)";
+  return "#" + (c & 0xffffff).toString(16).padStart(6, "0");
+}
 
 export async function renderHomeView() {
   const tree = document.getElementById("channel-tree");
@@ -10,40 +40,166 @@ export async function renderHomeView() {
   try {
     chats = await call("get_chatlist");
   } catch {}
-  // 过滤：非 workspace 频道（不在 state.channels 跨所有 ws 的 chat_id 集合里）
-  // SP1 简化：主页显示全部 chatlist，workspace 频道也在里面但不影响
-  const wsChatIds = new Set(state.workspaces.flatMap((ws) => ws.master_chat_id ? [ws.master_chat_id] : []));
+  const wsChatIds = new Set(
+    state.workspaces.flatMap((ws) => (ws.master_chat_id ? [ws.master_chat_id] : []))
+  );
   const items = chats.map((c) => {
-    const tag = c.is_group ? "群" : (c.is_self_talk ? "我" : "DM");
-    const badge = c.is_contact_request ? `<span class="ct-unread" style="background:transparent;color:#888;border:1px solid #222">请求</span>` : (c.unread > 0 ? `<span class="ct-unread">${c.unread}</span>` : "");
+    const unread = c.unread || 0;
     const active = state.currentChatId === c.chat_id ? "active" : "";
-    return `<div class="ct-channel ${active}" data-id="${c.chat_id}"><span>[${tag}] ${escapeHtml(c.name)}</span>${badge}</div>`;
+    const unreadBadge = c.is_contact_request
+      ? `<span class="home-unread" style="background:transparent;color:var(--text-mute);border:1px solid var(--border-strong)">请求</span>`
+      : unread > 0
+        ? `<span class="home-unread">${unread}</span>`
+        : "";
+    const displayName = c.is_group ? `# ${escapeHtml(c.name)}` : escapeHtml(c.name);
+    const avatar = c.is_group ? "#" : escapeHtml(avatarLetter(c.name));
+    return `
+      <div class="home-item ${unread > 0 ? "has-unread" : ""} ${active}" data-id="${c.chat_id}">
+        <div class="home-avatar">${avatar}</div>
+        <div class="home-content">
+          <div class="home-row">
+            <span class="home-name">${displayName}</span>
+            <span class="home-time">${formatRelativeTime(c.last_ts)}</span>
+          </div>
+          <div class="home-row">
+            <span class="home-lastmsg">${escapeHtml((c.last_msg || "").slice(0, 40))}</span>
+            ${unreadBadge}
+          </div>
+        </div>
+      </div>
+    `;
   }).join("");
+  // Task 13: 底部 .ct-user 显示自己的头像(若有 avatar,否则首字母 + color 背景)。
+  // 列表项 .home-item 暂不显示头像(ChatDto 无 avatar/color 字段,需扩 ChatDto 才能取;
+  // 出范围。后续 task 若要列表头像,需补 ChatDto.avatar/color)。
+  const selfAvatarUrl = state.self?.avatar ? await transformBlobURL(state.self.avatar) : null;
+  const selfBg = colorHex(state.self?.color);
+  const selfLetter = (state.self?.name || "?").charAt(0).toUpperCase() || "?";
+  const selfAvatarHtml = selfAvatarUrl
+    ? `<img src="${escapeHtml(selfAvatarUrl)}" class="ct-avatar" alt="me" />`
+    : `<div class="ct-avatar" style="background:${selfBg}">${escapeHtml(selfLetter)}</div>`;
   tree.innerHTML = `
-    <div class="ct-header">
-      <div class="ct-name">主页</div>
-      <div class="ct-sub">DM 与非 workspace 群</div>
+    <div class="ct-header" style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div class="ct-name">主页</div>
+        <div class="ct-sub">DM 与非 workspace 群</div>
+      </div>
+      <div id="home-plus" style="cursor:pointer;color:var(--text-mute);font-size:14px;padding:0 8px" title="新建">+</div>
     </div>
-    <div class="ct-list">${items || '<div style="padding:16px;color:#555">无会话</div>'}</div>
-    <div class="ct-user">
-      <div class="ct-avatar">${escapeHtml(state.self?.name?.charAt(0) || "?")}</div>
+    <div class="ct-list">${items || '<div class="guide-card" style="height:auto;padding:24px 16px"><div>还没有会话</div><div style="font-size:9px;color:var(--text-weak);margin-top:4px">点 + 添加好友或创建群</div></div>'}</div>
+    <div class="ct-user" style="cursor:pointer">
+      ${selfAvatarHtml}
       <div>
         <div class="ct-username">${escapeHtml(state.self?.name || "me")}</div>
       </div>
     </div>
   `;
   main.innerHTML = `<div class="empty">选择一个会话</div>`;
-  tree.querySelectorAll(".ct-channel").forEach((el) => {
+  document.getElementById("home-plus").addEventListener("click", () => openHomePlus());
+  tree.querySelectorAll(".home-item").forEach((el) => {
     el.addEventListener("click", async () => {
       const id = Number(el.dataset.id);
+      const chat = chats.find((c) => c.chat_id === id);
       state.currentChatId = id;
-      tree.querySelectorAll(".ct-channel").forEach((x) => x.classList.remove("active"));
+      tree.querySelectorAll(".home-item").forEach((x) => x.classList.remove("active"));
       el.classList.add("active");
-      await renderChatView(id);
+      if (chat?.is_contact_request) {
+        await renderContactRequest(id, main);
+      } else {
+        await renderChatView(id);
+      }
+    });
+    el.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      const id = Number(el.dataset.id);
+      const chat = chats.find((c) => c.chat_id === id);
+      if (!chat) return;
+      const menuItems = [];
+      if (chat.is_group) {
+        menuItems.push({
+          label: "改名",
+          action: async () => {
+            const name = prompt("新名称", chat.name);
+            if (name) {
+              try {
+                await call("update_channel", { chatId: id, name });
+                await renderHomeView();
+              } catch (err) {
+                showToast(err.message || String(err));
+              }
+            }
+          },
+        });
+        menuItems.push({
+          label: "退群",
+          action: async () => {
+            try {
+              await call("leave_group", { chatId: id });
+              await renderHomeView();
+              showToast("已退出");
+            } catch (err) {
+              showToast(err.message || String(err));
+            }
+          },
+        });
+      } else {
+        menuItems.push({
+          label: "查看资料",
+          action: async () => {
+            state.rightDrawerOpen = true;
+            state.rightDrawerTab = "members";
+            const { renderRightDrawer } = await import("../shell/rightDrawer.js");
+            renderRightDrawer();
+          },
+        });
+        menuItems.push({
+          label: "屏蔽",
+          action: async () => {
+            if (!confirm("屏蔽此会话?")) return;
+            try {
+              await call("block_chat", { chatId: id });
+              await renderHomeView();
+              showToast("已屏蔽");
+            } catch (err) {
+              showToast(err.message || String(err));
+            }
+          },
+        });
+      }
+      menuItems.push({
+        label: "删除会话",
+        action: async () => {
+          if (!confirm("删除此会话?")) return;
+          try {
+            await call("delete_chat", { chatId: id });
+            state.currentChatId = null;
+            await renderHomeView();
+            showToast("已删除");
+          } catch (err) {
+            showToast(err.message || String(err));
+          }
+        },
+      });
+      showContextMenu(e.clientX, e.clientY, menuItems);
     });
   });
+  const ctUser = tree.querySelector(".ct-user");
+  if (ctUser) {
+    ctUser.onclick = async () => {
+      state.rightDrawerOpen = true;
+      state.rightDrawerTab = "settings";
+      const { renderRightDrawer } = await import("../shell/rightDrawer.js");
+      renderRightDrawer();
+    };
+  }
 }
 
 function escapeHtml(s) {
-  return String(s || "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  return String(s || "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  }[c]));
 }

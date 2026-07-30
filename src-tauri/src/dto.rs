@@ -18,6 +18,8 @@ pub struct ProfileDto {
     pub id: u32,
     pub name: Option<String>,
     pub addr: Option<String>,
+    pub avatar: Option<String>, // blobdir 绝对路径
+    pub color: Option<u32>,     // Contact::get_color() 返回的 u32
 }
 
 #[derive(Debug, Serialize)]
@@ -38,6 +40,8 @@ pub struct MemberDto {
     pub name: String,
     pub addr: String,
     pub is_self: bool,
+    pub avatar: Option<String>,
+    pub color: Option<u32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -61,6 +65,15 @@ pub struct MsgDto {
     pub state: String,
     pub quote_from: Option<String>,
     pub quote_text: Option<String>,
+    pub view_type: String, // "Text"|"Image"|"Gif"|"Sticker"|"Audio"|"Voice"|"Video"|"File"|"Vcard"|"Webxdc"|"Unknown"
+    pub file: Option<String>, // blobdir absolute path
+    pub file_name: Option<String>,
+    pub file_mime: Option<String>,
+    pub file_bytes: Option<u64>,
+    pub width: Option<i32>,
+    pub height: Option<i32>,
+    pub download_state: String, // "Done"|"Available"|"Failure"|"InProgress"|"Undecipherable"
+    pub subject: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -71,6 +84,8 @@ pub struct EventPayload {
     pub contact_id: Option<u32>,
     pub progress: Option<u16>,
     pub comment: Option<String>,
+    // IncomingMsg 事件携带消息摘要,供通知使用(无需再调一次 get_chat_msgs)
+    pub text: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -78,6 +93,16 @@ pub struct ContactDto {
     pub id: u32,
     pub name: String,
     pub addr: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SearchResultDto {
+    pub msg_id: u32,
+    pub chat_id: u32,
+    pub chat_name: String,
+    pub from_name: String,
+    pub text: String,
+    pub ts: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -137,6 +162,28 @@ pub struct ContactRoleDto {
     pub role_id: i64,
     pub role_name: String,
     pub role_color: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CardDto {
+    pub id: i64,
+    pub workspace_id: i64,
+    pub channel_chat_id: u32,
+    pub msg_id: Option<u32>,
+    #[serde(rename = "type")]
+    pub type_: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub status: String,
+    pub assignee_contact_id: Option<u32>,
+    pub assignee_name: Option<String>,
+    pub due_date: Option<i64>,
+    pub created_by: u32,
+    pub created_by_name: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub position: i64,
+    pub source_msg_id: Option<u32>,
 }
 
 #[cfg(test)]

@@ -3,16 +3,17 @@ use deltachat::chatlist::Chatlist;
 use deltachat::config::Config;
 use deltachat::constants::Chattype;
 use deltachat::contact::{Contact, ContactId};
+use deltachat::download::DownloadState;
 use deltachat::login_param::{EnteredCertificateChecks, EnteredLoginParam};
-use deltachat::message::{self, Message, MessageState, MsgId};
+use deltachat::message::{self, Message, MessageState, MsgId, Viewtype};
 use deltachat::provider::Socket;
 use deltachat::reaction;
 use deltachat::securejoin;
 use tauri::State;
 
 use crate::dto::{
-    AdvancedLogin, ChannelDto, ChatDto, ChatInfoDto, ContactDto, ContactRoleDto, MemberDto, MsgDto,
-    PinDto, ProfileDto, ReactionDto, RoleDto, WorkspaceDto,
+    AdvancedLogin, CardDto, ChannelDto, ChatDto, ChatInfoDto, ContactDto, ContactRoleDto, MemberDto,
+    MsgDto, PinDto, ProfileDto, ReactionDto, RoleDto, SearchResultDto, WorkspaceDto,
 };
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
@@ -144,6 +145,8 @@ pub async fn create_chatmail_account(
         let mut accounts = state.accounts.lock().await;
         accounts.select_account(id).await?;
     }
+    // 启动 IO（与 login 命令对齐，否则 chatmail 账号无法收发消息）
+    ctx.start_io().await;
     state.set_current(id);
     dbg(format!("[chatmail] done, id={id}"));
     Ok(id)
@@ -158,7 +161,19 @@ pub async fn get_self_profile(state: State<'_, AppState>) -> AppResult<ProfileDt
     let id = ctx.get_id();
     let name = ctx.get_config(Config::Displayname).await?;
     let addr = ctx.get_config(Config::ConfiguredAddr).await?;
-    Ok(ProfileDto { id, name, addr })
+    let self_contact = Contact::get_by_id(&ctx, ContactId::SELF).await?;
+    let avatar = self_contact
+        .get_profile_image(&ctx)
+        .await?
+        .map(|p| p.to_string_lossy().to_string());
+    let color = Some(self_contact.get_color());
+    Ok(ProfileDto {
+        id,
+        name,
+        addr,
+        avatar,
+        color,
+    })
 }
 
 fn state_str(s: MessageState) -> &'static str {
@@ -168,6 +183,36 @@ fn state_str(s: MessageState) -> &'static str {
         MessageState::OutDelivered => "delivered",
         MessageState::OutMdnRcvd => "read",
         _ => "other",
+    }
+}
+
+fn viewtype_str(v: Viewtype) -> &'static str {
+    use Viewtype::*;
+    match v {
+        Text => "Text",
+        Image => "Image",
+        Gif => "Gif",
+        Sticker => "Sticker",
+        Audio => "Audio",
+        Voice => "Voice",
+        Video => "Video",
+        File => "File",
+        Vcard => "Vcard",
+        Webxdc => "Webxdc",
+        Unknown => "Unknown",
+        _ => "Unknown",
+    }
+}
+
+fn download_state_str(s: DownloadState) -> &'static str {
+    use DownloadState::*;
+    match s {
+        Done => "Done",
+        Available => "Available",
+        Failure => "Failure",
+        Undecipherable => "Undecipherable",
+        InProgress => "InProgress",
+        _ => "Unknown",
     }
 }
 
@@ -224,11 +269,18 @@ pub async fn get_chat_info(
     let mut members = Vec::new();
     for cid in chat::get_chat_contacts(&ctx, chat_id).await? {
         let c = Contact::get_by_id(&ctx, cid).await?;
+        let avatar = c
+            .get_profile_image(&ctx)
+            .await?
+            .map(|p| p.to_string_lossy().to_string());
+        let color = Some(c.get_color());
         members.push(MemberDto {
             contact_id: cid.to_u32(),
             name: c.get_display_name().to_string(),
             addr: c.get_addr().to_string(),
             is_self: cid == ContactId::SELF,
+            avatar,
+            color,
         });
     }
     // For 1:1 chats, get_chat_contacts does NOT include SELF; add the other
@@ -238,11 +290,19 @@ pub async fn get_chat_info(
         let self_id = ctx.get_id();
         let name = ctx.get_config(Config::Displayname).await?.unwrap_or_default();
         let addr = ctx.get_config(Config::ConfiguredAddr).await?.unwrap_or_default();
+        let self_contact = Contact::get_by_id(&ctx, ContactId::SELF).await?;
+        let avatar = self_contact
+            .get_profile_image(&ctx)
+            .await?
+            .map(|p| p.to_string_lossy().to_string());
+        let color = Some(self_contact.get_color());
         members.push(MemberDto {
             contact_id: 1, // SELF is always 1
             name,
             addr,
             is_self: true,
+            avatar,
+            color,
         });
         let _ = self_id; // suppress unused warning
     }
@@ -258,15 +318,41 @@ pub async fn get_chat_info(
 }
 
 #[tauri::command]
-pub async fn get_chat_msgs(state: State<'_, AppState>, chat_id: u32) -> AppResult<Vec<MsgDto>> {
+pub async fn get_chat_msgs(
+    state: State<'_, AppState>,
+    chat_id: u32,
+    before_msg_id: Option<u32>,
+) -> AppResult<Vec<MsgDto>> {
     let ctx = state
         .current()
         .await
         .ok_or_else(|| AppError::Core("no account".into()))?;
     let chat_id = deltachat::chat::ChatId::new(chat_id);
     let items = chat::get_chat_msgs(&ctx, chat_id).await?;
+    // core returns items oldest-first (sorted by timestamp ascending).
+    // Pick the window of up to 50 items to return.
+    let window: Vec<ChatItem> = match before_msg_id {
+        Some(before) => {
+            let pos = items.iter().position(|it| match it {
+                ChatItem::Message { msg_id } => msg_id.to_u32() == before,
+                _ => false,
+            });
+            match pos {
+                Some(pos) => {
+                    let start = pos.saturating_sub(50);
+                    items.into_iter().skip(start).take(pos - start).collect()
+                }
+                None => Vec::new(),
+            }
+        }
+        None => {
+            let len = items.len();
+            let start = len.saturating_sub(50);
+            items.into_iter().skip(start).collect()
+        }
+    };
     let mut out = Vec::new();
-    for item in items {
+    for item in window {
         if let ChatItem::Message { msg_id } = item {
             let m = message::Message::load_from_db(&ctx, msg_id).await?;
             let from_id = m.get_from_id();
@@ -293,6 +379,18 @@ pub async fn get_chat_msgs(state: State<'_, AppState>, chat_id: u32) -> AppResul
                 }
                 None => (None, None),
             };
+            let file_path = m.get_file(&ctx).map(|p| p.to_string_lossy().to_string());
+            let file_name = m.get_filename();
+            let file_mime = m.get_filemime();
+            let file_bytes = m.get_filebytes(&ctx).await.unwrap_or(None);
+            let width = m.get_width();
+            let height = m.get_height();
+            let view_type = viewtype_str(m.get_viewtype()).to_string();
+            let download_state = download_state_str(m.download_state()).to_string();
+            let subject = {
+                let s = m.get_subject();
+                if s.is_empty() { None } else { Some(s.to_string()) }
+            };
             out.push(MsgDto {
                 msg_id: msg_id.to_u32(),
                 from_id: from_id.to_u32(),
@@ -303,6 +401,15 @@ pub async fn get_chat_msgs(state: State<'_, AppState>, chat_id: u32) -> AppResul
                 state: state_str(m.get_state()).to_string(),
                 quote_from,
                 quote_text,
+                view_type,
+                file: file_path,
+                file_name,
+                file_mime,
+                file_bytes,
+                width: if width > 0 { Some(width) } else { None },
+                height: if height > 0 { Some(height) } else { None },
+                download_state,
+                subject,
             });
         }
     }
@@ -745,4 +852,848 @@ pub async fn validate_channels(state: State<'_, AppState>) -> AppResult<u32> {
         }
     }
     Ok(removed)
+}
+
+// ── management commands (SP2 Task 2) ─────────────────────────────────────────
+//
+// API 签名已对照 core 源码核实:
+//   chat::remove_contact_from_chat(&Context, ChatId, ContactId) -> Result<()>
+//     (core 中无 leave_group 函数; 退群 = 移除 SELF, 与既有 leave_group 命令一致)
+//   deltachat::securejoin::get_securejoin_qr(&Context, Option<ChatId>) -> Result<String>
+//   deltachat::message::delete_msgs(&Context, &[MsgId]) -> Result<()>
+//   ctx.set_config(Config::Displayname, Option<&str>) -> Result<()>
+//   Accounts::select_account(&mut self, u32) — 无 unselect_account;
+//     logout 通过清空 state.current_id 实现脱离当前账号 (Accounts 层选中状态
+//     因 core 无公开 API 无法持久清空, 仅清内存).
+
+#[tauri::command]
+pub async fn update_workspace(
+    state: State<'_, AppState>,
+    id: i64,
+    name: Option<String>,
+    icon: Option<String>,
+) -> AppResult<()> {
+    state
+        .db
+        .update_workspace(id, name.as_deref(), icon.as_deref())
+        .await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_workspace(
+    state: State<'_, AppState>,
+    id: i64,
+) -> AppResult<()> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or(AppError::Core("no account".into()))?;
+    // leave 所有关联的 core chat (channels + master)
+    let chans = state.db.list_channels(id).await?;
+    for ch in chans {
+        let _ = chat::remove_contact_from_chat(
+            &ctx,
+            deltachat::chat::ChatId::new(ch.chat_id),
+            ContactId::SELF,
+        )
+        .await;
+    }
+    let wss = state.db.list_workspaces().await?;
+    if let Some(ws) = wss.into_iter().find(|w| w.id == id) {
+        let _ = chat::remove_contact_from_chat(
+            &ctx,
+            deltachat::chat::ChatId::new(ws.master_chat_id),
+            ContactId::SELF,
+        )
+        .await;
+    }
+    // 删本地元数据
+    state.db.delete_workspace_rows(id).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn leave_workspace(
+    state: State<'_, AppState>,
+    id: i64,
+) -> AppResult<()> {
+    // leave 只删本地元数据, 不动 core chat (保留可重新加入)
+    state.db.delete_workspace_rows(id).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn update_channel(
+    state: State<'_, AppState>,
+    chat_id: u32,
+    name: Option<String>,
+    topic: Option<String>,
+    category: Option<String>,
+) -> AppResult<()> {
+    state
+        .db
+        .update_channel(chat_id, name.as_deref(), topic.as_deref(), category.as_deref())
+        .await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_channel(
+    state: State<'_, AppState>,
+    chat_id: u32,
+) -> AppResult<()> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or(AppError::Core("no account".into()))?;
+    chat::remove_contact_from_chat(
+        &ctx,
+        deltachat::chat::ChatId::new(chat_id),
+        ContactId::SELF,
+    )
+    .await?;
+    state.db.delete_channel_row(chat_id).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn leave_channel(
+    state: State<'_, AppState>,
+    chat_id: u32,
+) -> AppResult<()> {
+    state.db.delete_channel_row(chat_id).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn update_profile(
+    state: State<'_, AppState>,
+    name: Option<String>,
+    avatar_path: Option<String>, // None=不改, Some(path)=设置, Some("")=删除
+) -> AppResult<()> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or(AppError::Core("no account".into()))?;
+    if let Some(n) = name {
+        ctx.set_config(Config::Displayname, Some(&n)).await?;
+    }
+    if let Some(ap) = avatar_path {
+        let value = if ap.is_empty() { None } else { Some(ap.as_str()) };
+        ctx.set_config(Config::Selfavatar, value).await?;
+    }
+    Ok(())
+}
+
+/// Task 13: 把前端 <input type="file"> 选中的字节写入临时文件,返回路径。
+/// 然后前端用此路径调 update_profile({avatarPath: path}) 让 core 复制到 blobdir。
+/// 不引入 tauri-plugin-dialog 依赖(避免 Cargo + capabilities 改动)。
+#[tauri::command]
+pub async fn save_avatar_from_bytes(bytes: Vec<u8>, ext: String) -> AppResult<String> {
+    let dir = std::env::temp_dir().join("peytchat-avatars");
+    tokio::fs::create_dir_all(&dir).await?;
+    let safe_ext = ext.trim_start_matches('.').to_lowercase();
+    let safe_ext = if safe_ext.is_empty() || !safe_ext.chars().all(|c| c.is_ascii_alphanumeric()) {
+        "png".to_string()
+    } else {
+        safe_ext
+    };
+    let filename = format!(
+        "avatar-{}-{}.{}",
+        std::process::id(),
+        chrono::Utc::now().timestamp_millis(),
+        safe_ext
+    );
+    let path = dir.join(filename);
+    tokio::fs::write(&path, &bytes).await?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub async fn get_my_qr(state: State<'_, AppState>) -> AppResult<String> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or(AppError::Core("no account".into()))?;
+    // 传 None 返回个人 QR (verified: get_securejoin_qr(&Context, Option<ChatId>))
+    let qr = securejoin::get_securejoin_qr(&ctx, None).await?;
+    Ok(qr)
+}
+
+#[tauri::command]
+pub async fn logout(state: State<'_, AppState>) -> AppResult<()> {
+    // stop_io 当前账号; clear 内存 current_id.
+    // core Accounts 无 unselect_account 公开 API, select_account(0) 会因
+    // "invalid account id" 失败, 故仅清内存层 (Accounts 持久选中状态保留).
+    let accounts = state.accounts.lock().await;
+    if let Some(id) = accounts.get_selected_account_id() {
+        if let Some(ctx) = accounts.get_account(id) {
+            ctx.stop_io().await;
+        }
+    }
+    drop(accounts);
+    *state.current_id.lock().unwrap() = None;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_msg(
+    state: State<'_, AppState>,
+    msg_id: u32,
+) -> AppResult<()> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or(AppError::Core("no account".into()))?;
+    let ids = vec![MsgId::new(msg_id)];
+    message::delete_msgs(&ctx, &ids).await?;
+    Ok(())
+}
+
+// ── SP3 social entry commands ───────────────────────────────────────────────
+//
+// API 已对照 core 源码核实 (计划假设的 create_group_chat / create_by_contact_id
+// 不存在; 实际为 chat::create_group 与 ChatId::create_for_contact):
+//   chat::create_group(&Context, &str) -> Result<ChatId>          (chat.rs:3551)
+//   ChatId::create_for_contact(&Context, ContactId) -> Result<ChatId>  (chat.rs:234)
+
+/// Create a group chat (no members, no workspace association) — used by the
+/// home "+" button's "创建群" entry. Returns the new chat id.
+#[tauri::command]
+pub async fn create_group_chat(
+    state: State<'_, AppState>,
+    name: String,
+) -> AppResult<u32> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or(AppError::Core("no account".into()))?;
+    let chat_id = chat::create_group(&ctx, &name).await?;
+    Ok(chat_id.to_u32())
+}
+
+/// Create a 1:1 chat with an existing contact (by contact_id). Used by the
+/// member-detail "发消息" action. Returns the chat id.
+#[tauri::command]
+pub async fn create_chat_by_contact(
+    state: State<'_, AppState>,
+    contact_id: u32,
+) -> AppResult<u32> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or(AppError::Core("no account".into()))?;
+    let cid = ContactId::new(contact_id);
+    let chat_id = deltachat::chat::ChatId::create_for_contact(&ctx, cid).await?;
+    Ok(chat_id.to_u32())
+}
+
+// ── SP4 asset protocol ──────────────────────────────────────────────────────
+//
+// 将本地文件路径转为 webview 可访问的 `asset://localhost/<encoded>` URL，
+// 用于加载 deltachat blobdir 中的头像/图片/文件附件。
+//
+// 注: brief 主方案 (`PathResolver::asset_protocol().get(path) -> Result<Url>`)
+// 在已安装的 Tauri 2.11.5 中并不存在该方法 (经查 tauri-2.11.5/src/path/mod.rs
+// `PathResolver` 只有 `resolve`/`parse`，无 `asset_protocol`)。按 brief 回退
+// 条件改用简化方案: 直接拼 `asset://localhost/` + URL 编码的绝对路径。
+// `assetProtocol.enable=true` 仍由 tauri.conf.json 配置 + Cargo.toml 的
+// `protocol-asset` feature 满足 (tauri-build 校验)。
+
+/// 将本地文件绝对路径转为 webview 可加载的 asset:// URL。
+#[tauri::command]
+pub async fn get_asset_url(path: String) -> AppResult<String> {
+    let encoded = urlencoding::encode(&path);
+    Ok(format!("asset://localhost/{}", encoded))
+}
+
+// ── SP4 cross-channel search ────────────────────────────────────────────────
+//
+// core 没有公开的 search_msgs API，采用 fallback：遍历 chatlist，每 chat 取最近
+// 50 条消息做文本过滤，最多累计 30 条结果。与 brief Step 2 一致。
+
+#[tauri::command]
+pub async fn search_msgs(
+    state: State<'_, AppState>,
+    query: String,
+) -> AppResult<Vec<SearchResultDto>> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or(AppError::Core("no account".into()))?;
+    let mut out: Vec<SearchResultDto> = Vec::new();
+    let chatlist = Chatlist::try_load(&ctx, 0, None, None).await?;
+    for i in 0..chatlist.len() {
+        let chat_id = match chatlist.get_chat_id(i) {
+            Ok(id) => id,
+            Err(_) => continue,
+        };
+        let chat = match Chat::load_from_db(&ctx, chat_id).await {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let chat_name = chat.get_name().to_string();
+        let items = match chat::get_chat_msgs(&ctx, chat_id).await {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        // 只取最近 50 条做过滤（避免全量扫描）
+        let recent: Vec<_> = items.into_iter().rev().take(50).collect();
+        for item in recent {
+            if let ChatItem::Message { msg_id } = item {
+                let m = match Message::load_from_db(&ctx, msg_id).await {
+                    Ok(m) => m,
+                    Err(_) => continue,
+                };
+                let text = m.get_text();
+                if text.to_lowercase().contains(&query.to_lowercase()) {
+                    let from_id = m.get_from_id();
+                    let from_name = if from_id == ContactId::SELF {
+                        "我".to_string()
+                    } else {
+                        Contact::get_by_id(&ctx, from_id)
+                            .await
+                            .map(|c| c.get_display_name().to_string())
+                            .unwrap_or_default()
+                    };
+                    out.push(SearchResultDto {
+                        msg_id: msg_id.to_u32(),
+                        chat_id: chat_id.to_u32(),
+                        chat_name: chat_name.clone(),
+                        from_name,
+                        text: text.chars().take(80).collect(),
+                        ts: m.get_timestamp(),
+                    });
+                    if out.len() >= 30 {
+                        break;
+                    }
+                }
+            }
+        }
+        if out.len() >= 30 {
+            break;
+        }
+    }
+    Ok(out)
+}
+
+// ── card commands ───────────────────────────────────────────────────────────
+
+async fn row_to_card_dto(
+    state: &State<'_, AppState>,
+    row: (
+        i64,
+        i64,
+        u32,
+        Option<u32>,
+        String,
+        String,
+        Option<String>,
+        String,
+        Option<u32>,
+        Option<i64>,
+        u32,
+        i64,
+        i64,
+        i64,
+        i64,
+        Option<u32>,
+    ),
+) -> AppResult<CardDto> {
+    let (
+        id,
+        workspace_id,
+        channel_chat_id,
+        msg_id,
+        type_,
+        title,
+        description,
+        status,
+        assignee_contact_id,
+        due_date,
+        created_by,
+        created_at,
+        updated_at,
+        position,
+        _placeholder,
+        source_msg_id,
+    ) = row;
+    let ctx = state
+        .current()
+        .await
+        .ok_or_else(|| AppError::Core("no account".into()))?;
+    // 填充 assignee_name
+    let assignee_name = if let Some(cid) = assignee_contact_id {
+        Some(
+            Contact::get_by_id(&ctx, ContactId::new(cid))
+                .await?
+                .get_display_name()
+                .to_string(),
+        )
+    } else {
+        None
+    };
+    // 填充 created_by_name
+    let created_by_name = if created_by == 1 {
+        // SELF
+        ctx.get_config(Config::Displayname)
+            .await?
+            .unwrap_or_else(|| "我".to_string())
+    } else {
+        Contact::get_by_id(&ctx, ContactId::new(created_by))
+            .await?
+            .get_display_name()
+            .to_string()
+    };
+    Ok(CardDto {
+        id,
+        workspace_id,
+        channel_chat_id,
+        msg_id,
+        type_,
+        title,
+        description,
+        status,
+        assignee_contact_id,
+        assignee_name,
+        due_date,
+        created_by,
+        created_by_name,
+        created_at,
+        updated_at,
+        position,
+        source_msg_id,
+    })
+}
+
+#[tauri::command]
+pub async fn create_card(
+    state: State<'_, AppState>,
+    workspace_id: i64,
+    chat_id: u32,
+    type_: String,
+    title: String,
+    description: Option<String>,
+    assignee_contact_id: Option<u32>,
+    due_date: Option<i64>,
+) -> AppResult<CardDto> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or_else(|| AppError::Core("no account".into()))?;
+    let now = chrono::Utc::now().timestamp();
+    let created_by = ctx.get_id();
+
+    // 1. 写本地 sqlite
+    let card_id = state
+        .db
+        .insert_card(
+            workspace_id,
+            chat_id,
+            &type_,
+            &title,
+            description.as_deref(),
+            "todo",
+            assignee_contact_id,
+            due_date,
+            created_by,
+            now,
+            None,
+        )
+        .await?;
+
+    // 2. 构造 [CARD] 消息
+    let assignee_addr = if let Some(cid) = assignee_contact_id {
+        Contact::get_by_id(&ctx, ContactId::new(cid))
+            .await?
+            .get_addr()
+            .to_string()
+    } else {
+        String::new()
+    };
+    let created_by_addr = Contact::get_by_id(&ctx, ContactId::SELF)
+        .await?
+        .get_addr()
+        .to_string();
+    let card_json = serde_json::json!({
+        "action": "create",
+        "id": card_id,
+        "type": type_,
+        "title": title,
+        "status": "todo",
+        "assignee_addr": assignee_addr,
+        "due_date": due_date,
+        "description": description,
+        "created_by_addr": created_by_addr,
+        "created_at": now,
+    })
+    .to_string();
+    let msg_text = format!("[CARD]{}", card_json);
+
+    // 3. 发送到 deltachat
+    let chat_id_dc = deltachat::chat::ChatId::new(chat_id);
+    let mut msg = Message::new_text(msg_text);
+    let sent_msg_id = chat::send_msg(&ctx, chat_id_dc, &mut msg).await?;
+
+    // 4. 回填 msg_id
+    state
+        .db
+        .set_card_msg_id(card_id, sent_msg_id.to_u32())
+        .await?;
+
+    // 5. 返回 CardDto
+    let row = state
+        .db
+        .get_card_row(card_id)
+        .await?
+        .ok_or_else(|| AppError::Core("card not found after insert".into()))?;
+    row_to_card_dto(&state, row).await
+}
+
+#[tauri::command]
+pub async fn update_card(
+    state: State<'_, AppState>,
+    card_id: i64,
+    title: Option<String>,
+    description: Option<Option<String>>,
+    status: Option<String>,
+    assignee_contact_id: Option<Option<u32>>,
+    due_date: Option<Option<i64>>,
+) -> AppResult<CardDto> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or_else(|| AppError::Core("no account".into()))?;
+    let now = chrono::Utc::now().timestamp();
+
+    state
+        .db
+        .update_card_fields(
+            card_id,
+            title.as_deref(),
+            description.as_ref().map(|d| d.as_deref()),
+            status.as_deref(),
+            assignee_contact_id,
+            due_date,
+            now,
+        )
+        .await?;
+
+    // 发送更新消息(供其他设备同步)
+    let row = state
+        .db
+        .get_card_row(card_id)
+        .await?
+        .ok_or_else(|| AppError::Core("card not found".into()))?;
+    let assignee_addr = if let Some(cid) = row.8 {
+        Contact::get_by_id(&ctx, ContactId::new(cid))
+            .await?
+            .get_addr()
+            .to_string()
+    } else {
+        String::new()
+    };
+    let card_json = serde_json::json!({
+        "action": "update",
+        "id": card_id,
+        "type": row.4,
+        "title": row.5,
+        "status": row.7,
+        "assignee_addr": assignee_addr,
+        "due_date": row.9,
+        "description": row.6,
+        "created_at": row.11,
+    })
+    .to_string();
+    let msg_text = format!("[CARD]{}", card_json);
+    let chat_id_dc = deltachat::chat::ChatId::new(row.2);
+    let mut msg = Message::new_text(msg_text);
+    let _ = chat::send_msg(&ctx, chat_id_dc, &mut msg).await;
+
+    row_to_card_dto(&state, row).await
+}
+
+#[tauri::command]
+pub async fn delete_card(state: State<'_, AppState>, card_id: i64) -> AppResult<()> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or_else(|| AppError::Core("no account".into()))?;
+    // 先取 row 用于发删除消息
+    let row = state.db.get_card_row(card_id).await?;
+    state.db.delete_card(card_id).await?;
+    if let Some(r) = row {
+        let card_json = serde_json::json!({
+            "action": "delete",
+            "id": card_id,
+            "title": r.5,
+            "created_at": r.11,
+        })
+        .to_string();
+        let msg_text = format!("[CARD]{}", card_json);
+        let chat_id_dc = deltachat::chat::ChatId::new(r.2);
+        let mut msg = Message::new_text(msg_text);
+        let _ = chat::send_msg(&ctx, chat_id_dc, &mut msg).await;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn list_cards(
+    state: State<'_, AppState>,
+    workspace_id: i64,
+    chat_id: u32,
+) -> AppResult<Vec<CardDto>> {
+    let rows = state.db.list_cards(workspace_id, chat_id).await?;
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        out.push(row_to_card_dto(&state, row).await?);
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+pub async fn get_card(state: State<'_, AppState>, card_id: i64) -> AppResult<CardDto> {
+    let row = state
+        .db
+        .get_card_row(card_id)
+        .await?
+        .ok_or_else(|| AppError::Core("card not found".into()))?;
+    row_to_card_dto(&state, row).await
+}
+
+// ── SP5 Task 3: card sync commands ──────────────────────────────────────────
+//
+// upsert_card_from_msg: 由 [CARD] 同步消息驱动, 根据 action(create/update/delete)
+//   + 去重查找决定 upsert / delete, 实现多设备 Card 同步。供 Task 10 调用。
+// message_to_card: 把一条普通消息"转为"Card — 本地建卡 + 发送 [CARD] 同步消息。
+//   供 Task 9 前端调用。
+//
+// API 注意: brief 中的 `Contact::lookup_by_addr` 不存在, 实际 API 为
+//   `Contact::lookup_id_by_addr(&Context, &str, Origin) -> Result<Option<ContactId>>`
+// 空地址会 bail!, 所以必须先 is_empty() 检查。
+
+#[tauri::command]
+pub async fn upsert_card_from_msg(
+    state: State<'_, AppState>,
+    msg_id: u32,
+    card_json: String,
+) -> AppResult<Option<CardDto>> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or_else(|| AppError::Core("no account".into()))?;
+    let payload: serde_json::Value = serde_json::from_str(&card_json)
+        .map_err(|e| AppError::Core(format!("invalid card json: {e}")))?;
+
+    let action = payload["action"].as_str().unwrap_or("create");
+    let title = payload["title"].as_str().unwrap_or("");
+    let created_at = payload["created_at"].as_i64().unwrap_or(0);
+
+    // 从 msg_id 反查 chat_id
+    let msg = Message::load_from_db(&ctx, MsgId::new(msg_id)).await?;
+    let channel_chat_id = msg.get_chat_id().to_u32();
+
+    // 查 workspace_id: 通过 channel_chat_id 找 channels 表
+    let workspace_id = state.db.get_channel_workspace_id(channel_chat_id).await?;
+
+    // 去重查找
+    let existing = state
+        .db
+        .find_card_by_dedup(channel_chat_id, title, created_at)
+        .await?;
+
+    match (action, existing) {
+        ("delete", Some(id)) => {
+            state.db.delete_card(id).await?;
+            Ok(None)
+        }
+        ("delete", None) => Ok(None),
+        (_, Some(id)) => {
+            // 更新
+            let now = chrono::Utc::now().timestamp();
+            let status = payload["status"].as_str();
+            let description = payload["description"].as_str();
+            let due_date = payload["due_date"].as_i64();
+            // assignee 映射
+            let assignee_cid = if let Some(addr) = payload["assignee_addr"].as_str() {
+                if addr.is_empty() {
+                    None
+                } else {
+                    Contact::lookup_id_by_addr(
+                        &ctx,
+                        addr,
+                        deltachat::contact::Origin::Unknown,
+                    )
+                    .await?
+                    .map(|c| c.to_u32())
+                }
+            } else {
+                None
+            };
+            state
+                .db
+                .update_card_fields(
+                    id,
+                    None,
+                    description.map(|d| Some(d)),
+                    status,
+                    Some(assignee_cid),
+                    Some(due_date),
+                    now,
+                )
+                .await?;
+            let row = state.db.get_card_row(id).await?.unwrap();
+            Ok(Some(row_to_card_dto(&state, row).await?))
+        }
+        (_, None) => {
+            // 新建
+            let type_ = payload["type"].as_str().unwrap_or("card");
+            let status = payload["status"].as_str().unwrap_or("todo");
+            let description = payload["description"].as_str();
+            let due_date = payload["due_date"].as_i64();
+            let assignee_cid = if let Some(addr) = payload["assignee_addr"].as_str() {
+                if addr.is_empty() {
+                    None
+                } else {
+                    Contact::lookup_id_by_addr(
+                        &ctx,
+                        addr,
+                        deltachat::contact::Origin::Unknown,
+                    )
+                    .await?
+                    .map(|c| c.to_u32())
+                }
+            } else {
+                None
+            };
+            let created_by = if let Some(addr) = payload["created_by_addr"].as_str() {
+                if addr.is_empty() {
+                    ContactId::SELF.to_u32()
+                } else {
+                    Contact::lookup_id_by_addr(
+                        &ctx,
+                        addr,
+                        deltachat::contact::Origin::Unknown,
+                    )
+                    .await?
+                    .unwrap_or(ContactId::SELF)
+                    .to_u32()
+                }
+            } else {
+                ContactId::SELF.to_u32()
+            };
+            let card_id = state
+                .db
+                .insert_card(
+                    workspace_id,
+                    channel_chat_id,
+                    type_,
+                    title,
+                    description,
+                    status,
+                    assignee_cid,
+                    due_date,
+                    created_by,
+                    created_at,
+                    Some(msg_id),
+                )
+                .await?;
+            state.db.set_card_msg_id(card_id, msg_id).await?;
+            let row = state.db.get_card_row(card_id).await?.unwrap();
+            Ok(Some(row_to_card_dto(&state, row).await?))
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn message_to_card(
+    state: State<'_, AppState>,
+    msg_id: u32,
+    workspace_id: i64,
+    chat_id: u32,
+    type_: String,
+    title: Option<String>,
+) -> AppResult<CardDto> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or_else(|| AppError::Core("no account".into()))?;
+    // 取消息文本作为默认 title (UTF-8 安全截断)
+    let msg = Message::load_from_db(&ctx, MsgId::new(msg_id)).await?;
+    let title = title.unwrap_or_else(|| {
+        let text = msg.get_text();
+        if text.chars().count() > 40 {
+            let truncated: String = text.chars().take(40).collect();
+            format!("{}...", truncated)
+        } else {
+            text
+        }
+    });
+    let now = chrono::Utc::now().timestamp();
+    let created_by = ctx.get_id();
+
+    let card_id = state
+        .db
+        .insert_card(
+            workspace_id,
+            chat_id,
+            &type_,
+            &title,
+            None,
+            "todo",
+            None,
+            None,
+            created_by,
+            now,
+            Some(msg_id),
+        )
+        .await?;
+
+    // 发送同步消息
+    let created_by_addr = Contact::get_by_id(&ctx, ContactId::SELF)
+        .await?
+        .get_addr()
+        .to_string();
+    let card_json = serde_json::json!({
+        "action": "create",
+        "id": card_id,
+        "type": type_,
+        "title": title,
+        "status": "todo",
+        "assignee_addr": "",
+        "due_date": null,
+        "description": null,
+        "created_by_addr": created_by_addr,
+        "created_at": now,
+        "source_msg_id": msg_id,
+    })
+    .to_string();
+    let msg_text = format!("[CARD]{}", card_json);
+    let chat_id_dc = deltachat::chat::ChatId::new(chat_id);
+    let mut sync_msg = Message::new_text(msg_text);
+    let sent_msg_id = chat::send_msg(&ctx, chat_id_dc, &mut sync_msg).await?;
+    state.db.set_card_msg_id(card_id, sent_msg_id.to_u32()).await?;
+
+    let row = state.db.get_card_row(card_id).await?.unwrap();
+    row_to_card_dto(&state, row).await
+}
+
+#[tauri::command]
+pub async fn update_channel_space_type(
+    state: State<'_, AppState>,
+    chat_id: u32,
+    space_type: String,
+) -> AppResult<()> {
+    state.db.set_channel_space_type(chat_id, &space_type).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_channel_space_type(
+    state: State<'_, AppState>,
+    chat_id: u32,
+) -> AppResult<Option<String>> {
+    state.db.get_channel_space_type(chat_id).await
 }
