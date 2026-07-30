@@ -4,7 +4,7 @@ use std::sync::Arc;
 use rusqlite::Connection;
 use tokio::sync::Mutex;
 
-use crate::dto::{ChannelDto, WorkspaceDto};
+use crate::dto::{ChannelDto, PinDto, RoleDto, WorkspaceDto};
 use crate::error::{AppError, AppResult};
 
 pub struct Db {
@@ -164,6 +164,135 @@ impl Db {
         })
         .await?
     }
+
+    pub async fn list_roles(&self, workspace_id: i64) -> AppResult<Vec<RoleDto>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || -> AppResult<Vec<RoleDto>> {
+            let c = conn.blocking_lock();
+            let mut stmt = c.prepare("SELECT id, workspace_id, name, color FROM roles WHERE workspace_id = ?1 ORDER BY id")?;
+            let rows = stmt.query_map(rusqlite::params![workspace_id], |r| {
+                Ok(RoleDto {
+                    id: r.get(0)?,
+                    workspace_id: r.get(1)?,
+                    name: r.get(2)?,
+                    color: r.get(3)?,
+                })
+            })?;
+            Ok(rows.filter_map(|x| x.ok()).collect())
+        })
+        .await?
+    }
+
+    pub async fn insert_role(&self, workspace_id: i64, name: &str, color: Option<&str>) -> AppResult<i64> {
+        let conn = self.conn.clone();
+        let name = name.to_string();
+        let color = color.map(|s| s.to_string());
+        tokio::task::spawn_blocking(move || -> AppResult<i64> {
+            let c = conn.blocking_lock();
+            c.execute(
+                "INSERT INTO roles (workspace_id, name, color) VALUES (?1, ?2, ?3)",
+                rusqlite::params![workspace_id, name, color],
+            )?;
+            Ok(c.last_insert_rowid())
+        })
+        .await?
+    }
+
+    pub async fn set_contact_role(&self, workspace_id: i64, contact_id: u32, role_id: i64) -> AppResult<()> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || -> AppResult<()> {
+            let c = conn.blocking_lock();
+            c.execute(
+                "INSERT OR IGNORE INTO contact_roles (contact_id, role_id, workspace_id) VALUES (?1, ?2, ?3)",
+                rusqlite::params![contact_id as i64, role_id, workspace_id],
+            )?;
+            Ok(())
+        })
+        .await?
+    }
+
+    pub async fn list_contact_roles(&self, workspace_id: i64, contact_id: u32) -> AppResult<Vec<i64>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || -> AppResult<Vec<i64>> {
+            let c = conn.blocking_lock();
+            let mut stmt = c.prepare("SELECT role_id FROM contact_roles WHERE workspace_id = ?1 AND contact_id = ?2")?;
+            let rows = stmt.query_map(rusqlite::params![workspace_id, contact_id as i64], |r| r.get::<_, i64>(0))?;
+            Ok(rows.filter_map(|x| x.ok()).collect())
+        })
+        .await?
+    }
+
+    pub async fn list_all_contact_roles(&self, workspace_id: i64) -> AppResult<Vec<(u32, i64, String, Option<String>)>> {
+        // 返回 (contact_id, role_id, role_name, role_color) 联表查询，供右栏按 role 分组使用
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || -> AppResult<Vec<(u32, i64, String, Option<String>)>> {
+            let c = conn.blocking_lock();
+            let mut stmt = c.prepare(
+                "SELECT cr.contact_id, cr.role_id, r.name, r.color
+                 FROM contact_roles cr
+                 JOIN roles r ON cr.role_id = r.id
+                 WHERE cr.workspace_id = ?1
+                 ORDER BY r.id, cr.contact_id",
+            )?;
+            let rows = stmt.query_map(rusqlite::params![workspace_id], |r| {
+                Ok((
+                    r.get::<_, i64>(0)? as u32,
+                    r.get::<_, i64>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, Option<String>>(3)?,
+                ))
+            })?;
+            Ok(rows.filter_map(|x| x.ok()).collect())
+        })
+        .await?
+    }
+
+    pub async fn list_pins(&self, channel_chat_id: u32) -> AppResult<Vec<PinDto>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || -> AppResult<Vec<PinDto>> {
+            let c = conn.blocking_lock();
+            let mut stmt = c.prepare("SELECT id, workspace_id, channel_chat_id, msg_id, pinned_by, pinned_at FROM pins WHERE channel_chat_id = ?1 ORDER BY pinned_at DESC")?;
+            let rows = stmt.query_map(rusqlite::params![channel_chat_id as i64], |r| {
+                Ok(PinDto {
+                    id: r.get(0)?,
+                    workspace_id: r.get(1)?,
+                    channel_chat_id: r.get::<_, i64>(2)? as u32,
+                    msg_id: r.get::<_, i64>(3)? as u32,
+                    pinned_by: r.get::<_, i64>(4)? as u32,
+                    pinned_at: r.get(5)?,
+                })
+            })?;
+            Ok(rows.filter_map(|x| x.ok()).collect())
+        })
+        .await?
+    }
+
+    pub async fn toggle_pin(&self, workspace_id: i64, channel_chat_id: u32, msg_id: u32, pinned_by: u32) -> AppResult<bool> {
+        let conn = self.conn.clone();
+        let now = chrono::Utc::now().timestamp();
+        tokio::task::spawn_blocking(move || -> AppResult<bool> {
+            let c = conn.blocking_lock();
+            let exists: i64 = c.query_row(
+                "SELECT COUNT(*) FROM pins WHERE channel_chat_id = ?1 AND msg_id = ?2",
+                rusqlite::params![channel_chat_id as i64, msg_id as i64],
+                |r| r.get(0),
+            )?;
+            if exists > 0 {
+                c.execute(
+                    "DELETE FROM pins WHERE channel_chat_id = ?1 AND msg_id = ?2",
+                    rusqlite::params![channel_chat_id as i64, msg_id as i64],
+                )?;
+                Ok(false)
+            } else {
+                c.execute(
+                    "INSERT INTO pins (workspace_id, channel_chat_id, msg_id, pinned_by, pinned_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                    rusqlite::params![workspace_id, channel_chat_id as i64, msg_id as i64, pinned_by as i64, now],
+                )?;
+                Ok(true)
+            }
+        })
+        .await?
+    }
 }
 
 #[cfg(test)]
@@ -211,5 +340,47 @@ mod tests {
         assert_eq!(chans.len(), 1);
         assert_eq!(chans[0].name, "general");
         assert_eq!(chans[0].category, "General");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_role_insert_list_and_assign() {
+        let tmp = tempfile::tempdir().unwrap();
+        let db = Db::new(tmp.path().join("test.db")).await.unwrap();
+        db.migrate().await.unwrap();
+        let ws_id = db.insert_workspace("FE", 100, None).await.unwrap();
+        let role_id = db.insert_role(ws_id, "core", None).await.unwrap();
+        db.set_contact_role(ws_id, 42, role_id).await.unwrap();
+        let roles = db.list_roles(ws_id).await.unwrap();
+        assert_eq!(roles.len(), 1);
+        assert_eq!(roles[0].name, "core");
+        let my_roles = db.list_contact_roles(ws_id, 42).await.unwrap();
+        assert_eq!(my_roles.len(), 1);
+        assert_eq!(my_roles[0], role_id);
+        // 验证联表查询 list_all_contact_roles
+        let all = db.list_all_contact_roles(ws_id).await.unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].0, 42); // contact_id
+        assert_eq!(all[0].1, role_id); // role_id
+        assert_eq!(all[0].2, "core"); // role_name
+        assert_eq!(all[0].3, None); // role_color
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_pin_toggle() {
+        let tmp = tempfile::tempdir().unwrap();
+        let db = Db::new(tmp.path().join("test.db")).await.unwrap();
+        db.migrate().await.unwrap();
+        let ws_id = db.insert_workspace("FE", 100, None).await.unwrap();
+        // pin
+        let pinned = db.toggle_pin(ws_id, 200, 999, 1).await.unwrap();
+        assert!(pinned);
+        let pins = db.list_pins(200).await.unwrap();
+        assert_eq!(pins.len(), 1);
+        assert_eq!(pins[0].msg_id, 999);
+        // unpin
+        let pinned2 = db.toggle_pin(ws_id, 200, 999, 1).await.unwrap();
+        assert!(!pinned2);
+        let pins2 = db.list_pins(200).await.unwrap();
+        assert_eq!(pins2.len(), 0);
     }
 }
