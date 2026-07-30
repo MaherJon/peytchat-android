@@ -515,6 +515,13 @@ async fn test_role_insert_list_and_assign() {
     let my_roles = db.list_contact_roles(ws_id, 42).await.unwrap();
     assert_eq!(my_roles.len(), 1);
     assert_eq!(my_roles[0], role_id);
+    // 验证联表查询 list_all_contact_roles
+    let all = db.list_all_contact_roles(ws_id).await.unwrap();
+    assert_eq!(all.len(), 1);
+    assert_eq!(all[0].0, 42); // contact_id
+    assert_eq!(all[0].1, role_id); // role_id
+    assert_eq!(all[0].2, "core"); // role_name
+    assert_eq!(all[0].3, None); // role_color
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -601,6 +608,31 @@ pub async fn list_contact_roles(&self, workspace_id: i64, contact_id: u32) -> Ap
         let c = conn.blocking_lock();
         let mut stmt = c.prepare("SELECT role_id FROM contact_roles WHERE workspace_id = ?1 AND contact_id = ?2")?;
         let rows = stmt.query_map(rusqlite::params![workspace_id, contact_id as i64], |r| r.get::<_, i64>(0))?;
+        Ok(rows.filter_map(|x| x.ok()).collect())
+    })
+    .await?
+}
+
+pub async fn list_all_contact_roles(&self, workspace_id: i64) -> AppResult<Vec<(u32, i64, String, Option<String>)>> {
+    // 返回 (contact_id, role_id, role_name, role_color) 联表查询，供右栏按 role 分组使用
+    let conn = self.conn.clone();
+    tokio::task::spawn_blocking(move || -> AppResult<Vec<(u32, i64, String, Option<String>)>> {
+        let c = conn.blocking_lock();
+        let mut stmt = c.prepare(
+            "SELECT cr.contact_id, cr.role_id, r.name, r.color
+             FROM contact_roles cr
+             JOIN roles r ON cr.role_id = r.id
+             WHERE cr.workspace_id = ?1
+             ORDER BY r.id, cr.contact_id",
+        )?;
+        let rows = stmt.query_map(rusqlite::params![workspace_id], |r| {
+            Ok((
+                r.get::<_, i64>(0)? as u32,
+                r.get::<_, i64>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, Option<String>>(3)?,
+            ))
+        })?;
         Ok(rows.filter_map(|x| x.ok()).collect())
     })
     .await?
@@ -960,11 +992,24 @@ commands::get_channel_pins,
 commands::toggle_pin,
 commands::list_roles,
 commands::set_contact_role,
+commands::list_all_contact_roles,
 commands::send_reaction,
 commands::get_reactions,
 commands::send_reply,
 commands::get_channel_topic,
 commands::set_channel_topic,
+```
+
+注：`list_all_contact_roles` 命令封装 `Db::list_all_contact_roles(workspace_id)`（Task 5 新增），返回 `Vec<(u32, i64, String, Option<String>)>` 即 `(contact_id, role_id, role_name, role_color)`，供右栏按 role 分组使用。在 commands.rs 末尾追加：
+
+```rust
+#[tauri::command]
+pub async fn list_all_contact_roles(
+    state: State<'_, AppState>,
+    workspace_id: i64,
+) -> AppResult<Vec<(u32, i64, String, Option<String>)>> {
+    Ok(state.db.list_all_contact_roles(workspace_id).await?)
+}
 ```
 
 - [ ] **Step 6: 编译验证**
@@ -1436,22 +1481,55 @@ async function renderMembers(body) {
   }
   try {
     const info = await call("get_chat_info", { chatId: state.currentChatId });
-    const grouped = { core: [], members: [] };
-    for (const m of info.members) {
-      if (m.is_self) grouped.core.push(m);
-      else grouped.members.push(m);
+    // 拉 workspace 所有 contact_roles（联表返回 contact_id, role_id, role_name, role_color）
+    let allRoles = [];
+    try {
+      allRoles = await call("list_all_contact_roles", { workspaceId: state.currentWsId });
+    } catch {}
+    // 构建 contact_id -> [role_name] 映射
+    const contactRoles = new Map();
+    for (const r of allRoles) {
+      if (!contactRoles.has(r.contact_id)) contactRoles.set(r.contact_id, []);
+      contactRoles.get(r.contact_id).push(r.role_name);
     }
-    const renderGroup = (title, list) => {
-      if (list.length === 0) return "";
-      const items = list.map((m) => `
-        <div class="rd-member ${m.is_self ? '' : 'muted'}">
-          <div class="rd-avatar">${escapeHtml(m.name.charAt(0).toUpperCase())}</div>
-          <span class="rd-name">${escapeHtml(m.name)}</span>
-        </div>
-      `).join("");
-      return `<div class="rd-group">${title.toUpperCase()} · ${list.length}</div>${items}`;
-    };
-    body.innerHTML = renderGroup("core", grouped.core) + renderGroup("members", grouped.members);
+    // 按 role 分组：self 归 "core"（SP1 约定 self 固定 core），其他按 contact_roles 归类
+    // 无 role 的 contact 归入 "Members" 组（对齐 mockup 的 Core·2 / Members·3）
+    const grouped = new Map(); // role_name -> [member]
+    grouped.set("core", []);
+    grouped.set("Members", []);
+    for (const m of info.members) {
+      if (m.is_self) {
+        grouped.get("core").push(m);
+        continue;
+      }
+      const roles = contactRoles.get(m.contact_id);
+      if (roles && roles.length > 0) {
+        const primaryRole = roles[0];
+        if (!grouped.has(primaryRole)) grouped.set(primaryRole, []);
+        grouped.get(primaryRole).push(m);
+      } else {
+        grouped.get("Members").push(m);
+      }
+    }
+    // 渲染顺序：core 优先，然后其他 role，最后 Members
+    const order = ["core", "Members"];
+    for (const r of allRoles) {
+      const name = r.role_name;
+      if (!order.includes(name) && grouped.has(name)) order.push(name);
+    }
+    const html = order
+      .filter((name) => grouped.has(name) && grouped.get(name).length > 0)
+      .map((name) => {
+        const list = grouped.get(name);
+        const items = list.map((m) => `
+          <div class="rd-member ${m.is_self ? '' : 'muted'}">
+            <div class="rd-avatar">${escapeHtml(m.name.charAt(0).toUpperCase())}</div>
+            <span class="rd-name">${escapeHtml(m.name)}</span>
+          </div>
+        `).join("");
+        return `<div class="rd-group">${escapeHtml(name.toUpperCase())} · ${list.length}</div>${items}`;
+      }).join("");
+    body.innerHTML = html || `<div style="padding:16px;color:#555">无成员</div>`;
   } catch (e) {
     body.innerHTML = `<div style="padding:16px;color:#555">加载失败</div>`;
   }
@@ -1757,7 +1835,18 @@ async function renderReactions(msgId) {
   try {
     const reactions = await call("get_reactions", { msgId });
     if (!reactions || reactions.length === 0) return "";
-    const capsules = reactions.map((r) => `<span class="msg-reaction" data-msg="${msgId}" data-emoji="${escapeAttr(r.emoji)}">${escapeHtml(r.emoji)} ${r.count}</span>`).join("");
+    // 对齐 mockup：用符号格式 ↑/+ 替代彩色 emoji，保留极简灰阶质感
+    // 映射规则：👍 类（赞同）→ ↑，➕ 类（新增）→ +，其他 emoji 原样显示
+    const mapEmoji = (emoji) => {
+      const e = emoji.trim();
+      if (e === "👍" || e === "+1" || e === "thumbsup") return "↑";
+      if (e === "➕" || e === "plus") return "+";
+      return e; // 其他 emoji 原样
+    };
+    const capsules = reactions.map((r) => {
+      const symbol = mapEmoji(r.emoji);
+      return `<span class="msg-reaction" data-msg="${msgId}" data-emoji="${escapeAttr(r.emoji)}">${escapeHtml(symbol)} ${r.count}</span>`;
+    }).join("");
     return `<div class="msg-reactions">${capsules}</div>`;
   } catch {
     return "";
