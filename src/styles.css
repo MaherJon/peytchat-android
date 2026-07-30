@@ -10,6 +10,11 @@
   --text-mute: #888;
   --text-weak: #555;
   --text-faint: #444;
+  --border-dashed: #333;
+  --text-action: #666;
+  --hover-bright: #fff;
+  --theme-gradient: none;
+  --theme-mask: none;
   --font: -apple-system, 'SF Pro Display', 'Inter', sans-serif;
   --font-mono: 'SF Mono', Menlo, monospace;
 }
@@ -551,3 +556,64 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .btn-primary:hover { background: #fff; }
 .btn-ghost { background: transparent; color: #888; border-color: #222; }
 .btn-ghost:hover { color: #e5e5e5; background: #1f1f1f; }
+
+/* === 主题系统 === */
+
+/* 遮罩层 */
+.theme-mask {
+  position: fixed;
+  inset: 0;
+  background: var(--theme-mask);
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* body 背景：有渐变用渐变，无渐变回退到 --bg */
+body {
+  background: var(--theme-gradient, var(--bg));
+}
+
+#app {
+  position: relative;
+  z-index: 1;
+}
+
+/* VioletEverGarden 主题 */
+[data-theme="violet"] {
+  --bg: rgba(255,255,255,0.10);
+  --panel: rgba(255,255,255,0.10);
+  --border: rgba(255,255,255,0.06);
+  --border-strong: rgba(255,255,255,0.10);
+  --active: rgba(255,255,255,0.20);
+  --capsule: rgba(255,255,255,0.08);
+  --text: #e8e5f0;
+  --text-body: #d8d5e4;
+  --text-mute: #9890aa;
+  --text-weak: #665a7a;
+  --text-faint: #443a5a;
+  --border-dashed: rgba(255,255,255,0.12);
+  --text-action: #9890aa;
+  --hover-bright: #f5f0ff;
+  --theme-gradient: linear-gradient(135deg, #583aeb 0%, #ff914d 100%);
+  --theme-mask: rgba(0,0,0,0.85);
+}
+
+/* GoldenHour 主题 */
+[data-theme="goldenhour"] {
+  --bg: rgba(245,240,235,0.5);
+  --panel: rgba(245,240,235,0.5);
+  --border: rgba(60,40,20,0.06);
+  --border-strong: rgba(60,40,20,0.10);
+  --active: rgba(60,40,20,0.08);
+  --capsule: rgba(255,250,245,0.6);
+  --text: #3a3028;
+  --text-body: #4a4038;
+  --text-mute: #7a7068;
+  --text-weak: #aaa090;
+  --text-faint: #c0b8a8;
+  --border-dashed: rgba(60,40,20,0.12);
+  --text-action: #7a7068;
+  --hover-bright: #fff8f0;
+  --theme-gradient: linear-gradient(135deg, #FF8A3D 0%, #FFB86B 35%, #FFE08A 70%, #FFF1D6 100%);
+  --theme-mask: rgba(255,255,255,0.7);
+}
