@@ -144,6 +144,8 @@ pub async fn create_chatmail_account(
         let mut accounts = state.accounts.lock().await;
         accounts.select_account(id).await?;
     }
+    // 启动 IO（与 login 命令对齐，否则 chatmail 账号无法收发消息）
+    ctx.start_io().await;
     state.set_current(id);
     dbg(format!("[chatmail] done, id={id}"));
     Ok(id)
