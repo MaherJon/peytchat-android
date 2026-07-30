@@ -1,7 +1,7 @@
 import { call } from "../api.js";
 import { state } from "../state.js";
 import { renderMessage, bindMessageActions } from "./message.js";
-import { renderComposer, bindComposer } from "./composer.js";
+import { renderComposer } from "./composer.js";
 import { renderRightDrawer } from "../shell/rightDrawer.js";
 import { showToast } from "../toast.js";
 
@@ -42,7 +42,7 @@ export async function renderChatView(chatId) {
         </div>
       </div>
       <div class="messages" id="messages"></div>
-      ${renderComposer(chatId)}
+      <div id="composer-area"></div>
     `;
     document.getElementById("act-pin").addEventListener("click", () => {
       state.rightDrawerOpen = true;
@@ -58,9 +58,21 @@ export async function renderChatView(chatId) {
     state.messagesOldestId = null;
     state.noMoreMsgs = false;
     await refreshMessages(chatId);
-    bindComposer(chatId, () => refreshMessages(chatId));
+    renderComposer(chatId, () => refreshMessages(chatId));
     bindScrollListener(chatId);
     try { await call("mark_chat_noticed", { chatId }); } catch {}
+    // 监听 message.js reply 按钮 dispatch 的事件
+    if (!main._replyListenerBound) {
+      main._replyListenerBound = true;
+      main.addEventListener("composer:set-reply", (e) => {
+        const msgId = e.detail.msgId;
+        const area = document.getElementById("composer-area");
+        if (area) {
+          area.dataset.replyTo = msgId;
+          renderComposer(state.currentChatId, () => refreshMessages(state.currentChatId));
+        }
+      });
+    }
   } catch (e) {
     main.innerHTML = `<div class="guide-card">加载失败:${escapeHtml(e.message || String(e))}</div>`;
     showToast(e.message || String(e));

@@ -142,15 +142,13 @@ export function bindMessageActions(container) {
       } catch (e) { showToast(e.message || String(e)); }
     });
   });
-  // reply(设 composer-input dataset.replyTo)
+  // reply(dispatch 事件给 chatView,由 chatView 调 renderComposer 显示 reply 预览)
   container.querySelectorAll(".msg-reply-btn").forEach((el) => {
     el.addEventListener("click", () => {
       const msgId = Number(el.dataset.msg);
-      const composer = document.getElementById("composer-input");
-      if (composer) {
-        composer.dataset.replyTo = msgId;
-        composer.placeholder = `回复 msg #${msgId}...`;
-        composer.focus();
+      const main = document.getElementById("chat-main");
+      if (main) {
+        main.dispatchEvent(new CustomEvent("composer:set-reply", { detail: { msgId } }));
       }
     });
   });
