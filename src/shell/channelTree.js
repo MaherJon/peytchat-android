@@ -30,6 +30,17 @@ export async function refreshChannels() {
 export function renderChannelTree() {
   const tree = document.getElementById("channel-tree");
   if (!tree) return;
+  tree.className = "nav-tree";
+  if (state.currentApp !== "chat") {
+    // Work/Inbox 占位（SP5/SP6 启用）
+    tree.innerHTML = `
+      <div class="nav-placeholder">
+        <div class="nav-placeholder-title">${state.currentApp === "work" ? "Work" : "Inbox"}</div>
+        <div class="nav-placeholder-desc">${state.currentApp === "work" ? "协作模式将在 SP5 启用" : "通知中心将在 SP6 启用"}</div>
+      </div>
+    `;
+    return;
+  }
   const ws = state.workspaces.find((w) => w.id === state.currentWsId);
   if (!ws) {
     tree.innerHTML = `<div class="empty">未选中 workspace</div>`;
@@ -72,6 +83,12 @@ export function renderChannelTree() {
         <div class="ct-username">${escapeHtml(state.self?.name || "me")}</div>
         <div class="ct-userrole">core</div>
       </div>
+    </div>
+  `;
+  tree.innerHTML += `
+    <div class="nav-view-switcher">
+      <span>视图：消息流</span>
+      <span class="nav-view-icon" title="切换视图（SP7）">⇄</span>
     </div>
   `;
   tree.querySelectorAll(".ct-channel").forEach((el) => {
