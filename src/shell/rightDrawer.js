@@ -1,6 +1,7 @@
 import { call } from "../api.js";
 import { state } from "../state.js";
 import { renderSettingsPanel } from "../dialogs/settingsPanel.js";
+import { showToast } from "../toast.js";
 
 export function renderRightDrawer() {
   const drawer = document.getElementById("right-drawer");
@@ -91,6 +92,7 @@ async function renderMembers(body) {
     body.innerHTML = html || `<div style="padding:16px;color:#555">无成员</div>`;
   } catch (e) {
     body.innerHTML = `<div style="padding:16px;color:#555">加载失败</div>`;
+    showToast(e.message || String(e));
   }
 }
 
@@ -106,8 +108,9 @@ async function renderPins(body) {
       return;
     }
     body.innerHTML = pins.map((p) => `<div style="padding:6px 16px;font-size:10px;color:#888;border-bottom:1px solid #1a1a1a">msg #${p.msg_id} · by ${p.pinned_by}</div>`).join("");
-  } catch {
+  } catch (e) {
     body.innerHTML = `<div style="padding:16px;color:#555">加载失败</div>`;
+    showToast(e.message || String(e));
   }
 }
 
