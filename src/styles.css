@@ -419,3 +419,35 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   cursor: pointer; border: 1px solid #222; padding: 0 4px; border-radius: 3px;
 }
 .msg-resend:hover { background: #1f1f1f; }
+
+/* Task 12: 动效 — 仅在用户未偏好减少动效时启用 */
+@media (prefers-reduced-motion: no-preference) {
+  .msg-item { animation: msg-fade-in 150ms ease-out; }
+  @keyframes msg-fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .right-drawer { transition: width 200ms ease-out; }
+  .overlay { transition: opacity 150ms ease-out; }
+  .nav-tree { transition: opacity 150ms; }
+}
+
+/* Task 12: 未读消息分隔线 */
+.msg-unread-divider {
+  display: flex; align-items: center; gap: 8px; margin: 8px 0;
+}
+.msg-unread-divider .divider-line { flex: 1; height: 1px; background: #e5e5e5; }
+.msg-unread-divider .divider-label {
+  color: #e5e5e5; font-size: 9px; font-weight: 600;
+  letter-spacing: 0.5px; background: #0d0d0d; padding: 0 8px;
+}
+
+/* Task 12: pin tab 消息预览项 */
+.rd-empty { padding: 16px; color: #555; font-size: 11px; }
+.rd-pin-item {
+  padding: 8px 16px; border-bottom: 1px solid #1a1a1a; cursor: pointer;
+}
+.rd-pin-item:hover { background: #161616; }
+.rd-pin-from { font-size: 10px; font-weight: 600; color: #e5e5e5; margin-bottom: 2px; }
+.rd-pin-text { font-size: 10px; color: #888; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.rd-pin-time { font-size: 9px; color: #555; margin-top: 4px; }

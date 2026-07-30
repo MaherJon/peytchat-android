@@ -8,6 +8,11 @@ import { saveState } from "../persist.js";
 
 let loadingEarlier = false;
 
+// Task 12: 当前 chat 的未读消息数,用于在 renderVisibleMessages 中插入"新消息"分隔线。
+// 在 renderChatView 中拉取一次(mark_chat_noticed 之前),供后续虚拟化重渲染复用。
+// 若拉取失败或为 0,则不渲染分隔线。
+let currentChatUnread = 0;
+
 // Task 11: 消息虚拟化常量。
 // ITEM_HEIGHT 是估算值(约 60px),实际消息高度不一(含附件/代码块会更高),
 // spacer 用此估算值,滚动条位置约略正确但非像素级精准 — SP4 可接受,后续可改实测高度。
@@ -80,6 +85,15 @@ export async function renderChatView(chatId) {
       renderRightDrawer();
     });
     // 分页状态已在函数开头按频道切换判断重置,此处不再重复
+    // Task 12: 在 mark_chat_noticed 之前拉取 unread count,
+    // 否则 unread 已被清零。失败时为 0,不渲染分隔线。
+    try {
+      const chats = await call("get_chatlist");
+      const chat = chats.find((c) => c.chat_id === chatId);
+      currentChatUnread = chat?.unread || 0;
+    } catch {
+      currentChatUnread = 0;
+    }
     await refreshMessages(chatId);
     renderComposer(chatId, () => refreshMessages(chatId));
     bindScrollListener(chatId);
@@ -216,6 +230,9 @@ function getVisibleRange(scrollTop, clientHeight, itemHeight) {
 // renderMessage 返回 HTML 字符串(Task 9 已确认),沿用 temp-container 解析模式 +
 // 仅对本次渲染节点调用 bindMessageActions(box 清空后旧绑定随节点销毁,无需重复绑定)。
 // 日期分隔线:若 visible 首条日期与上一条(state.messages[start-1])不同,补一条顶部 divider。
+// Task 12: 若未读分隔位置(dividerIndex = state.messages.length - currentChatUnread)
+// 落在 [start, end) 内,在对应消息前插入"新消息"分隔线。divider 不计入 visible 消息计数,
+// 是消息之间的额外 DOM 元素。若 dividerIndex 在可视范围外则跳过(用户滚动到时再出现)。
 async function renderVisibleMessages(box, start, end) {
   const visible = state.messages.slice(start, end);
   box.innerHTML = "";
@@ -226,9 +243,21 @@ async function renderVisibleMessages(box, start, end) {
   if (start > 0 && state.messages.length > 0) {
     prevDate = formatDate(new Date(state.messages[start - 1].ts * 1000));
   }
+  // Task 12: 计算未读分隔位置。dividerIndex 是第一条未读消息的索引,
+  // 即"在倒数 unreadCount 条消息前插分隔线"。state.messages.length 会随 loadEarlier 增长,
+  // 而 unreadCount 固定,因此 dividerIndex 同步增长,实际指向的消息不变。
+  const dividerIndex = (currentChatUnread > 0 && state.messages.length >= currentChatUnread)
+    ? state.messages.length - currentChatUnread
+    : -1;
   const temp = document.createElement("div");
   let html = "";
-  for (const m of visible) {
+  for (let i = 0; i < visible.length; i++) {
+    const absIdx = start + i;
+    // 在 absIdx === dividerIndex 之前插入未读分隔线(仅当 divider 落在可视范围内)
+    if (absIdx === dividerIndex) {
+      html += `<div class="msg-unread-divider"><span class="divider-line"></span><span class="divider-label">新消息</span><span class="divider-line"></span></div>`;
+    }
+    const m = visible[i];
     const dateStr = formatDate(new Date(m.ts * 1000));
     if (dateStr !== prevDate) {
       html += `<div class="msg-date-divider">${dateStr}</div>`;

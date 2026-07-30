@@ -144,21 +144,61 @@ async function renderMembers(body) {
 }
 
 async function renderPins(body) {
-  if (!state.currentChatId) {
-    body.innerHTML = `<div style="padding:16px;color:#555">未选中频道</div>`;
+  const pins = state.pins || [];
+  if (pins.length === 0) {
+    body.innerHTML = `<div class="rd-empty">无置顶消息</div>`;
     return;
   }
-  try {
-    const pins = await call("get_channel_pins", { chatId: state.currentChatId });
-    if (pins.length === 0) {
-      body.innerHTML = `<div style="padding:16px;color:#555">无置顶消息</div>`;
-      return;
-    }
-    body.innerHTML = pins.map((p) => `<div style="padding:6px 16px;font-size:10px;color:#888;border-bottom:1px solid #1a1a1a">msg #${p.msg_id} · by ${p.pinned_by}</div>`).join("");
-  } catch (e) {
-    body.innerHTML = `<div style="padding:16px;color:#555">加载失败</div>`;
-    showToast(e.message || String(e));
+  // Task 12: 拉取每条 pin 的消息内容(并行),用 channel_chat_id 取频道消息,
+  // 再 find 出 msg_id 对应的 MsgDto。若 pin 的 msg 不在最新 50 条内,get_chat_msgs
+  // 返回的列表里找不到 → 该 pin 被 filter 掉(SP4 已知限制,见 task-12-brief Step 3)。
+  const pinItems = await Promise.all(pins.map(async (p) => {
+    try {
+      const msgs = await call("get_chat_msgs", { chatId: p.channel_chat_id });
+      const msg = msgs.find((m) => m.msg_id === p.msg_id);
+      return msg ? { ...p, msg } : null;
+    } catch { return null; }
+  }));
+  const valid = pinItems.filter(Boolean);
+  if (valid.length === 0) {
+    body.innerHTML = `<div class="rd-empty">无置顶消息</div>`;
+    return;
   }
+  body.innerHTML = valid.map((p) => `
+    <div class="rd-pin-item" data-chat="${p.channel_chat_id}" data-msg="${p.msg_id}">
+      <div class="rd-pin-from">${escapeHtml(p.msg.from_name)}</div>
+      <div class="rd-pin-text">${escapeHtml((p.msg.text || "").slice(0, 60))}</div>
+      <div class="rd-pin-time">${formatRelativeTime(p.msg.ts)}</div>
+    </div>
+  `).join("");
+  // 点击跳转:切换 chat → 渲染 → 滚动到目标消息并短暂高亮
+  body.querySelectorAll(".rd-pin-item").forEach((el) => {
+    el.addEventListener("click", async () => {
+      const chatId = Number(el.dataset.chat);
+      const msgId = Number(el.dataset.msg);
+      state.currentChatId = chatId;
+      const { renderChatView } = await import("../chat/chatView.js");
+      await renderChatView(chatId);
+      setTimeout(() => {
+        const msgEl = document.querySelector(`[data-msg="${msgId}"]`);
+        if (msgEl) {
+          msgEl.scrollIntoView({ behavior: "smooth" });
+          msgEl.style.background = "#1f1f1f";
+          setTimeout(() => { msgEl.style.background = ""; }, 2000);
+        }
+      }, 200);
+    });
+  });
+}
+
+// Task 12: pin tab 时间显示用相对时间格式。简单实现,避免引入额外 utils 模块。
+function formatRelativeTime(ts) {
+  if (!ts) return "";
+  const diff = Date.now() - ts * 1000;
+  if (diff < 60000) return "刚刚";
+  if (diff < 3600000) return Math.floor(diff / 60000) + "分钟前";
+  if (diff < 86400000) return Math.floor(diff / 3600000) + "小时前";
+  return Math.floor(diff / 86400000) + "天前";
 }
 
 function escapeHtml(s) {
