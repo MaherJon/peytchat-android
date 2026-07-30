@@ -6,6 +6,7 @@ import { refreshChannels, renderChannelTree } from "../shell/channelTree.js";
 import { renderChatView } from "../chat/chatView.js";
 import { renderHomeView } from "./homeView.js";
 import { showQrOverlay } from "./qrShow.js";
+import { getCurrentTheme, applyTheme } from "../theme.js";
 
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -13,7 +14,7 @@ function esc(s) {
 
 // Task 13: 把 Contact::get_color() 返回的 u32 转成 #rrggbb,用于头像首字母背景色。
 function colorHex(c) {
-  if (!c && c !== 0) return "#222";
+  if (!c && c !== 0) return "var(--border-strong)";
   return "#" + (c & 0xffffff).toString(16).padStart(6, "0");
 }
 
@@ -47,16 +48,33 @@ async function renderAccountSettings(body) {
     <div style="padding:0 16px 8px;display:flex;flex-direction:column;gap:8px">
       <div class="settings-avatar">${avatarHtml}</div>
       <div style="display:flex;gap:8px">
-        <button id="acc-change-avatar" style="flex:1;background:#161616;border:1px solid #222;color:#e5e5e5;padding:6px;border-radius:4px;font-size:11px;cursor:pointer">更换头像</button>
-        <button id="acc-clear-avatar" style="flex:1;background:transparent;border:1px solid #222;color:#888;padding:6px;border-radius:4px;font-size:11px;cursor:pointer">删除头像</button>
+        <button id="acc-change-avatar" style="flex:1;background:var(--capsule);border:1px solid var(--border-strong);color:var(--text);padding:6px;border-radius:4px;font-size:11px;cursor:pointer">更换头像</button>
+        <button id="acc-clear-avatar" style="flex:1;background:transparent;border:1px solid var(--border-strong);color:var(--text-mute);padding:6px;border-radius:4px;font-size:11px;cursor:pointer">删除头像</button>
       </div>
-      <label style="font-size:9px;color:#555">显示名</label>
-      <input id="acc-name" value="${esc(profile?.name || "")}" style="background:#0a0a0a;border:1px solid #222;border-radius:4px;padding:6px 10px;color:#e5e5e5;font-size:11px" />
-      <label style="font-size:9px;color:#555">邮箱(只读)</label>
-      <div style="background:#0a0a0a;border:1px solid #1a1a1a;border-radius:4px;padding:6px 10px;color:#888;font-size:11px">${esc(profile?.addr || "—")}</div>
-      <button id="acc-save" style="background:#161616;border:1px solid #222;color:#e5e5e5;padding:6px;border-radius:4px;font-size:11px;cursor:pointer;margin-top:4px">保存</button>
-      <button id="acc-qr" style="background:transparent;border:1px solid #222;color:#888;padding:6px;border-radius:4px;font-size:11px;cursor:pointer">我的二维码</button>
-      <button id="acc-logout" style="background:transparent;border:1px solid #222;color:#555;padding:6px;border-radius:4px;font-size:11px;cursor:pointer;margin-top:12px">登出</button>
+      <label style="font-size:9px;color:var(--text-weak)">显示名</label>
+      <input id="acc-name" value="${esc(profile?.name || "")}" style="background:var(--panel);border:1px solid var(--border-strong);border-radius:4px;padding:6px 10px;color:var(--text);font-size:11px" />
+      <label style="font-size:9px;color:var(--text-weak)">邮箱(只读)</label>
+      <div style="background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:6px 10px;color:var(--text-mute);font-size:11px">${esc(profile?.addr || "—")}</div>
+      <button id="acc-save" style="background:var(--capsule);border:1px solid var(--border-strong);color:var(--text);padding:6px;border-radius:4px;font-size:11px;cursor:pointer;margin-top:4px">保存</button>
+      <button id="acc-qr" style="background:transparent;border:1px solid var(--border-strong);color:var(--text-mute);padding:6px;border-radius:4px;font-size:11px;cursor:pointer">我的二维码</button>
+      <div class="rd-appearance">
+        <div class="rd-appearance-title">外观</div>
+        <div class="theme-options">
+          <div class="theme-opt ${getCurrentTheme() === 'nowint' ? 'active' : ''}" data-theme="nowint">
+            <div class="theme-swatch theme-swatch-nowint"></div>
+            Nowint
+          </div>
+          <div class="theme-opt ${getCurrentTheme() === 'violet' ? 'active' : ''}" data-theme="violet">
+            <div class="theme-swatch theme-swatch-violet"></div>
+            Violet
+          </div>
+          <div class="theme-opt ${getCurrentTheme() === 'goldenhour' ? 'active' : ''}" data-theme="goldenhour">
+            <div class="theme-swatch theme-swatch-goldenhour"></div>
+            GoldenHour
+          </div>
+        </div>
+      </div>
+      <button id="acc-logout" style="background:transparent;border:1px solid var(--border-strong);color:var(--text-weak);padding:6px;border-radius:4px;font-size:11px;cursor:pointer;margin-top:12px">登出</button>
       <input id="acc-avatar-file" type="file" accept="image/*" style="display:none" />
     </div>
   `;
@@ -114,6 +132,14 @@ async function renderAccountSettings(body) {
       location.reload();
     } catch (e) { showToast(e.message || String(e)); }
   };
+  document.querySelectorAll(".theme-opt").forEach((opt) => {
+    opt.onclick = () => {
+      const theme = opt.dataset.theme;
+      applyTheme(theme);
+      document.querySelectorAll(".theme-opt").forEach((o) => o.classList.remove("active"));
+      opt.classList.add("active");
+    };
+  });
 }
 
 async function renderWorkspaceSettings(body) {
@@ -122,15 +148,15 @@ async function renderWorkspaceSettings(body) {
   body.innerHTML = `
     <div class="rd-group">Workspace</div>
     <div style="padding:0 16px 8px;display:flex;flex-direction:column;gap:8px">
-      <label style="font-size:9px;color:#555">名称</label>
-      <input id="ws-name" value="${esc(ws.name)}" style="background:#0a0a0a;border:1px solid #222;border-radius:4px;padding:6px 10px;color:#e5e5e5;font-size:11px" />
-      <label style="font-size:9px;color:#555">图标(1-2 字符)</label>
-      <input id="ws-icon" value="${esc(ws.icon || "")}" maxlength="2" style="background:#0a0a0a;border:1px solid #222;border-radius:4px;padding:6px 10px;color:#e5e5e5;font-size:11px" />
-      <button id="ws-save" style="background:#161616;border:1px solid #222;color:#e5e5e5;padding:6px;border-radius:4px;font-size:11px;cursor:pointer;margin-top:4px">保存</button>
-      <button id="ws-master" style="background:transparent;border:1px solid #222;color:#888;padding:6px;border-radius:4px;font-size:11px;cursor:pointer">进入总群</button>
-      <button id="ws-qr" style="background:transparent;border:1px solid #222;color:#888;padding:6px;border-radius:4px;font-size:11px;cursor:pointer">workspace 二维码</button>
-      <button id="ws-leave" style="background:transparent;border:1px solid #222;color:#555;padding:6px;border-radius:4px;font-size:11px;cursor:pointer;margin-top:12px">离开 workspace</button>
-      <button id="ws-delete" style="background:transparent;border:1px solid #222;color:#555;padding:6px;border-radius:4px;font-size:11px;cursor:pointer">删除 workspace</button>
+      <label style="font-size:9px;color:var(--text-weak)">名称</label>
+      <input id="ws-name" value="${esc(ws.name)}" style="background:var(--panel);border:1px solid var(--border-strong);border-radius:4px;padding:6px 10px;color:var(--text);font-size:11px" />
+      <label style="font-size:9px;color:var(--text-weak)">图标(1-2 字符)</label>
+      <input id="ws-icon" value="${esc(ws.icon || "")}" maxlength="2" style="background:var(--panel);border:1px solid var(--border-strong);border-radius:4px;padding:6px 10px;color:var(--text);font-size:11px" />
+      <button id="ws-save" style="background:var(--capsule);border:1px solid var(--border-strong);color:var(--text);padding:6px;border-radius:4px;font-size:11px;cursor:pointer;margin-top:4px">保存</button>
+      <button id="ws-master" style="background:transparent;border:1px solid var(--border-strong);color:var(--text-mute);padding:6px;border-radius:4px;font-size:11px;cursor:pointer">进入总群</button>
+      <button id="ws-qr" style="background:transparent;border:1px solid var(--border-strong);color:var(--text-mute);padding:6px;border-radius:4px;font-size:11px;cursor:pointer">workspace 二维码</button>
+      <button id="ws-leave" style="background:transparent;border:1px solid var(--border-strong);color:var(--text-weak);padding:6px;border-radius:4px;font-size:11px;cursor:pointer;margin-top:12px">离开 workspace</button>
+      <button id="ws-delete" style="background:transparent;border:1px solid var(--border-strong);color:var(--text-weak);padding:6px;border-radius:4px;font-size:11px;cursor:pointer">删除 workspace</button>
     </div>
   `;
   document.getElementById("ws-save").onclick = async () => {
@@ -188,19 +214,19 @@ async function renderChannelSettings(body) {
   body.innerHTML = `
     <div class="rd-group">频道</div>
     <div style="padding:0 16px 8px;display:flex;flex-direction:column;gap:8px">
-      <label style="font-size:9px;color:#555">名称</label>
-      <input id="ch-name" value="${esc(ch.name)}" style="background:#0a0a0a;border:1px solid #222;border-radius:4px;padding:6px 10px;color:#e5e5e5;font-size:11px" />
-      <label style="font-size:9px;color:#555">Topic</label>
-      <input id="ch-topic" value="${esc(ch.topic || "")}" style="background:#0a0a0a;border:1px solid #222;border-radius:4px;padding:6px 10px;color:#e5e5e5;font-size:11px" />
-      <label style="font-size:9px;color:#555">分类</label>
-      <input id="ch-cat" value="${esc(ch.category)}" style="background:#0a0a0a;border:1px solid #222;border-radius:4px;padding:6px 10px;color:#e5e5e5;font-size:11px" />
-      <label style="font-size:9px;color:#555">空间类型</label>
+      <label style="font-size:9px;color:var(--text-weak)">名称</label>
+      <input id="ch-name" value="${esc(ch.name)}" style="background:var(--panel);border:1px solid var(--border-strong);border-radius:4px;padding:6px 10px;color:var(--text);font-size:11px" />
+      <label style="font-size:9px;color:var(--text-weak)">Topic</label>
+      <input id="ch-topic" value="${esc(ch.topic || "")}" style="background:var(--panel);border:1px solid var(--border-strong);border-radius:4px;padding:6px 10px;color:var(--text);font-size:11px" />
+      <label style="font-size:9px;color:var(--text-weak)">分类</label>
+      <input id="ch-cat" value="${esc(ch.category)}" style="background:var(--panel);border:1px solid var(--border-strong);border-radius:4px;padding:6px 10px;color:var(--text);font-size:11px" />
+      <label style="font-size:9px;color:var(--text-weak)">空间类型</label>
       <div class="space-type-toggle">
         <button class="st-btn ${currentSpaceType === 'chat' ? 'active' : ''}" data-st="chat">聊天</button>
         <button class="st-btn ${currentSpaceType === 'card' ? 'active' : ''}" data-st="card">协作</button>
       </div>
-      <button id="ch-save" style="background:#161616;border:1px solid #222;color:#e5e5e5;padding:6px;border-radius:4px;font-size:11px;cursor:pointer;margin-top:4px">保存</button>
-      <button id="ch-leave" style="background:transparent;border:1px solid #222;color:#555;padding:6px;border-radius:4px;font-size:11px;cursor:pointer;margin-top:12px">离开频道</button>
+      <button id="ch-save" style="background:var(--capsule);border:1px solid var(--border-strong);color:var(--text);padding:6px;border-radius:4px;font-size:11px;cursor:pointer;margin-top:4px">保存</button>
+      <button id="ch-leave" style="background:transparent;border:1px solid var(--border-strong);color:var(--text-weak);padding:6px;border-radius:4px;font-size:11px;cursor:pointer;margin-top:12px">离开频道</button>
     </div>
   `;
   document.querySelectorAll(".st-btn").forEach((btn) => {
