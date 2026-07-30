@@ -1,7 +1,9 @@
 import { call } from "../api.js";
 import { state } from "../state.js";
+import { showToast } from "../toast.js";
 import { renderChatView } from "../chat/chatView.js";
 import { openChannelCreateDialog } from "../dialogs/channelCreate.js";
+import { showContextMenu } from "../dialogs/contextMenu.js";
 import { renderRightDrawer } from "./rightDrawer.js";
 import { renderHomeView } from "../dialogs/homeView.js";
 
@@ -77,6 +79,38 @@ export function renderChannelTree() {
       state.currentChatId = id;
       renderChannelTree();
       await renderChatView(id);
+    });
+    el.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      const id = Number(el.dataset.id);
+      showContextMenu(e.clientX, e.clientY, [
+        {
+          label: "频道设置",
+          action: () => {
+            state.rightDrawerOpen = true;
+            state.rightDrawerTab = "settings";
+            renderRightDrawer();
+          },
+        },
+        {
+          label: "离开频道",
+          action: async () => {
+            if (!confirm("离开此频道?")) return;
+            try {
+              await call("leave_channel", { chatId: id });
+              await refreshChannels();
+              renderChannelTree();
+              if (state.currentChatId === id) {
+                state.currentChatId = null;
+                document.getElementById("chat-main").innerHTML = `<div class="empty">选择一个频道</div>`;
+              }
+              showToast("已离开");
+            } catch (err) {
+              showToast(err.message || String(err));
+            }
+          },
+        },
+      ]);
     });
   });
   // category 折叠（点击切换，持久化到 localStorage）
