@@ -83,6 +83,16 @@ pub struct ContactDto {
 }
 
 #[derive(Debug, Serialize)]
+pub struct SearchResultDto {
+    pub msg_id: u32,
+    pub chat_id: u32,
+    pub chat_name: String,
+    pub from_name: String,
+    pub text: String,
+    pub ts: i64,
+}
+
+#[derive(Debug, Serialize)]
 pub struct WorkspaceDto {
     pub id: i64,
     pub name: String,

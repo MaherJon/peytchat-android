@@ -44,18 +44,20 @@ async function doSearch(q) {
   }
   const lower = q.toLowerCase();
   const sections = [];
-  // 1. 消息(只搜已加载的 state.messages)
-  const msgMatches = (state.messages || [])
-    .filter((m) => (m.text || "").toLowerCase().includes(lower))
-    .slice(0, 5);
-  if (msgMatches.length > 0) {
-    const items = msgMatches
-      .map(
-        (m) =>
-          `<div class="sr-item" data-type="msg" data-id="${m.msg_id}"><span class="sr-type">消息</span><span class="sr-content">${escapeHtml(m.from_name)}: ${escapeHtml((m.text || "").slice(0, 60))}</span></div>`
-      )
-      .join("");
-    sections.push(`<div class="sr-section">消息</div>${items}`);
+  // 1. 跨频道消息搜索（调 search_msgs 命令）
+  try {
+    const results = await call("search_msgs", { query: q });
+    if (results && results.length > 0) {
+      const items = results
+        .map(
+          (r) =>
+            `<div class="sr-item" data-type="msg" data-chat="${r.chat_id}" data-id="${r.msg_id}"><span class="sr-type">${escapeHtml(r.chat_name)}</span><span class="sr-content">${escapeHtml(r.from_name)}: ${escapeHtml(r.text)}</span></div>`
+        )
+        .join("");
+      sections.push(`<div class="sr-section">消息 (${results.length})</div>${items}`);
+    }
+  } catch (e) {
+    console.error("search_msgs failed:", e);
   }
   // 2. 频道(state.channels)
   const chanMatches = (state.channels || [])
@@ -89,6 +91,12 @@ async function doSearch(q) {
     }
   } catch {}
   resultsEl.innerHTML = sections.join("") || `<div class="sr-empty">无结果</div>`;
+  bindSearchResults();
+}
+
+function bindSearchResults() {
+  const resultsEl = document.getElementById("search-results");
+  if (!resultsEl) return;
   resultsEl.querySelectorAll(".sr-item").forEach((el) => {
     el.addEventListener("click", async () => {
       const type = el.dataset.type;
@@ -98,8 +106,11 @@ async function doSearch(q) {
         closeSearch();
         await renderChatView(Number(id));
       } else if (type === "msg") {
+        // 跨频道结果：data-chat 指向消息所在 chat_id
+        const chatId = el.dataset.chat ? Number(el.dataset.chat) : state.currentChatId;
+        state.currentChatId = chatId;
         closeSearch();
-        await renderChatView(state.currentChatId);
+        await renderChatView(chatId);
         const msgEl = document.querySelector(`[data-msg="${id}"]`);
         if (msgEl) {
           msgEl.scrollIntoView({ behavior: "smooth" });

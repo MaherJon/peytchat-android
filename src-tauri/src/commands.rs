@@ -12,7 +12,7 @@ use tauri::State;
 
 use crate::dto::{
     AdvancedLogin, ChannelDto, ChatDto, ChatInfoDto, ContactDto, ContactRoleDto, MemberDto, MsgDto,
-    PinDto, ProfileDto, ReactionDto, RoleDto, WorkspaceDto,
+    PinDto, ProfileDto, ReactionDto, RoleDto, SearchResultDto, WorkspaceDto,
 };
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
@@ -996,4 +996,74 @@ pub async fn create_chat_by_contact(
 pub async fn get_asset_url(path: String) -> AppResult<String> {
     let encoded = urlencoding::encode(&path);
     Ok(format!("asset://localhost/{}", encoded))
+}
+
+// ── SP4 cross-channel search ────────────────────────────────────────────────
+//
+// core 没有公开的 search_msgs API，采用 fallback：遍历 chatlist，每 chat 取最近
+// 50 条消息做文本过滤，最多累计 30 条结果。与 brief Step 2 一致。
+
+#[tauri::command]
+pub async fn search_msgs(
+    state: State<'_, AppState>,
+    query: String,
+) -> AppResult<Vec<SearchResultDto>> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or(AppError::Core("no account".into()))?;
+    let mut out: Vec<SearchResultDto> = Vec::new();
+    let chatlist = Chatlist::try_load(&ctx, 0, None, None).await?;
+    for i in 0..chatlist.len() {
+        let chat_id = match chatlist.get_chat_id(i) {
+            Ok(id) => id,
+            Err(_) => continue,
+        };
+        let chat = match Chat::load_from_db(&ctx, chat_id).await {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let chat_name = chat.get_name().to_string();
+        let items = match chat::get_chat_msgs(&ctx, chat_id).await {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        // 只取最近 50 条做过滤（避免全量扫描）
+        let recent: Vec<_> = items.into_iter().rev().take(50).collect();
+        for item in recent {
+            if let ChatItem::Message { msg_id } = item {
+                let m = match Message::load_from_db(&ctx, msg_id).await {
+                    Ok(m) => m,
+                    Err(_) => continue,
+                };
+                let text = m.get_text();
+                if text.to_lowercase().contains(&query.to_lowercase()) {
+                    let from_id = m.get_from_id();
+                    let from_name = if from_id == ContactId::SELF {
+                        "我".to_string()
+                    } else {
+                        Contact::get_by_id(&ctx, from_id)
+                            .await
+                            .map(|c| c.get_display_name().to_string())
+                            .unwrap_or_default()
+                    };
+                    out.push(SearchResultDto {
+                        msg_id: msg_id.to_u32(),
+                        chat_id: chat_id.to_u32(),
+                        chat_name: chat_name.clone(),
+                        from_name,
+                        text: text.chars().take(80).collect(),
+                        ts: m.get_timestamp(),
+                    });
+                    if out.len() >= 30 {
+                        break;
+                    }
+                }
+            }
+        }
+        if out.len() >= 30 {
+            break;
+        }
+    }
+    Ok(out)
 }
