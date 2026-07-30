@@ -24,6 +24,13 @@ hljs.registerLanguage("sh", bash);
 hljs.registerLanguage("sql", sql);
 hljs.registerLanguage("json", json);
 
+function formatBytes(bytes) {
+  if (!bytes) return "";
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / 1024 / 1024).toFixed(1) + " MB";
+}
+
 export async function renderMessage(m) {
   const isOut = m.is_out;
   const stateClass = m._state ? ` ${m._state}` : "";
@@ -32,6 +39,40 @@ export async function renderMessage(m) {
   const replyMark = m.quote_from ? `<span class="msg-reply-mark">↩ reply to ${escapeHtml(m.quote_from)}</span>` : "";
   const quoteBlock = m.quote_text ? `<div class="msg-quote">${escapeHtml(m.quote_from || '')}: ${escapeHtml(m.quote_text.slice(0, 80))}</div>` : "";
   const textHtml = renderText(m.text);
+  // 附件渲染（view_type != Text）
+  let attachmentHtml = "";
+  if (m.view_type && m.view_type !== "Text" && m.file) {
+    const assetUrl = await call("get_asset_url", { path: m.file });
+    switch (m.view_type) {
+      case "Image":
+      case "Gif":
+      case "Sticker":
+        attachmentHtml = `<div class="msg-attachment img" data-asset="${escapeHtml(assetUrl)}">
+          <img src="${escapeHtml(assetUrl)}" alt="${escapeHtml(m.file_name || "image")}" style="max-width:240px;max-height:180px;border-radius:4px;cursor:pointer" data-full="${escapeHtml(assetUrl)}" />
+        </div>`;
+        break;
+      case "File":
+        attachmentHtml = `<div class="msg-attachment file" data-download="${escapeHtml(assetUrl)}">
+          <div class="file-icon">□</div>
+          <div class="file-info">
+            <div class="file-name">${escapeHtml(m.file_name || "file")}</div>
+            <div class="file-meta">${formatBytes(m.file_bytes)} · 点击下载</div>
+          </div>
+        </div>`;
+        break;
+      case "Audio":
+      case "Voice":
+        attachmentHtml = `<div class="msg-attachment audio">
+          <audio controls src="${escapeHtml(assetUrl)}" style="max-width:280px"></audio>
+        </div>`;
+        break;
+      case "Video":
+        attachmentHtml = `<div class="msg-attachment video">
+          <video controls src="${escapeHtml(assetUrl)}" style="max-width:280px;max-height:200px;border-radius:4px"></video>
+        </div>`;
+        break;
+    }
+  }
   const reactionsHtml = await renderReactions(m.msg_id);
   const pinBtn = `<span class="msg-pin-btn" data-msg="${m.msg_id}" title="pin">pin</span>`;
   const replyBtn = `<span class="msg-reply-btn" data-msg="${m.msg_id}" title="reply">reply</span>`;
@@ -47,6 +88,7 @@ export async function renderMessage(m) {
       </div>
       ${quoteBlock}
       <div class="msg-text">${textHtml}</div>
+      ${attachmentHtml}
       ${reactionsHtml}
       <div class="msg-reaction-picker" id="rp-${m.msg_id}">
         <span data-emoji="👍">↑</span>
@@ -187,6 +229,26 @@ export function bindMessageActions(container) {
       try {
         await call("delete_msg", { msgId: Number(msgId) });
       } catch (e) { showToast(e.message || String(e)); }
+    });
+  });
+  // 图片点击放大(全屏 overlay)
+  container.querySelectorAll(".msg-attachment img[data-full]").forEach((img) => {
+    img.addEventListener("click", () => {
+      const overlay = document.createElement("div");
+      overlay.className = "overlay img-fullscreen-overlay";
+      overlay.style.display = "flex";
+      overlay.innerHTML = `<img src="${img.dataset.full}" style="max-width:90%;max-height:90%" />`;
+      overlay.addEventListener("click", () => overlay.remove());
+      document.body.appendChild(overlay);
+    });
+  });
+  // 文件下载(创建 <a download> 触发)
+  container.querySelectorAll(".msg-attachment.file[data-download]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const a = document.createElement("a");
+      a.href = el.dataset.download;
+      a.download = "";
+      a.click();
     });
   });
   // 点击空白关闭所有 picker(绑定一次)

@@ -320,3 +320,19 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .sr-type { color: var(--text-weak); font-size: 9px; min-width: 30px; }
 .sr-content { color: var(--text); font-size: 11px; }
 .sr-empty { padding: 16px; color: var(--text-weak); font-size: 11px; text-align: center; }
+
+/* 消息附件 (image/file/audio/video) */
+.msg-attachment { margin-top: 6px; }
+.msg-attachment.file {
+  display: inline-flex; align-items: center; gap: 10px;
+  background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 4px;
+  padding: 8px 12px; cursor: pointer; max-width: 280px;
+}
+.msg-attachment.file .file-icon {
+  width: 28px; height: 28px; background: #161616; border: 1px solid #222;
+  border-radius: 4px; display: flex; align-items: center; justify-content: center;
+  color: #888; font-size: 11px;
+}
+.msg-attachment.file .file-name { font-size: 10px; font-weight: 500; color: #e5e5e5; }
+.msg-attachment.file .file-meta { font-size: 9px; color: #555; margin-top: 1px; }
+.img-fullscreen-overlay { background: rgba(0,0,0,0.9); }
