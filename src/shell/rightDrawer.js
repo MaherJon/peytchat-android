@@ -1,24 +1,53 @@
 import { call } from "../api.js";
 import { state } from "../state.js";
+import { saveState } from "../persist.js";
 import { renderSettingsPanel } from "../dialogs/settingsPanel.js";
 import { showToast } from "../toast.js";
 
 export function renderRightDrawer() {
   const drawer = document.getElementById("right-drawer");
   if (!drawer) return;
-  drawer.className = state.rightDrawerOpen ? "right-drawer" : "right-drawer collapsed";
+  const collapsed = !state.rightDrawerOpen || !state.detailPanelOpen;
+  drawer.classList.toggle("collapsed", collapsed);
   if (!state.rightDrawerOpen) return;
-  const tabs = ["members", "pin", "settings"].map((t) => {
-    const cls = state.rightDrawerTab === t ? "rd-tab active" : "rd-tab";
-    return `<span class="${cls}" data-tab="${t}">${t}</span>`;
-  }).join("");
-  drawer.innerHTML = `<div class="rd-tabs">${tabs}</div><div id="rd-body" style="flex:1;overflow-y:auto"></div>`;
+  const tab = state.rightDrawerTab;
+  const tabsHtml = `
+    <span class="rd-tab ${tab === "members" ? "active" : ""}" data-tab="members">members</span>
+    <span class="rd-tab ${tab === "pin" ? "active" : ""}" data-tab="pin">pin</span>
+    <span class="rd-tab ${tab === "settings" ? "active" : ""}" data-tab="settings">settings</span>
+    <span class="rd-flex"></span>
+    <span class="rd-collapse" title="折叠">›</span>
+  `;
+  drawer.innerHTML = `<div class="rd-tabs">${tabsHtml}</div><div id="rd-body" style="flex:1;overflow-y:auto"></div>`;
   drawer.querySelectorAll(".rd-tab").forEach((el) => {
     el.addEventListener("click", () => {
       state.rightDrawerTab = el.dataset.tab;
       renderRightDrawer();
     });
   });
+  drawer.querySelector(".rd-collapse").addEventListener("click", () => {
+    state.detailPanelOpen = false;
+    saveState();
+    renderRightDrawer();
+  });
+  if (!state.detailPanelOpen) {
+    const main = document.getElementById("chat-main");
+    if (main && !main.querySelector(".detail-expand")) {
+      const expandBtn = document.createElement("div");
+      expandBtn.className = "detail-expand";
+      expandBtn.innerHTML = "‹";
+      expandBtn.title = "展开详情面板";
+      expandBtn.addEventListener("click", () => {
+        state.detailPanelOpen = true;
+        saveState();
+        renderRightDrawer();
+        expandBtn.remove();
+      });
+      main.appendChild(expandBtn);
+    }
+  } else {
+    document.querySelectorAll("#chat-main .detail-expand").forEach((el) => el.remove());
+  }
   renderRdBody();
 }
 
@@ -77,19 +106,30 @@ async function renderMembers(body) {
       const name = r.role_name;
       if (!order.includes(name) && grouped.has(name)) order.push(name);
     }
+    const searchHtml = `<div class="rd-search"><input id="rd-member-search" placeholder="搜索成员..." /></div>`;
     const html = order
       .filter((name) => grouped.has(name) && grouped.get(name).length > 0)
       .map((name) => {
         const list = grouped.get(name);
         const items = list.map((m) => `
-          <div class="rd-member ${m.is_self ? '' : 'muted'}" ${m.is_self ? '' : `data-cid="${m.contact_id}" style="cursor:pointer"`}>
+          <div class="rd-member ${m.is_self ? '' : 'muted'}" data-name="${escapeHtml(m.name)}" ${m.is_self ? '' : `data-cid="${m.contact_id}" style="cursor:pointer"`}>
             <div class="rd-avatar">${escapeHtml(m.name.charAt(0).toUpperCase())}</div>
             <span class="rd-name">${escapeHtml(m.name)}</span>
           </div>
         `).join("");
         return `<div class="rd-group">${escapeHtml(name.toUpperCase())} · ${list.length}</div>${items}`;
       }).join("");
-    body.innerHTML = html || `<div style="padding:16px;color:#555">无成员</div>`;
+    body.innerHTML = searchHtml + (html || `<div style="padding:16px;color:#555">无成员</div>`);
+    const searchInput = body.querySelector("#rd-member-search");
+    if (searchInput) {
+      searchInput.addEventListener("input", () => {
+        const q = searchInput.value.toLowerCase();
+        body.querySelectorAll(".rd-member").forEach((el) => {
+          const name = el.dataset.name?.toLowerCase() || "";
+          el.style.display = name.includes(q) ? "" : "none";
+        });
+      });
+    }
     body.querySelectorAll(".rd-member[data-cid]").forEach((el) => {
       el.addEventListener("click", async () => {
         const cid = Number(el.dataset.cid);
