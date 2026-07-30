@@ -4,6 +4,8 @@ import { renderMessage, bindMessageActions } from "./message.js";
 import { renderComposer, bindComposer } from "./composer.js";
 import { renderRightDrawer } from "../shell/rightDrawer.js";
 
+let loadingEarlier = false;
+
 export async function renderChatView(chatId) {
   const main = document.getElementById("chat-main");
   if (!main) return;
@@ -48,25 +50,80 @@ export async function renderChatView(chatId) {
     state.rightDrawerTab = "search";
     renderRightDrawer();
   });
+  // 重置分页状态
+  state.messagesOldestId = null;
+  state.noMoreMsgs = false;
   await refreshMessages(chatId);
   bindComposer(chatId, () => refreshMessages(chatId));
+  bindScrollListener(chatId);
   try { await call("mark_chat_noticed", { chatId }); } catch {}
 }
 
 async function refreshMessages(chatId) {
   let msgs = [];
   try {
-    msgs = await call("get_chat_msgs", { chatId });
+    msgs = await call("get_chat_msgs", { chatId, beforeMsgId: null });
   } catch {
     return;
   }
   state.messages = msgs;
+  // items oldest-first: 数组首条为本页最旧消息
+  state.messagesOldestId = msgs.length > 0 ? msgs[0].msg_id : null;
+  state.noMoreMsgs = false;
   const box = document.getElementById("messages");
   if (!box) return;
   const html = await Promise.all(msgs.map(renderMessage));
   box.innerHTML = html.join("");
   bindMessageActions(box);
   box.scrollTop = box.scrollHeight;
+}
+
+async function loadEarlier(chatId) {
+  if (loadingEarlier) return;
+  if (!state.messagesOldestId || state.noMoreMsgs) return;
+  loadingEarlier = true;
+  let older = [];
+  try {
+    older = await call("get_chat_msgs", { chatId, beforeMsgId: state.messagesOldestId });
+  } catch {
+    loadingEarlier = false;
+    return;
+  }
+  // 切换聊天期间异步返回:丢弃过期结果
+  if (state.currentChatId !== chatId) {
+    loadingEarlier = false;
+    return;
+  }
+  if (older.length === 0) {
+    state.noMoreMsgs = true;
+    loadingEarlier = false;
+    return;
+  }
+  const box = document.getElementById("messages");
+  if (!box) {
+    loadingEarlier = false;
+    return;
+  }
+  const prevHeight = box.scrollHeight;
+  const prevTop = box.scrollTop;
+  state.messages = [...older, ...state.messages];
+  state.messagesOldestId = older[0].msg_id;
+  const html = await Promise.all(state.messages.map(renderMessage));
+  box.innerHTML = html.join("");
+  bindMessageActions(box);
+  // 保持视觉位置:补偿新增高度
+  box.scrollTop = prevTop + (box.scrollHeight - prevHeight);
+  loadingEarlier = false;
+}
+
+function bindScrollListener(chatId) {
+  const box = document.getElementById("messages");
+  if (!box) return;
+  box.addEventListener("scroll", () => {
+    if (box.scrollTop === 0) {
+      loadEarlier(chatId);
+    }
+  });
 }
 
 function channelName(chatId) {

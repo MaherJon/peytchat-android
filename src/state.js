@@ -9,4 +9,6 @@ export const state = {
   rightDrawerTab: 'members',
   rightDrawerOpen: false,
   homeMode: false,
+  messagesOldestId: null,
+  noMoreMsgs: false,
 };

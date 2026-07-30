@@ -258,15 +258,41 @@ pub async fn get_chat_info(
 }
 
 #[tauri::command]
-pub async fn get_chat_msgs(state: State<'_, AppState>, chat_id: u32) -> AppResult<Vec<MsgDto>> {
+pub async fn get_chat_msgs(
+    state: State<'_, AppState>,
+    chat_id: u32,
+    before_msg_id: Option<u32>,
+) -> AppResult<Vec<MsgDto>> {
     let ctx = state
         .current()
         .await
         .ok_or_else(|| AppError::Core("no account".into()))?;
     let chat_id = deltachat::chat::ChatId::new(chat_id);
     let items = chat::get_chat_msgs(&ctx, chat_id).await?;
+    // core returns items oldest-first (sorted by timestamp ascending).
+    // Pick the window of up to 50 items to return.
+    let window: Vec<ChatItem> = match before_msg_id {
+        Some(before) => {
+            let pos = items.iter().position(|it| match it {
+                ChatItem::Message { msg_id } => msg_id.to_u32() == before,
+                _ => false,
+            });
+            match pos {
+                Some(pos) => {
+                    let start = pos.saturating_sub(50);
+                    items.into_iter().skip(start).take(pos - start).collect()
+                }
+                None => Vec::new(),
+            }
+        }
+        None => {
+            let len = items.len();
+            let start = len.saturating_sub(50);
+            items.into_iter().skip(start).collect()
+        }
+    };
     let mut out = Vec::new();
-    for item in items {
+    for item in window {
         if let ChatItem::Message { msg_id } = item {
             let m = message::Message::load_from_db(&ctx, msg_id).await?;
             let from_id = m.get_from_id();
