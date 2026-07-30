@@ -20,6 +20,7 @@ export async function renderShell() {
   try {
     state.self = await call("get_self_profile");
   } catch {}
+  try { await call("validate_channels"); } catch {}
   renderWsRail();
   // 默认进入主页区
   state.homeMode = true;

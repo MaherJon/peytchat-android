@@ -694,3 +694,29 @@ pub async fn set_channel_topic(
     })
     .await?
 }
+
+#[tauri::command]
+pub async fn validate_channels(state: State<'_, AppState>) -> AppResult<u32> {
+    // 校验 channels 表里的 chat_id 是否仍存在于 core
+    let ctx = state.current().await.ok_or(AppError::Core("no account".into()))?;
+    let workspaces = state.db.list_workspaces().await?;
+    let mut removed = 0u32;
+    for ws in workspaces {
+        let chans = state.db.list_channels(ws.id).await?;
+        for ch in chans {
+            let chat_id = deltachat::chat::ChatId::new(ch.chat_id);
+            if Chat::load_from_db(&ctx, chat_id).await.is_err() {
+                // 频道已不存在，从本地表删除
+                let conn = state.db.conn.clone();
+                let chat_id_i64 = ch.chat_id as i64;
+                tokio::task::spawn_blocking(move || -> AppResult<()> {
+                    let c = conn.blocking_lock();
+                    c.execute("DELETE FROM channels WHERE chat_id = ?1", rusqlite::params![chat_id_i64])?;
+                    Ok(())
+                }).await??;
+                removed += 1;
+            }
+        }
+    }
+    Ok(removed)
+}

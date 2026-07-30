@@ -54,7 +54,7 @@ function renderText(text) {
   let last = 0;
   let m;
   while ((m = regex.exec(text)) !== null) {
-    if (m.index > last) parts.push(escapeHtml(text.slice(last, m.index)));
+    if (m.index > last) parts.push(highlightMentions(escapeHtml(text.slice(last, m.index))));
     const lang = m[1];
     const code = m[2];
     let highlighted;
@@ -66,8 +66,23 @@ function renderText(text) {
     parts.push(`<div class="msg-code">${highlighted}</div>`);
     last = m.index + m[0].length;
   }
-  if (last < text.length) parts.push(escapeHtml(text.slice(last)));
+  if (last < text.length) parts.push(highlightMentions(escapeHtml(text.slice(last))));
   return parts.join("");
+}
+
+function highlightMentions(html) {
+  // 已 escape 的文本里 @name 形式为 @name（@ 未被 escape）
+  // 匹配当前用户名或 role
+  const myName = state.self?.name || "";
+  const roles = ["core", "ops"]; // SP1 硬编码常见 role，实际可从 list_roles 拉
+  const targets = [myName, ...roles].filter(Boolean).map(escapeRegex);
+  if (targets.length === 0) return html;
+  const re = new RegExp(`@(${targets.join("|")})`, "g");
+  return html.replace(re, '<span style="background:#1f1f1f;color:#e5e5e5;padding:0 4px;border-radius:3px">@$1</span>');
+}
+
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 async function renderReactions(msgId) {
