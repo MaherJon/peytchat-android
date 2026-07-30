@@ -571,6 +571,20 @@ impl Db {
         })
         .await?
     }
+
+    pub async fn get_channel_workspace_id(&self, chat_id: u32) -> AppResult<i64> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || -> AppResult<i64> {
+            let c = conn.blocking_lock();
+            let row = c.query_row(
+                "SELECT workspace_id FROM channels WHERE chat_id=?1",
+                params![chat_id],
+                |row| row.get(0),
+            ).optional()?;
+            row.ok_or_else(|| AppError::Core(format!("channel {chat_id} not found")))
+        })
+        .await?
+    }
 }
 
 #[cfg(test)]

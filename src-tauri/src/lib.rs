@@ -82,6 +82,8 @@ pub fn run() {
             commands::delete_card,
             commands::list_cards,
             commands::get_card,
+            commands::upsert_card_from_msg,
+            commands::message_to_card,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

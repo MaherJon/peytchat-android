@@ -1462,3 +1462,220 @@ pub async fn get_card(state: State<'_, AppState>, card_id: i64) -> AppResult<Car
         .ok_or_else(|| AppError::Core("card not found".into()))?;
     row_to_card_dto(&state, row).await
 }
+
+// ── SP5 Task 3: card sync commands ──────────────────────────────────────────
+//
+// upsert_card_from_msg: 由 [CARD] 同步消息驱动, 根据 action(create/update/delete)
+//   + 去重查找决定 upsert / delete, 实现多设备 Card 同步。供 Task 10 调用。
+// message_to_card: 把一条普通消息"转为"Card — 本地建卡 + 发送 [CARD] 同步消息。
+//   供 Task 9 前端调用。
+//
+// API 注意: brief 中的 `Contact::lookup_by_addr` 不存在, 实际 API 为
+//   `Contact::lookup_id_by_addr(&Context, &str, Origin) -> Result<Option<ContactId>>`
+// 空地址会 bail!, 所以必须先 is_empty() 检查。
+
+#[tauri::command]
+pub async fn upsert_card_from_msg(
+    state: State<'_, AppState>,
+    msg_id: u32,
+    card_json: String,
+) -> AppResult<Option<CardDto>> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or_else(|| AppError::Core("no account".into()))?;
+    let payload: serde_json::Value = serde_json::from_str(&card_json)
+        .map_err(|e| AppError::Core(format!("invalid card json: {e}")))?;
+
+    let action = payload["action"].as_str().unwrap_or("create");
+    let title = payload["title"].as_str().unwrap_or("");
+    let created_at = payload["created_at"].as_i64().unwrap_or(0);
+
+    // 从 msg_id 反查 chat_id
+    let msg = Message::load_from_db(&ctx, MsgId::new(msg_id)).await?;
+    let channel_chat_id = msg.get_chat_id().to_u32();
+
+    // 查 workspace_id: 通过 channel_chat_id 找 channels 表
+    let workspace_id = state.db.get_channel_workspace_id(channel_chat_id).await?;
+
+    // 去重查找
+    let existing = state
+        .db
+        .find_card_by_dedup(channel_chat_id, title, created_at)
+        .await?;
+
+    match (action, existing) {
+        ("delete", Some(id)) => {
+            state.db.delete_card(id).await?;
+            Ok(None)
+        }
+        ("delete", None) => Ok(None),
+        (_, Some(id)) => {
+            // 更新
+            let now = chrono::Utc::now().timestamp();
+            let status = payload["status"].as_str();
+            let description = payload["description"].as_str();
+            let due_date = payload["due_date"].as_i64();
+            // assignee 映射
+            let assignee_cid = if let Some(addr) = payload["assignee_addr"].as_str() {
+                if addr.is_empty() {
+                    None
+                } else {
+                    Contact::lookup_id_by_addr(
+                        &ctx,
+                        addr,
+                        deltachat::contact::Origin::Unknown,
+                    )
+                    .await?
+                    .map(|c| c.to_u32())
+                }
+            } else {
+                None
+            };
+            state
+                .db
+                .update_card_fields(
+                    id,
+                    None,
+                    description.map(|d| Some(d)),
+                    status,
+                    Some(assignee_cid),
+                    Some(due_date),
+                    now,
+                )
+                .await?;
+            let row = state.db.get_card_row(id).await?.unwrap();
+            Ok(Some(row_to_card_dto(&state, row).await?))
+        }
+        (_, None) => {
+            // 新建
+            let type_ = payload["type"].as_str().unwrap_or("card");
+            let status = payload["status"].as_str().unwrap_or("todo");
+            let description = payload["description"].as_str();
+            let due_date = payload["due_date"].as_i64();
+            let assignee_cid = if let Some(addr) = payload["assignee_addr"].as_str() {
+                if addr.is_empty() {
+                    None
+                } else {
+                    Contact::lookup_id_by_addr(
+                        &ctx,
+                        addr,
+                        deltachat::contact::Origin::Unknown,
+                    )
+                    .await?
+                    .map(|c| c.to_u32())
+                }
+            } else {
+                None
+            };
+            let created_by = if let Some(addr) = payload["created_by_addr"].as_str() {
+                if addr.is_empty() {
+                    ContactId::SELF.to_u32()
+                } else {
+                    Contact::lookup_id_by_addr(
+                        &ctx,
+                        addr,
+                        deltachat::contact::Origin::Unknown,
+                    )
+                    .await?
+                    .unwrap_or(ContactId::SELF)
+                    .to_u32()
+                }
+            } else {
+                ContactId::SELF.to_u32()
+            };
+            let card_id = state
+                .db
+                .insert_card(
+                    workspace_id,
+                    channel_chat_id,
+                    type_,
+                    title,
+                    description,
+                    status,
+                    assignee_cid,
+                    due_date,
+                    created_by,
+                    created_at,
+                    Some(msg_id),
+                )
+                .await?;
+            state.db.set_card_msg_id(card_id, msg_id).await?;
+            let row = state.db.get_card_row(card_id).await?.unwrap();
+            Ok(Some(row_to_card_dto(&state, row).await?))
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn message_to_card(
+    state: State<'_, AppState>,
+    msg_id: u32,
+    workspace_id: i64,
+    chat_id: u32,
+    type_: String,
+    title: Option<String>,
+) -> AppResult<CardDto> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or_else(|| AppError::Core("no account".into()))?;
+    // 取消息文本作为默认 title (UTF-8 安全截断)
+    let msg = Message::load_from_db(&ctx, MsgId::new(msg_id)).await?;
+    let title = title.unwrap_or_else(|| {
+        let text = msg.get_text();
+        if text.chars().count() > 40 {
+            let truncated: String = text.chars().take(40).collect();
+            format!("{}...", truncated)
+        } else {
+            text
+        }
+    });
+    let now = chrono::Utc::now().timestamp();
+    let created_by = ctx.get_id();
+
+    let card_id = state
+        .db
+        .insert_card(
+            workspace_id,
+            chat_id,
+            &type_,
+            &title,
+            None,
+            "todo",
+            None,
+            None,
+            created_by,
+            now,
+            Some(msg_id),
+        )
+        .await?;
+
+    // 发送同步消息
+    let created_by_addr = Contact::get_by_id(&ctx, ContactId::SELF)
+        .await?
+        .get_addr()
+        .to_string();
+    let card_json = serde_json::json!({
+        "action": "create",
+        "id": card_id,
+        "type": type_,
+        "title": title,
+        "status": "todo",
+        "assignee_addr": "",
+        "due_date": null,
+        "description": null,
+        "created_by_addr": created_by_addr,
+        "created_at": now,
+        "source_msg_id": msg_id,
+    })
+    .to_string();
+    let msg_text = format!("[CARD]{}", card_json);
+    let chat_id_dc = deltachat::chat::ChatId::new(chat_id);
+    let mut sync_msg = Message::new_text(msg_text);
+    let sent_msg_id = chat::send_msg(&ctx, chat_id_dc, &mut sync_msg).await?;
+    state.db.set_card_msg_id(card_id, sent_msg_id.to_u32()).await?;
+
+    let row = state.db.get_card_row(card_id).await?.unwrap();
+    row_to_card_dto(&state, row).await
+}
