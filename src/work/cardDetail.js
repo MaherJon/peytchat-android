@@ -55,22 +55,30 @@ export async function renderCardDetail(cardId) {
   // 防止 XSS：contenteditable 元素用 textContent 设置初始内容
   drawer.querySelector("#card-title").textContent = card.title || "";
   drawer.querySelector("#card-desc").textContent = card.description || "";
-  // 保存
+  // 保存：只传实际改动的字段。
+  // - Option<T> 字段 (title/status): 改动则传新值, 不改则 omit (undefined → JSON 缺失 → Rust None)
+  // - Option<Option<T>> 字段 (description/dueDate/assigneeContactId):
+  //   不改 → omit (undefined → None, 不更新); 清空 → null (Some(None), 清空); 更新 → value (Some(Some(v)))
+  // assigneeContactId 在本面板无编辑 UI, 永远 omit (避免误清空)
   drawer.querySelector("#card-save").onclick = async () => {
     try {
       const title = drawer.querySelector("#card-title").textContent.trim();
       const status = drawer.querySelector("#card-status").value;
       const dueVal = drawer.querySelector("#card-due").value;
-      const dueDate = dueVal ? new Date(dueVal).getTime() / 1000 : null;
       const desc = drawer.querySelector("#card-desc").textContent.trim();
-      await call("update_card", {
-        cardId,
-        title,
-        description: desc || null,
-        status,
-        assigneeContactId: null,
-        dueDate,
-      });
+
+      const payload = { cardId };
+      if (title !== (card.title || "")) payload.title = title;
+      if (status !== card.status) payload.status = status;
+      // description: 对比原始值 (card.description 可能为 null/undefined)
+      if (desc !== (card.description || "")) {
+        payload.description = desc || null;
+      }
+      // dueDate: 对比原始日期字符串 (dueStr, UTC yyyy-mm-dd)
+      if (dueVal !== dueStr) {
+        payload.dueDate = dueVal ? Math.floor(new Date(dueVal).getTime() / 1000) : null;
+      }
+      await call("update_card", payload);
       showToast("已保存");
     } catch (e) { showToast("保存失败: " + e.message); }
   };

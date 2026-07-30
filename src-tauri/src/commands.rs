@@ -18,6 +18,36 @@ use crate::dto::{
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
 
+/// SP5 Task 11: 区分"字段缺失"(None, 不更新) / "字段为 null"(Some(None), 清空) /
+/// "字段有值"(Some(Some(v)), 更新)。
+///
+/// 问题: Tauri 的 CommandItem 反序列化器在 deserialize_option 中, 对 key 缺失和
+/// JSON null 都调用 visit_none(), 导致 Option<Option<T>> 无法区分"清空"和"不更新"。
+/// 且 Tauri v2.11 的 #[command] 宏不支持 #[serde(...)] 函数参数属性。
+///
+/// 方案: 定义 Clearable<T> 包装类型, 手动实现 Deserialize。利用 deserialize_any
+/// 在 key 缺失时返回 Err 的特性来区分三种情况:
+///   - key 缺失 → Value::deserialize 返回 Err → Clearable(None) (不更新)
+///   - key 存在 + null → Value::Null → Clearable(Some(None)) (清空)
+///   - key 存在 + value → from_value → Clearable(Some(Some(v))) (更新)
+pub struct Clearable<T>(Option<Option<T>>);
+
+impl<'de, T: serde::de::DeserializeOwned> serde::Deserialize<'de> for Clearable<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        match serde_json::Value::deserialize(deserializer) {
+            Ok(serde_json::Value::Null) => Ok(Clearable(Some(None))),
+            Ok(v) => {
+                let t: T = serde_json::from_value(v).map_err(serde::de::Error::custom)?;
+                Ok(Clearable(Some(Some(t))))
+            }
+            Err(_) => Ok(Clearable(None)),
+        }
+    }
+}
+
 /// Debug log to project dir (stderr is swallowed by macOS GUI).
 fn dbg(msg: impl AsRef<str>) {
     use std::io::Write;
@@ -1356,16 +1386,21 @@ pub async fn update_card(
     state: State<'_, AppState>,
     card_id: i64,
     title: Option<String>,
-    description: Option<Option<String>>,
+    description: Clearable<String>,
     status: Option<String>,
-    assignee_contact_id: Option<Option<u32>>,
-    due_date: Option<Option<i64>>,
+    assignee_contact_id: Clearable<u32>,
+    due_date: Clearable<i64>,
 ) -> AppResult<CardDto> {
     let ctx = state
         .current()
         .await
         .ok_or_else(|| AppError::Core("no account".into()))?;
     let now = chrono::Utc::now().timestamp();
+
+    // Unwrap Clearable → Option<Option<T>> for db layer
+    let description: Option<Option<String>> = description.0;
+    let assignee_contact_id: Option<Option<u32>> = assignee_contact_id.0;
+    let due_date: Option<Option<i64>> = due_date.0;
 
     state
         .db

@@ -519,8 +519,9 @@ html { background: var(--bg); }
   font-size: 13px; font-weight: 600; color: var(--text);
   padding: 6px 8px; background: var(--panel); border: 1px solid var(--border-strong);
   border-radius: 4px; min-height: 24px; outline: none; line-height: 1.4;
+  transition: border-color 120ms, background 120ms;
 }
-.card-detail-title:focus { border-color: var(--text-weak); }
+.card-detail-title:focus { border-color: var(--text-weak); background: var(--active); }
 .card-detail-row { display: flex; align-items: flex-start; gap: 12px; }
 .card-detail-label {
   width: 48px; flex-shrink: 0; padding-top: 4px;
@@ -541,8 +542,9 @@ html { background: var(--bg); }
   padding: 6px 8px; background: var(--panel); border: 1px solid var(--border-strong);
   border-radius: 4px; color: var(--text); font-size: 11px; line-height: 1.5;
   min-height: 80px; outline: none;
+  transition: border-color 120ms, background 120ms;
 }
-.card-detail-desc:focus { border-color: var(--text-weak); }
+.card-detail-desc:focus { border-color: var(--text-weak); background: var(--active); }
 .detail-empty {
   padding: 24px 16px; color: var(--text-weak); font-size: 11px; text-align: center;
 }
@@ -734,9 +736,9 @@ body {
 
 .card {
   background: var(--panel); border: 1px solid var(--border-strong); border-radius: 6px;
-  padding: 10px 12px; cursor: pointer; transition: border-color 120ms;
+  padding: 10px 12px; cursor: pointer; transition: border-color 120ms, background 120ms;
 }
-.card:hover { border-color: var(--text-weak); }
+.card:hover { border-color: var(--text-weak); background: var(--active); }
 .card.selected { border-color: var(--text); }
 .card-title {
   font-size: 12px; font-weight: 500; color: var(--text); line-height: 1.4;
@@ -817,6 +819,7 @@ body {
 .list-table tbody td {
   padding: 8px 12px; font-size: 11px; color: var(--text-body);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  vertical-align: middle;
 }
 
 .col-title { color: var(--text); font-weight: 500; }
