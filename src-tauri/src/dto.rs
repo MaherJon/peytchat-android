@@ -164,6 +164,28 @@ pub struct ContactRoleDto {
     pub role_color: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct CardDto {
+    pub id: i64,
+    pub workspace_id: i64,
+    pub channel_chat_id: u32,
+    pub msg_id: Option<u32>,
+    #[serde(rename = "type")]
+    pub type_: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub status: String,
+    pub assignee_contact_id: Option<u32>,
+    pub assignee_name: Option<String>,
+    pub due_date: Option<i64>,
+    pub created_by: u32,
+    pub created_by_name: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub position: i64,
+    pub source_msg_id: Option<u32>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
