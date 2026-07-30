@@ -9,7 +9,10 @@ use deltachat::provider::Socket;
 use deltachat::securejoin;
 use tauri::State;
 
-use crate::dto::{AdvancedLogin, ChatDto, ChatInfoDto, ContactDto, MemberDto, MsgDto, ProfileDto};
+use crate::dto::{
+    AdvancedLogin, ChannelDto, ChatDto, ChatInfoDto, ContactDto, MemberDto, MsgDto, ProfileDto,
+    WorkspaceDto,
+};
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
 
@@ -437,4 +440,80 @@ pub async fn secure_join(state: State<'_, AppState>, qr: String) -> AppResult<u3
     let ctx = state.current().await.ok_or(AppError::Core("no account".into()))?;
     let chat_id = securejoin::join_securejoin(&ctx, &qr).await?;
     Ok(chat_id.to_u32())
+}
+
+#[tauri::command]
+pub async fn list_workspaces(state: State<'_, AppState>) -> AppResult<Vec<WorkspaceDto>> {
+    Ok(state.db.list_workspaces().await?)
+}
+
+#[tauri::command]
+pub async fn create_workspace(
+    state: State<'_, AppState>,
+    name: String,
+) -> AppResult<WorkspaceDto> {
+    let ctx = state.current().await.ok_or(AppError::Core("no account".into()))?;
+    // 创建总群
+    let master_chat_id = chat::create_group(&ctx, &name).await?;
+    let master_u32 = master_chat_id.to_u32();
+    // 写本地表
+    let icon = name.chars().next().map(|c| c.to_uppercase().to_string());
+    let id = state.db.insert_workspace(&name, master_u32, icon.as_deref()).await?;
+    // 默认频道：general + announcements
+    for ch_name in ["general", "announcements"] {
+        let ch_id = chat::create_group(&ctx, ch_name).await?;
+        state.db.insert_channel(id, ch_id.to_u32(), ch_name, "General", 0).await?;
+    }
+    // 默认 core role
+    let _ = state.db.insert_role(id, "core", None).await?;
+    // 返回完整 DTO
+    let ws = state.db.find_workspace_by_master_chat(master_u32).await?
+        .ok_or(AppError::Core("workspace not found after insert".into()))?;
+    Ok(ws)
+}
+
+#[tauri::command]
+pub async fn join_workspace(
+    state: State<'_, AppState>,
+    qr: String,
+) -> AppResult<WorkspaceDto> {
+    let ctx = state.current().await.ok_or(AppError::Core("no account".into()))?;
+    let chat_id = securejoin::join_securejoin(&ctx, &qr).await?;
+    let master_u32 = chat_id.to_u32();
+    // 检查是否已存在
+    if let Some(existing) = state.db.find_workspace_by_master_chat(master_u32).await? {
+        return Ok(existing);
+    }
+    // 从总群 chat 获取名字
+    let chat = Chat::load_from_db(&ctx, chat_id).await?;
+    let name = chat.get_name().to_string();
+    let icon = name.chars().next().map(|c| c.to_uppercase().to_string());
+    let id = state.db.insert_workspace(&name, master_u32, icon.as_deref()).await?;
+    let ws = state.db.find_workspace_by_master_chat(master_u32).await?
+        .ok_or(AppError::Core("workspace not found after insert".into()))?;
+    Ok(ws)
+}
+
+#[tauri::command]
+pub async fn list_channels(
+    state: State<'_, AppState>,
+    workspace_id: i64,
+) -> AppResult<Vec<ChannelDto>> {
+    Ok(state.db.list_channels(workspace_id).await?)
+}
+
+#[tauri::command]
+pub async fn create_channel(
+    state: State<'_, AppState>,
+    workspace_id: i64,
+    name: String,
+    category: String,
+) -> AppResult<ChannelDto> {
+    let ctx = state.current().await.ok_or(AppError::Core("no account".into()))?;
+    let chat_id = chat::create_group(&ctx, &name).await?;
+    state.db.insert_channel(workspace_id, chat_id.to_u32(), &name, &category, 0).await?;
+    // 返回该频道 DTO（按 chat_id 查找）
+    let chans = state.db.list_channels(workspace_id).await?;
+    chans.into_iter().find(|c| c.chat_id == chat_id.to_u32())
+        .ok_or(AppError::Core("channel not found after insert".into()))
 }

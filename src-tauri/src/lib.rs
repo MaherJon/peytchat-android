@@ -46,6 +46,11 @@ pub fn run() {
             commands::mark_chat_noticed,
             commands::get_securejoin_qr,
             commands::secure_join,
+            commands::list_workspaces,
+            commands::create_workspace,
+            commands::join_workspace,
+            commands::list_channels,
+            commands::create_channel,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
