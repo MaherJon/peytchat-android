@@ -132,7 +132,7 @@ html { background: var(--bg); }
   padding: 0 6px; font-size: 9px; font-weight: 600; flex-shrink: 0;
 }
 
-.chat-main { flex: 1; background: var(--bg); display: flex; flex-direction: column; position: relative; }
+.chat-main { flex: 1; background: transparent; display: flex; flex-direction: column; position: relative; }
 .chat-header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
 .chat-header .ch-title { font-size: 13px; font-weight: 600; }
 .chat-header .ch-topic { font-size: 11px; color: var(--text-weak); margin-left: 8px; }
