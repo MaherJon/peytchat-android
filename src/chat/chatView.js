@@ -3,77 +3,88 @@ import { state } from "../state.js";
 import { renderMessage, bindMessageActions } from "./message.js";
 import { renderComposer, bindComposer } from "./composer.js";
 import { renderRightDrawer } from "../shell/rightDrawer.js";
+import { showToast } from "../toast.js";
 
 let loadingEarlier = false;
 
 export async function renderChatView(chatId) {
   const main = document.getElementById("chat-main");
   if (!main) return;
-  // 获取频道 topic
-  let topic = "";
+  state.currentChatId = chatId;
+  state.homeMode = false;
+  // 加载态
+  main.innerHTML = `<div class="spinner"><span></span></div>`;
   try {
-    topic = (await call("get_channel_topic", { chatId })) || "";
-  } catch {}
-  // 获取 pin 数量
-  let pinCount = 0;
-  try {
-    const pins = await call("get_channel_pins", { chatId });
-    pinCount = pins.length;
-  } catch {}
-  main.innerHTML = `
-    <div class="chat-header">
-      <div>
-        <span class="ch-title">${escapeHtml(channelName(chatId))}</span>
-        <span class="ch-topic">${escapeHtml(topic)}</span>
+    // 拉 roles(用于 role tag 和 @mention)
+    if (state.currentWsId != null) {
+      try {
+        state.roles = await call("list_roles", { workspaceId: state.currentWsId });
+      } catch {}
+    }
+    // 拉频道信息(topic + pins)
+    let topic = "";
+    let pinCount = 0;
+    try { topic = (await call("get_channel_topic", { chatId })) || ""; } catch {}
+    try {
+      const pins = await call("get_channel_pins", { chatId });
+      pinCount = pins.length;
+    } catch {}
+    // 渲染骨架
+    main.innerHTML = `
+      <div class="chat-header">
+        <div>
+          <span class="ch-title">${escapeHtml(channelName(chatId))}</span>
+          <span class="ch-topic">${escapeHtml(topic)}</span>
+        </div>
+        <div class="ch-actions">
+          <span id="act-pin">pin · ${pinCount}</span>
+          <span id="act-info">info</span>
+        </div>
       </div>
-      <div class="ch-actions">
-        <span id="act-pin">pin · ${pinCount}</span>
-        <span id="act-search">search</span>
-        <span id="act-info">info</span>
-      </div>
-    </div>
-    <div class="messages" id="messages"></div>
-    ${renderComposer(chatId)}
-  `;
-  document.getElementById("act-pin").addEventListener("click", () => {
-    state.rightDrawerOpen = true;
-    state.rightDrawerTab = "pin";
-    renderRightDrawer();
-  });
-  document.getElementById("act-info").addEventListener("click", () => {
-    state.rightDrawerOpen = !state.rightDrawerOpen;
-    state.rightDrawerTab = "members";
-    renderRightDrawer();
-  });
-  document.getElementById("act-search").addEventListener("click", () => {
-    state.rightDrawerOpen = true;
-    state.rightDrawerTab = "search";
-    renderRightDrawer();
-  });
-  // 重置分页状态
-  state.messagesOldestId = null;
-  state.noMoreMsgs = false;
-  await refreshMessages(chatId);
-  bindComposer(chatId, () => refreshMessages(chatId));
-  bindScrollListener(chatId);
-  try { await call("mark_chat_noticed", { chatId }); } catch {}
+      <div class="messages" id="messages"></div>
+      ${renderComposer(chatId)}
+    `;
+    document.getElementById("act-pin").addEventListener("click", () => {
+      state.rightDrawerOpen = true;
+      state.rightDrawerTab = "pin";
+      renderRightDrawer();
+    });
+    document.getElementById("act-info").addEventListener("click", () => {
+      state.rightDrawerOpen = !state.rightDrawerOpen;
+      state.rightDrawerTab = "members";
+      renderRightDrawer();
+    });
+    // 重置分页状态
+    state.messagesOldestId = null;
+    state.noMoreMsgs = false;
+    await refreshMessages(chatId);
+    bindComposer(chatId, () => refreshMessages(chatId));
+    bindScrollListener(chatId);
+    try { await call("mark_chat_noticed", { chatId }); } catch {}
+  } catch (e) {
+    main.innerHTML = `<div class="guide-card">加载失败:${escapeHtml(e.message || String(e))}</div>`;
+    showToast(e.message || String(e));
+  }
 }
 
 async function refreshMessages(chatId) {
   let msgs = [];
   try {
     msgs = await call("get_chat_msgs", { chatId, beforeMsgId: null });
-  } catch {
+  } catch (e) {
+    showToast(e.message || String(e));
     return;
   }
   state.messages = msgs;
-  // items oldest-first: 数组首条为本页最旧消息
   state.messagesOldestId = msgs.length > 0 ? msgs[0].msg_id : null;
   state.noMoreMsgs = false;
   const box = document.getElementById("messages");
   if (!box) return;
-  const html = await Promise.all(msgs.map(renderMessage));
-  box.innerHTML = html.join("");
+  if (msgs.length === 0) {
+    box.innerHTML = `<div class="guide-card">这个频道还没有消息,发第一条吧</div>`;
+    return;
+  }
+  await renderMessagesWithDateDividers(box, msgs);
   bindMessageActions(box);
   box.scrollTop = box.scrollHeight;
 }
@@ -85,11 +96,11 @@ async function loadEarlier(chatId) {
   let older = [];
   try {
     older = await call("get_chat_msgs", { chatId, beforeMsgId: state.messagesOldestId });
-  } catch {
+  } catch (e) {
+    showToast(e.message || String(e));
     loadingEarlier = false;
     return;
   }
-  // 切换聊天期间异步返回:丢弃过期结果
   if (state.currentChatId !== chatId) {
     loadingEarlier = false;
     return;
@@ -108,12 +119,39 @@ async function loadEarlier(chatId) {
   const prevTop = box.scrollTop;
   state.messages = [...older, ...state.messages];
   state.messagesOldestId = older[0].msg_id;
-  const html = await Promise.all(state.messages.map(renderMessage));
-  box.innerHTML = html.join("");
+  state.noMoreMsgs = older.length < 50;
+  await renderMessagesWithDateDividers(box, state.messages);
   bindMessageActions(box);
-  // 保持视觉位置:补偿新增高度
   box.scrollTop = prevTop + (box.scrollHeight - prevHeight);
   loadingEarlier = false;
+}
+
+async function renderMessagesWithDateDividers(box, msgs) {
+  const html = await Promise.all(msgs.map(async (m) => {
+    const d = new Date(m.ts * 1000);
+    const dateStr = formatDate(d);
+    const divider = `<div class="msg-date-divider">${dateStr}</div>`;
+    const msgHtml = await renderMessage(m);
+    return { divider, msgHtml, dateStr };
+  }));
+  let out = "";
+  let prevDate = null;
+  for (const item of html) {
+    if (item.dateStr !== prevDate) {
+      out += item.divider;
+      prevDate = item.dateStr;
+    }
+    out += item.msgHtml;
+  }
+  box.innerHTML = out;
+}
+
+function formatDate(d) {
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return "今天";
+  const y = new Date(now); y.setDate(y.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return "昨天";
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
 
 function bindScrollListener(chatId) {
