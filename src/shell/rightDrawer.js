@@ -171,7 +171,17 @@ async function renderMembers(body) {
 }
 
 async function renderPins(body) {
-  const pins = state.pins || [];
+  if (!state.currentChatId) {
+    body.innerHTML = `<div class="rd-empty">未选中频道</div>`;
+    return;
+  }
+  let pins;
+  try {
+    pins = await call("get_channel_pins", { chatId: state.currentChatId });
+  } catch {
+    body.innerHTML = `<div class="rd-empty">加载失败</div>`;
+    return;
+  }
   if (pins.length === 0) {
     body.innerHTML = `<div class="rd-empty">无置顶消息</div>`;
     return;

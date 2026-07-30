@@ -97,14 +97,18 @@ export async function renderShell() {
   onEvent("ReactionsChanged", (e) => refreshMsgReactions(e.msg_id));
   onEvent("MsgRead", (e) => updateMsgState(e.msg_id, "read"));
   onEvent("MsgsNoticed", () => { /* 未读分隔线清除,UI 自然刷新 */ });
-  onEvent("ChatDeleted", (e) => {
+  onEvent("ChatDeleted", async (e) => {
     // 从 state.channels 移除
     state.channels = state.channels.filter((c) => c.chat_id !== e.chat_id);
     if (state.currentChatId === e.chat_id) {
       state.currentChatId = null;
+      state.currentMembers = [];
+      state.messages = [];
       document.getElementById("chat-main").innerHTML = `<div class="empty">选择一个频道</div>`;
     }
     renderChannelTree();
+    renderAppRail();
+    saveState();
   });
   onEvent("ChatEphemeralTimerModified", () => {}); // no-op
   onEvent("IncomingReaction", (e) => refreshMsgReactions(e.msg_id));
