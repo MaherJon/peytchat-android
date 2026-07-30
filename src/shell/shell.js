@@ -172,6 +172,25 @@ export async function renderShell() {
 
 async function handleIncomingMsg(e) {
   const chatId = e.chat_id;
+  // [CARD] 消息同步：解析卡片消息并同步本地卡片数据库
+  const text = e.text || "";
+  if (text.startsWith("[CARD]")) {
+    try {
+      const cardJson = text.slice(6); // 去掉 "[CARD]" 前缀(6 字符)
+      await call("upsert_card_from_msg", { msgId: e.msg_id, cardJson });
+      // 若当前在 Work 模式看板视图且是这个频道，刷新看板
+      if (
+        state.currentApp === "work" &&
+        state.currentChatId === chatId &&
+        state.currentView === "kanban"
+      ) {
+        const mod = "../work/kanban.js";
+        const { renderKanban } = await import(/* @vite-ignore */ mod);
+        await renderKanban(chatId);
+      }
+      return; // [CARD] 消息不作为普通消息处理
+    } catch {}
+  }
   if (state.currentChatId === chatId) {
     await refreshCurrentChat();
   } else {
