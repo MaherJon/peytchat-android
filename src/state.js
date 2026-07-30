@@ -11,4 +11,7 @@ export const state = {
   homeMode: false,
   messagesOldestId: null,
   noMoreMsgs: false,
+  roles: [],
+  wsMembers: {},
+  collapsedCategories: {},
 };
