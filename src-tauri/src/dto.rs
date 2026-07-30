@@ -78,6 +78,51 @@ pub struct ContactDto {
     pub addr: String,
 }
 
+#[derive(Debug, Serialize)]
+pub struct WorkspaceDto {
+    pub id: i64,
+    pub name: String,
+    pub master_chat_id: u32,
+    pub icon: Option<String>,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ChannelDto {
+    pub id: i64,
+    pub workspace_id: i64,
+    pub chat_id: u32,
+    pub name: String,
+    pub category: String,
+    pub position: i64,
+    pub topic: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RoleDto {
+    pub id: i64,
+    pub workspace_id: i64,
+    pub name: String,
+    pub color: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PinDto {
+    pub id: i64,
+    pub workspace_id: i64,
+    pub channel_chat_id: u32,
+    pub msg_id: u32,
+    pub pinned_by: u32,
+    pub pinned_at: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ReactionDto {
+    pub emoji: String,
+    pub count: i64,
+    pub senders: Vec<u32>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
