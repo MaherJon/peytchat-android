@@ -5,6 +5,7 @@ import { saveState } from "../persist.js";
 import { renderHomeView } from "../dialogs/homeView.js";
 import { refreshChannels } from "./channelTree.js";
 import { openWsWizard } from "../dialogs/wsWizard.js";
+import { getCurrentTheme, applyTheme } from "../theme.js";
 
 export async function refreshWorkspaces() {
   try {
@@ -23,8 +24,8 @@ export async function renderAppRail() {
   const bg = colorHex(state.self?.color);
   const letter = (state.self?.name || "?").charAt(0).toUpperCase() || "?";
   const avatarHtml = avatarUrl
-    ? `<img src="${escapeAttr(avatarUrl)}" class="app-avatar" alt="me" />`
-    : `<div class="app-avatar" style="background:${bg}">${escapeHtml(letter)}</div>`;
+    ? `<img src="${escapeAttr(avatarUrl)}" class="app-avatar" id="app-avatar" alt="me" />`
+    : `<div class="app-avatar" id="app-avatar" style="background:${bg}">${escapeHtml(letter)}</div>`;
   rail.innerHTML = `
     <div class="app-icon ${state.currentApp === "chat" ? "active" : ""}" data-app="chat" title="Chat · 聊天">Ch</div>
     <div class="app-icon ${state.currentApp === "work" ? "active" : ""}" data-app="work" title="Work · 协作">Wk</div>
@@ -38,6 +39,97 @@ export async function renderAppRail() {
   bindAppIcons();
   bindWorkspaceIcons();
   bindSettingsIcon();
+  bindAvatarMenu(avatarUrl, bg, letter, state.self?.name, state.self?.addr);
+}
+
+function bindAvatarMenu(avatarUrl, bg, letter, name, addr) {
+  const el = document.getElementById("app-avatar");
+  if (!el) return;
+  el.addEventListener("click", (e) => {
+    e.stopPropagation();
+    showUserMenu(el, avatarUrl, bg, letter, name, addr);
+  });
+}
+
+function showUserMenu(anchor, avatarUrl, bg, letter, name, addr) {
+  // 移除已有菜单
+  document.querySelectorAll(".user-menu").forEach((m) => m.remove());
+  const currentTheme = getCurrentTheme();
+  const menu = document.createElement("div");
+  menu.className = "user-menu";
+  menu.innerHTML = `
+    <div class="um-header">
+      ${avatarUrl
+        ? `<img src="${escapeAttr(avatarUrl)}" class="um-avatar" alt="" />`
+        : `<div class="um-avatar" style="background:${bg}">${escapeHtml(letter)}</div>`}
+      <div class="um-info">
+        <div class="um-name">${escapeHtml(name || "?")}</div>
+        <div class="um-addr">${escapeHtml(addr || "—")}</div>
+      </div>
+    </div>
+    <div class="um-sep"></div>
+    <div class="um-section">
+      <div class="um-label">外观</div>
+      <div class="um-themes">
+        <div class="um-theme ${currentTheme === 'nowint' ? 'active' : ''}" data-theme="nowint">
+          <div class="um-swatch um-swatch-nowint"></div>
+          <span>Nowint</span>
+        </div>
+        <div class="um-theme ${currentTheme === 'violet' ? 'active' : ''}" data-theme="violet">
+          <div class="um-swatch um-swatch-violet"></div>
+          <span>Violet</span>
+        </div>
+        <div class="um-theme ${currentTheme === 'goldenhour' ? 'active' : ''}" data-theme="goldenhour">
+          <div class="um-swatch um-swatch-goldenhour"></div>
+          <span>GoldenHour</span>
+        </div>
+      </div>
+    </div>
+    <div class="um-sep"></div>
+    <div class="um-item" id="um-account">账号设置</div>
+    <div class="um-item um-danger" id="um-logout">登出</div>
+  `;
+  document.body.appendChild(menu);
+  // 定位到头像上方
+  const rect = anchor.getBoundingClientRect();
+  menu.style.bottom = (window.innerHeight - rect.top + 8) + "px";
+  menu.style.left = (rect.right - menu.offsetWidth) + "px";
+  // 主题切换
+  menu.querySelectorAll(".um-theme").forEach((opt) => {
+    opt.addEventListener("click", () => {
+      const theme = opt.dataset.theme;
+      applyTheme(theme);
+      menu.querySelectorAll(".um-theme").forEach((o) => o.classList.remove("active"));
+      opt.classList.add("active");
+    });
+  });
+  // 账号设置 → 打开 right-drawer settings
+  menu.querySelector("#um-account").addEventListener("click", async () => {
+    menu.remove();
+    state.rightDrawerOpen = true;
+    state.detailPanelOpen = true;
+    state.rightDrawerTab = "settings";
+    saveState();
+    const { renderRightDrawer } = await import("./rightDrawer.js");
+    renderRightDrawer();
+  });
+  // 登出
+  menu.querySelector("#um-logout").addEventListener("click", async () => {
+    menu.remove();
+    try {
+      await call("logout");
+      location.reload();
+    } catch (e) { showToast(e.message || String(e)); }
+  });
+  // 点击外部关闭
+  setTimeout(() => {
+    document.addEventListener("click", function close(ev) {
+      if (!menu.contains(ev.target)) {
+        menu.remove();
+        document.removeEventListener("click", close);
+      }
+    });
+  }, 0);
 }
 
 function bindSettingsIcon() {
