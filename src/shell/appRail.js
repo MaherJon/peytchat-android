@@ -32,11 +32,25 @@ export async function renderAppRail() {
     <div class="app-separator"></div>
     ${workspacesHtml}
     <div class="app-flex"></div>
-    <div class="app-icon settings" title="设置">·</div>
+    <div class="app-icon settings" id="app-settings" title="设置">·</div>
     ${avatarHtml}
   `;
   bindAppIcons();
   bindWorkspaceIcons();
+  bindSettingsIcon();
+}
+
+function bindSettingsIcon() {
+  const el = document.getElementById("app-settings");
+  if (!el) return;
+  el.addEventListener("click", async () => {
+    state.rightDrawerOpen = true;
+    state.detailPanelOpen = true;
+    state.rightDrawerTab = "settings";
+    saveState();
+    const { renderRightDrawer } = await import("./rightDrawer.js");
+    renderRightDrawer();
+  });
 }
 
 // Task 13: 把 Contact::get_color() 返回的 u32 转成 #rrggbb。null/undefined → 默认 var(--border-strong)。
