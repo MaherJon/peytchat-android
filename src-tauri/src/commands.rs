@@ -938,3 +938,41 @@ pub async fn delete_msg(
     message::delete_msgs(&ctx, &ids).await?;
     Ok(())
 }
+
+// ── SP3 social entry commands ───────────────────────────────────────────────
+//
+// API 已对照 core 源码核实 (计划假设的 create_group_chat / create_by_contact_id
+// 不存在; 实际为 chat::create_group 与 ChatId::create_for_contact):
+//   chat::create_group(&Context, &str) -> Result<ChatId>          (chat.rs:3551)
+//   ChatId::create_for_contact(&Context, ContactId) -> Result<ChatId>  (chat.rs:234)
+
+/// Create a group chat (no members, no workspace association) — used by the
+/// home "+" button's "创建群" entry. Returns the new chat id.
+#[tauri::command]
+pub async fn create_group_chat(
+    state: State<'_, AppState>,
+    name: String,
+) -> AppResult<u32> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or(AppError::Core("no account".into()))?;
+    let chat_id = chat::create_group(&ctx, &name).await?;
+    Ok(chat_id.to_u32())
+}
+
+/// Create a 1:1 chat with an existing contact (by contact_id). Used by the
+/// member-detail "发消息" action. Returns the chat id.
+#[tauri::command]
+pub async fn create_chat_by_contact(
+    state: State<'_, AppState>,
+    contact_id: u32,
+) -> AppResult<u32> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or(AppError::Core("no account".into()))?;
+    let cid = ContactId::new(contact_id);
+    let chat_id = deltachat::chat::ChatId::create_for_contact(&ctx, cid).await?;
+    Ok(chat_id.to_u32())
+}
