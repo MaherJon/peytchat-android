@@ -62,6 +62,16 @@ pub fn run() {
             commands::get_channel_topic,
             commands::set_channel_topic,
             commands::validate_channels,
+            commands::update_workspace,
+            commands::delete_workspace,
+            commands::leave_workspace,
+            commands::update_channel,
+            commands::delete_channel,
+            commands::leave_channel,
+            commands::update_profile,
+            commands::get_my_qr,
+            commands::logout,
+            commands::delete_msg,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -746,3 +746,169 @@ pub async fn validate_channels(state: State<'_, AppState>) -> AppResult<u32> {
     }
     Ok(removed)
 }
+
+// ── management commands (SP2 Task 2) ─────────────────────────────────────────
+//
+// API 签名已对照 core 源码核实:
+//   chat::remove_contact_from_chat(&Context, ChatId, ContactId) -> Result<()>
+//     (core 中无 leave_group 函数; 退群 = 移除 SELF, 与既有 leave_group 命令一致)
+//   deltachat::securejoin::get_securejoin_qr(&Context, Option<ChatId>) -> Result<String>
+//   deltachat::message::delete_msgs(&Context, &[MsgId]) -> Result<()>
+//   ctx.set_config(Config::Displayname, Option<&str>) -> Result<()>
+//   Accounts::select_account(&mut self, u32) — 无 unselect_account;
+//     logout 通过清空 state.current_id 实现脱离当前账号 (Accounts 层选中状态
+//     因 core 无公开 API 无法持久清空, 仅清内存).
+
+#[tauri::command]
+pub async fn update_workspace(
+    state: State<'_, AppState>,
+    id: i64,
+    name: Option<String>,
+    icon: Option<String>,
+) -> AppResult<()> {
+    state
+        .db
+        .update_workspace(id, name.as_deref(), icon.as_deref())
+        .await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_workspace(
+    state: State<'_, AppState>,
+    id: i64,
+) -> AppResult<()> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or(AppError::Core("no account".into()))?;
+    // leave 所有关联的 core chat (channels + master)
+    let chans = state.db.list_channels(id).await?;
+    for ch in chans {
+        let _ = chat::remove_contact_from_chat(
+            &ctx,
+            deltachat::chat::ChatId::new(ch.chat_id),
+            ContactId::SELF,
+        )
+        .await;
+    }
+    let wss = state.db.list_workspaces().await?;
+    if let Some(ws) = wss.into_iter().find(|w| w.id == id) {
+        let _ = chat::remove_contact_from_chat(
+            &ctx,
+            deltachat::chat::ChatId::new(ws.master_chat_id),
+            ContactId::SELF,
+        )
+        .await;
+    }
+    // 删本地元数据
+    state.db.delete_workspace_rows(id).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn leave_workspace(
+    state: State<'_, AppState>,
+    id: i64,
+) -> AppResult<()> {
+    // leave 只删本地元数据, 不动 core chat (保留可重新加入)
+    state.db.delete_workspace_rows(id).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn update_channel(
+    state: State<'_, AppState>,
+    chat_id: u32,
+    name: Option<String>,
+    topic: Option<String>,
+    category: Option<String>,
+) -> AppResult<()> {
+    state
+        .db
+        .update_channel(chat_id, name.as_deref(), topic.as_deref(), category.as_deref())
+        .await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_channel(
+    state: State<'_, AppState>,
+    chat_id: u32,
+) -> AppResult<()> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or(AppError::Core("no account".into()))?;
+    chat::remove_contact_from_chat(
+        &ctx,
+        deltachat::chat::ChatId::new(chat_id),
+        ContactId::SELF,
+    )
+    .await?;
+    state.db.delete_channel_row(chat_id).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn leave_channel(
+    state: State<'_, AppState>,
+    chat_id: u32,
+) -> AppResult<()> {
+    state.db.delete_channel_row(chat_id).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn update_profile(
+    state: State<'_, AppState>,
+    name: String,
+) -> AppResult<()> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or(AppError::Core("no account".into()))?;
+    ctx.set_config(Config::Displayname, Some(&name)).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_my_qr(state: State<'_, AppState>) -> AppResult<String> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or(AppError::Core("no account".into()))?;
+    // 传 None 返回个人 QR (verified: get_securejoin_qr(&Context, Option<ChatId>))
+    let qr = securejoin::get_securejoin_qr(&ctx, None).await?;
+    Ok(qr)
+}
+
+#[tauri::command]
+pub async fn logout(state: State<'_, AppState>) -> AppResult<()> {
+    // stop_io 当前账号; clear 内存 current_id.
+    // core Accounts 无 unselect_account 公开 API, select_account(0) 会因
+    // "invalid account id" 失败, 故仅清内存层 (Accounts 持久选中状态保留).
+    let accounts = state.accounts.lock().await;
+    if let Some(id) = accounts.get_selected_account_id() {
+        if let Some(ctx) = accounts.get_account(id) {
+            ctx.stop_io().await;
+        }
+    }
+    drop(accounts);
+    *state.current_id.lock().unwrap() = None;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_msg(
+    state: State<'_, AppState>,
+    msg_id: u32,
+) -> AppResult<()> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or(AppError::Core("no account".into()))?;
+    let ids = vec![MsgId::new(msg_id)];
+    message::delete_msgs(&ctx, &ids).await?;
+    Ok(())
+}
