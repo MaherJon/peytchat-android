@@ -7,26 +7,31 @@ use tokio::sync::Mutex;
 use deltachat::accounts::Accounts;
 use deltachat::context::Context;
 
+use crate::db::Db;
 use crate::error::AppResult;
 
 pub struct AppState {
     pub accounts: Arc<Mutex<Accounts>>,
     pub current_id: StdMutex<Option<u32>>,
+    pub db: Arc<Db>,
 }
 
 impl AppState {
     pub async fn new(dir: PathBuf) -> AppResult<Self> {
         tokio::fs::create_dir_all(&dir).await?;
-        let accounts = Accounts::new(dir, true).await?;
+        let accounts = Accounts::new(dir.clone(), true).await?;
         let current_id = accounts.get_selected_account_id();
         if let Some(id) = current_id {
             if let Some(ctx) = accounts.get_account(id) {
                 ctx.start_io().await;
             }
         }
+        let db = Db::new(dir.join("../peytchat.db")).await?;
+        db.migrate().await?;
         Ok(Self {
             accounts: Arc::new(Mutex::new(accounts)),
             current_id: StdMutex::new(current_id),
+            db: Arc::new(db),
         })
     }
 

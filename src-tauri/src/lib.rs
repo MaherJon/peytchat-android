@@ -1,4 +1,5 @@
 mod commands;
+mod db;
 mod dto;
 mod error;
 mod events;
@@ -45,6 +46,22 @@ pub fn run() {
             commands::mark_chat_noticed,
             commands::get_securejoin_qr,
             commands::secure_join,
+            commands::list_workspaces,
+            commands::create_workspace,
+            commands::join_workspace,
+            commands::list_channels,
+            commands::create_channel,
+            commands::get_channel_pins,
+            commands::toggle_pin,
+            commands::list_roles,
+            commands::set_contact_role,
+            commands::list_all_contact_roles,
+            commands::send_reaction,
+            commands::get_reactions,
+            commands::send_reply,
+            commands::get_channel_topic,
+            commands::set_channel_topic,
+            commands::validate_channels,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

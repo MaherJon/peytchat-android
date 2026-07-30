@@ -1,13 +1,13 @@
 import { call } from "./api.js";
 import { renderLogin } from "./views/login.js";
-import { renderChatList } from "./views/chatList.js";
+import { renderShell } from "./shell/shell.js";
 
 async function boot() {
   const configured = await call("is_configured");
   if (configured) {
-    await renderChatList();
+    await renderShell();
   } else {
-    renderLogin(async () => { await renderChatList(); });
+    renderLogin(async () => { await renderShell(); });
   }
 }
 
