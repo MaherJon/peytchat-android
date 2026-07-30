@@ -1,5 +1,6 @@
 import { call } from "../api.js";
 import { state } from "../state.js";
+import { showToast } from "../toast.js";
 import hljs from "highlight.js/lib/core";
 import rust from "highlight.js/lib/languages/rust";
 import javascript from "highlight.js/lib/languages/javascript";
@@ -25,30 +26,47 @@ hljs.registerLanguage("json", json);
 
 export async function renderMessage(m) {
   const isOut = m.is_out;
-  const roleTag = m.from_name && !isOut ? `<span class="msg-role">core</span>` : "";
+  const stateClass = m._state ? ` ${m._state}` : "";
+  const roleName = !isOut && m.from_id ? getRoleName(m.from_id) : "";
+  const roleTag = roleName ? `<span class="msg-role">${escapeHtml(roleName)}</span>` : "";
   const replyMark = m.quote_from ? `<span class="msg-reply-mark">↩ reply to ${escapeHtml(m.quote_from)}</span>` : "";
   const quoteBlock = m.quote_text ? `<div class="msg-quote">${escapeHtml(m.quote_from || '')}: ${escapeHtml(m.quote_text.slice(0, 80))}</div>` : "";
   const textHtml = renderText(m.text);
   const reactionsHtml = await renderReactions(m.msg_id);
-  const pinBtn = `<span class="msg-pin-btn" data-msg="${m.msg_id}" style="cursor:pointer;color:#555" title="pin">pin</span>`;
-  const replyBtn = `<span class="msg-reply-btn" data-msg="${m.msg_id}" style="cursor:pointer;color:#555" title="reply">reply</span>`;
+  const pinBtn = `<span class="msg-pin-btn" data-msg="${m.msg_id}" title="pin">pin</span>`;
+  const replyBtn = `<span class="msg-reply-btn" data-msg="${m.msg_id}" title="reply">reply</span>`;
+  const reactBtn = `<span class="msg-react-btn" data-msg="${m.msg_id}" title="react">+</span>`;
+  const delBtn = isOut ? `<span class="msg-del-btn" data-msg="${m.msg_id}" title="delete">del</span>` : "";
   return `
-    <div class="msg" data-msg="${m.msg_id}">
+    <div class="msg${stateClass}" data-msg="${m.msg_id}" style="position:relative">
       <div class="msg-meta">
         <span class="msg-name">${escapeHtml(m.from_name)}</span>
         <span class="msg-time">${formatTs(m.ts)}</span>
         ${roleTag}${replyMark}
-        ${!isOut ? pinBtn : ''} ${!isOut ? replyBtn : ''}
+        ${pinBtn} ${replyBtn} ${reactBtn} ${delBtn}
       </div>
       ${quoteBlock}
       <div class="msg-text">${textHtml}</div>
       ${reactionsHtml}
+      <div class="msg-reaction-picker" id="rp-${m.msg_id}">
+        <span data-emoji="👍">↑</span>
+        <span data-emoji="➕">+</span>
+        <span data-emoji="★">★</span>
+        <span data-emoji="!">!</span>
+      </div>
     </div>
   `;
 }
 
+function getRoleName(contactId) {
+  // SP2 简化:state.roles 含 workspace 级 role 定义,无 contact→role 映射
+  // 先 fallback "member"(SP3 由 list_all_contact_roles 拉映射)
+  // 但保留 core 标记:self 或 from_id === 1 显示 "core"
+  if (contactId === 1 || (state.self && contactId === state.self.id)) return "core";
+  return "member";
+}
+
 function renderText(text) {
-  // 解析代码块 ```lang\n...\n```
   const parts = [];
   const regex = /```(\w*)\n([\s\S]*?)```/g;
   let last = 0;
@@ -71,11 +89,9 @@ function renderText(text) {
 }
 
 function highlightMentions(html) {
-  // 已 escape 的文本里 @name 形式为 @name（@ 未被 escape）
-  // 匹配当前用户名或 role
   const myName = state.self?.name || "";
-  const roles = ["core", "ops"]; // SP1 硬编码常见 role，实际可从 list_roles 拉
-  const targets = [myName, ...roles].filter(Boolean).map(escapeRegex);
+  const roleNames = (state.roles || []).map((r) => r.name).filter(Boolean);
+  const targets = [myName, ...roleNames].filter(Boolean).map(escapeRegex);
   if (targets.length === 0) return html;
   const re = new RegExp(`@(${targets.join("|")})`, "g");
   return html.replace(re, '<span style="background:#1f1f1f;color:#e5e5e5;padding:0 4px;border-radius:3px">@$1</span>');
@@ -89,13 +105,11 @@ async function renderReactions(msgId) {
   try {
     const reactions = await call("get_reactions", { msgId });
     if (!reactions || reactions.length === 0) return "";
-    // 对齐 mockup：用符号格式 ↑/+ 替代彩色 emoji，保留极简灰阶质感
-    // 映射规则：👍 类（赞同）→ ↑，➕ 类（新增）→ +，其他 emoji 原样显示
     const mapEmoji = (emoji) => {
       const e = emoji.trim();
       if (e === "👍" || e === "+1" || e === "thumbsup") return "↑";
       if (e === "➕" || e === "plus") return "+";
-      return e; // 其他 emoji 原样
+      return e;
     };
     const capsules = reactions.map((r) => {
       const symbol = mapEmoji(r.emoji);
@@ -108,21 +122,27 @@ async function renderReactions(msgId) {
 }
 
 export function bindMessageActions(container) {
+  // reaction toggle(点已有 reaction capsule)
   container.querySelectorAll(".msg-reaction").forEach((el) => {
     el.addEventListener("click", async () => {
       const msgId = Number(el.dataset.msg);
       const emoji = el.dataset.emoji;
-      try { await call("send_reaction", { chatId: state.currentChatId, msgId, emoji }); } catch {}
+      try {
+        await call("send_reaction", { chatId: state.currentChatId, msgId, emoji });
+      } catch (e) { showToast(e.message || String(e)); }
     });
   });
+  // pin toggle
   container.querySelectorAll(".msg-pin-btn").forEach((el) => {
     el.addEventListener("click", async () => {
       const msgId = Number(el.dataset.msg);
       try {
         await call("toggle_pin", { workspaceId: state.currentWsId, chatId: state.currentChatId, msgId });
-      } catch {}
+        showToast("已切换置顶");
+      } catch (e) { showToast(e.message || String(e)); }
     });
   });
+  // reply(设 composer-input dataset.replyTo)
   container.querySelectorAll(".msg-reply-btn").forEach((el) => {
     el.addEventListener("click", () => {
       const msgId = Number(el.dataset.msg);
@@ -134,6 +154,50 @@ export function bindMessageActions(container) {
       }
     });
   });
+  // reaction picker(打开选择器)
+  container.querySelectorAll(".msg-react-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const msgId = btn.dataset.msg;
+      const picker = document.getElementById(`rp-${msgId}`);
+      if (!picker) return;
+      // 关闭其他 picker
+      document.querySelectorAll(".msg-reaction-picker.show").forEach((p) => {
+        if (p !== picker) p.classList.remove("show");
+      });
+      picker.classList.toggle("show");
+    });
+  });
+  // reaction picker 选项
+  container.querySelectorAll(".msg-reaction-picker span").forEach((s) => {
+    s.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const emoji = s.dataset.emoji;
+      const msgId = s.parentElement.id.replace("rp-", "");
+      const picker = s.parentElement;
+      picker.classList.remove("show");
+      try {
+        await call("send_reaction", { chatId: state.currentChatId, msgId: Number(msgId), emoji });
+      } catch (e) { showToast(e.message || String(e)); }
+    });
+  });
+  // delete(仅自己的消息)
+  container.querySelectorAll(".msg-del-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const msgId = btn.dataset.msg;
+      if (!confirm("删除这条消息?")) return;
+      try {
+        await call("delete_msg", { msgId: Number(msgId) });
+      } catch (e) { showToast(e.message || String(e)); }
+    });
+  });
+  // 点击空白关闭所有 picker(绑定一次)
+  if (!document._msgPickerCloseBound) {
+    document._msgPickerCloseBound = true;
+    document.addEventListener("click", () => {
+      document.querySelectorAll(".msg-reaction-picker.show").forEach((p) => p.classList.remove("show"));
+    });
+  }
 }
 
 function formatTs(ts) {
