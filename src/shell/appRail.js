@@ -90,10 +90,10 @@ function showUserMenu(anchor, avatarUrl, bg, letter, name, addr) {
     <div class="um-item um-danger" id="um-logout">登出</div>
   `;
   document.body.appendChild(menu);
-  // 定位到头像上方
+  // 定位到头像上方，向右展开
   const rect = anchor.getBoundingClientRect();
   menu.style.bottom = (window.innerHeight - rect.top + 8) + "px";
-  menu.style.left = (rect.right - menu.offsetWidth) + "px";
+  menu.style.left = rect.left + "px";
   // 主题切换
   menu.querySelectorAll(".um-theme").forEach((opt) => {
     opt.addEventListener("click", () => {
