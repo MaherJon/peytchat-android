@@ -59,7 +59,7 @@ export async function renderMessage(m) {
   const textHtml = renderText(m.text);
   // Task 13: 发送者头像 — 从 state.currentMembers 查找 member.avatar/color。
   // state.currentMembers 由 renderChatView 调用 get_chat_info 时填充。
-  // 找不到时 fallback 首字母 + 默认背景色 #222。
+  // 找不到时 fallback 首字母 + 默认背景色 var(--border-strong)。
   const member = state.currentMembers?.find((mm) => mm.contact_id === m.from_id);
   const avatarUrl = member?.avatar ? await transformBlobURL(member.avatar) : null;
   const bg = colorHex(member?.color);
@@ -157,9 +157,9 @@ export async function renderMessage(m) {
   `;
 }
 
-// Task 13: 把 Contact::get_color() 返回的 u32 转成 #rrggbb。null/undefined → 默认 #222。
+// Task 13: 把 Contact::get_color() 返回的 u32 转成 #rrggbb。null/undefined → 默认 var(--border-strong)。
 function colorHex(c) {
-  if (!c && c !== 0) return "#222";
+  if (!c && c !== 0) return "var(--border-strong)";
   return "#" + (c & 0xffffff).toString(16).padStart(6, "0");
 }
 
@@ -199,7 +199,7 @@ function highlightMentions(html) {
   const targets = [myName, ...roleNames].filter(Boolean).map(escapeRegex);
   if (targets.length === 0) return html;
   const re = new RegExp(`@(${targets.join("|")})`, "g");
-  return html.replace(re, '<span style="background:#1f1f1f;color:#e5e5e5;padding:0 4px;border-radius:3px">@$1</span>');
+  return html.replace(re, '<span style="background:var(--active);color:var(--text);padding:0 4px;border-radius:3px">@$1</span>');
 }
 
 function escapeRegex(s) {

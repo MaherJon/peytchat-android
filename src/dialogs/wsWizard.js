@@ -9,7 +9,7 @@ export function openWsWizard(onDone) {
   overlay.innerHTML = `
     <div class="dialog">
       <h2>workspace</h2>
-      <div class="rd-tabs" style="padding:0 0 8px;border-bottom:1px solid #1a1a1a">
+      <div class="rd-tabs" style="padding:0 0 8px;border-bottom:1px solid var(--border)">
         <span class="rd-tab active" data-tab="create">create</span>
         <span class="rd-tab" data-tab="join">join</span>
       </div>

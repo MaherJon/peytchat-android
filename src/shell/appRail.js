@@ -39,9 +39,9 @@ export async function renderAppRail() {
   bindWorkspaceIcons();
 }
 
-// Task 13: 把 Contact::get_color() 返回的 u32 转成 #rrggbb。null/undefined → 默认 #222。
+// Task 13: 把 Contact::get_color() 返回的 u32 转成 #rrggbb。null/undefined → 默认 var(--border-strong)。
 function colorHex(c) {
-  if (!c && c !== 0) return "#222";
+  if (!c && c !== 0) return "var(--border-strong)";
   return "#" + (c & 0xffffff).toString(16).padStart(6, "0");
 }
 

@@ -12,9 +12,9 @@ export function openHomePlus() {
     <div class="dialog" style="max-width:320px">
       <h2>新建</h2>
       <div style="display:flex;flex-direction:column;gap:8px;margin:8px 0">
-        <button class="hp-opt" data-act="add" style="background:#161616;border:1px solid #222;color:#e5e5e5;padding:10px;border-radius:4px;font-size:11px;cursor:pointer;text-align:left">添加好友(邮箱)</button>
-        <button class="hp-opt" data-act="qr" style="background:#161616;border:1px solid #222;color:#e5e5e5;padding:10px;border-radius:4px;font-size:11px;cursor:pointer;text-align:left">通过 QR 加入</button>
-        <button class="hp-opt" data-act="group" style="background:#161616;border:1px solid #222;color:#e5e5e5;padding:10px;border-radius:4px;font-size:11px;cursor:pointer;text-align:left">创建群</button>
+        <button class="hp-opt" data-act="add" style="background:var(--capsule);border:1px solid var(--border-strong);color:var(--text);padding:10px;border-radius:4px;font-size:11px;cursor:pointer;text-align:left">添加好友(邮箱)</button>
+        <button class="hp-opt" data-act="qr" style="background:var(--capsule);border:1px solid var(--border-strong);color:var(--text);padding:10px;border-radius:4px;font-size:11px;cursor:pointer;text-align:left">通过 QR 加入</button>
+        <button class="hp-opt" data-act="group" style="background:var(--capsule);border:1px solid var(--border-strong);color:var(--text);padding:10px;border-radius:4px;font-size:11px;cursor:pointer;text-align:left">创建群</button>
       </div>
       <div id="hp-form" style="display:none;flex-direction:column;gap:8px;margin:8px 0"></div>
       <div class="dialog-actions">
@@ -40,8 +40,8 @@ function showForm(act, overlay) {
   form.style.display = "flex";
   if (act === "add") {
     form.innerHTML = `
-      <input id="hp-email" type="email" placeholder="好友邮箱地址" style="background:#0a0a0a;border:1px solid #222;border-radius:4px;padding:8px 12px;color:#e5e5e5;font-size:11px" />
-      <button id="hp-submit" style="background:#e5e5e5;color:#0a0a0a;border:none;padding:8px;border-radius:4px;font-size:11px;cursor:pointer">添加</button>
+      <input id="hp-email" type="email" placeholder="好友邮箱地址" style="background:var(--panel);border:1px solid var(--border-strong);border-radius:4px;padding:8px 12px;color:var(--text);font-size:11px" />
+      <button id="hp-submit" style="background:var(--text);color:var(--panel);border:none;padding:8px;border-radius:4px;font-size:11px;cursor:pointer">添加</button>
     `;
     document.getElementById("hp-submit").addEventListener("click", async () => {
       const email = document.getElementById("hp-email").value.trim();
@@ -61,8 +61,8 @@ function showForm(act, overlay) {
     });
   } else if (act === "qr") {
     form.innerHTML = `
-      <input id="hp-qr" placeholder="粘贴 SecureJoin QR 链接" style="background:#0a0a0a;border:1px solid #222;border-radius:4px;padding:8px 12px;color:#e5e5e5;font-size:11px" />
-      <button id="hp-submit" style="background:#e5e5e5;color:#0a0a0a;border:none;padding:8px;border-radius:4px;font-size:11px;cursor:pointer">加入</button>
+      <input id="hp-qr" placeholder="粘贴 SecureJoin QR 链接" style="background:var(--panel);border:1px solid var(--border-strong);border-radius:4px;padding:8px 12px;color:var(--text);font-size:11px" />
+      <button id="hp-submit" style="background:var(--text);color:var(--panel);border:none;padding:8px;border-radius:4px;font-size:11px;cursor:pointer">加入</button>
     `;
     document.getElementById("hp-submit").addEventListener("click", async () => {
       const qr = document.getElementById("hp-qr").value.trim();
@@ -82,8 +82,8 @@ function showForm(act, overlay) {
     });
   } else if (act === "group") {
     form.innerHTML = `
-      <input id="hp-name" placeholder="群名称" style="background:#0a0a0a;border:1px solid #222;border-radius:4px;padding:8px 12px;color:#e5e5e5;font-size:11px" />
-      <button id="hp-submit" style="background:#e5e5e5;color:#0a0a0a;border:none;padding:8px;border-radius:4px;font-size:11px;cursor:pointer">创建</button>
+      <input id="hp-name" placeholder="群名称" style="background:var(--panel);border:1px solid var(--border-strong);border-radius:4px;padding:8px 12px;color:var(--text);font-size:11px" />
+      <button id="hp-submit" style="background:var(--text);color:var(--panel);border:none;padding:8px;border-radius:4px;font-size:11px;cursor:pointer">创建</button>
     `;
     document.getElementById("hp-submit").addEventListener("click", async () => {
       const name = document.getElementById("hp-name").value.trim();

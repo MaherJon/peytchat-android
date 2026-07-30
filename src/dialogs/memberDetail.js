@@ -5,9 +5,9 @@ import { renderChatView } from "../chat/chatView.js";
 import { renderHomeView } from "./homeView.js";
 import { renderRightDrawer } from "../shell/rightDrawer.js";
 
-// Task 13: 把 Contact::get_color() 返回的 u32 转成 #rrggbb。null/undefined → 默认 #222。
+// Task 13: 把 Contact::get_color() 返回的 u32 转成 #rrggbb。null/undefined → 默认 var(--border-strong)。
 function colorHex(c) {
-  if (!c && c !== 0) return "#222";
+  if (!c && c !== 0) return "var(--border-strong)";
   return "#" + (c & 0xffffff).toString(16).padStart(6, "0");
 }
 
@@ -17,7 +17,7 @@ export async function renderMemberDetail(body, contactId) {
     const info = await call("get_chat_info", { chatId: state.currentChatId });
     const member = (info.members || []).find((m) => m.contact_id === contactId);
     if (!member) {
-      body.innerHTML = `<div style="padding:16px;color:#555">成员不存在</div>`;
+      body.innerHTML = `<div style="padding:16px;color:var(--text-weak)">成员不存在</div>`;
       return;
     }
     // Task 13: 大头像 — 80×80,图片优先,否则首字母 + color 背景。
@@ -33,12 +33,12 @@ export async function renderMemberDetail(body, contactId) {
         <div style="display:flex;align-items:center;gap:10px;margin:8px 0">
           ${avatarHtml}
           <div>
-            <div style="font-size:12px;font-weight:600;color:#e5e5e5">${escapeHtml(member.name)}</div>
-            <div style="font-size:9px;color:#555">${escapeHtml(member.addr || "")}</div>
+            <div style="font-size:12px;font-weight:600;color:var(--text)">${escapeHtml(member.name)}</div>
+            <div style="font-size:9px;color:var(--text-weak)">${escapeHtml(member.addr || "")}</div>
           </div>
         </div>
-        <button id="md-msg" style="background:#161616;border:1px solid #222;color:#e5e5e5;padding:8px;border-radius:4px;font-size:11px;cursor:pointer;margin-top:8px">发消息</button>
-        <button id="md-back" style="background:transparent;border:1px solid #222;color:#888;padding:8px;border-radius:4px;font-size:11px;cursor:pointer">返回成员列表</button>
+        <button id="md-msg" style="background:var(--capsule);border:1px solid var(--border-strong);color:var(--text);padding:8px;border-radius:4px;font-size:11px;cursor:pointer;margin-top:8px">发消息</button>
+        <button id="md-back" style="background:transparent;border:1px solid var(--border-strong);color:var(--text-mute);padding:8px;border-radius:4px;font-size:11px;cursor:pointer">返回成员列表</button>
       </div>
     `;
     document.getElementById("md-msg").addEventListener("click", async () => {
@@ -61,7 +61,7 @@ export async function renderMemberDetail(body, contactId) {
       renderRightDrawer();
     });
   } catch (e) {
-    body.innerHTML = `<div style="padding:16px;color:#555">加载失败</div>`;
+    body.innerHTML = `<div style="padding:16px;color:var(--text-weak)">加载失败</div>`;
     showToast(e.message || String(e));
   }
 }

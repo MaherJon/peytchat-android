@@ -26,9 +26,9 @@ function avatarLetter(name) {
   return chars[0]?.toUpperCase() || "?";
 }
 
-// Task 13: 把 Contact::get_color() 返回的 u32 转成 #rrggbb。null/undefined → 默认 #222。
+// Task 13: 把 Contact::get_color() 返回的 u32 转成 #rrggbb。null/undefined → 默认 var(--border-strong)。
 function colorHex(c) {
-  if (!c && c !== 0) return "#222";
+  if (!c && c !== 0) return "var(--border-strong)";
   return "#" + (c & 0xffffff).toString(16).padStart(6, "0");
 }
 
@@ -47,7 +47,7 @@ export async function renderHomeView() {
     const unread = c.unread || 0;
     const active = state.currentChatId === c.chat_id ? "active" : "";
     const unreadBadge = c.is_contact_request
-      ? `<span class="home-unread" style="background:transparent;color:#888;border:1px solid #222">请求</span>`
+      ? `<span class="home-unread" style="background:transparent;color:var(--text-mute);border:1px solid var(--border-strong)">请求</span>`
       : unread > 0
         ? `<span class="home-unread">${unread}</span>`
         : "";
@@ -84,9 +84,9 @@ export async function renderHomeView() {
         <div class="ct-name">主页</div>
         <div class="ct-sub">DM 与非 workspace 群</div>
       </div>
-      <div id="home-plus" style="cursor:pointer;color:#888;font-size:14px;padding:0 8px" title="新建">+</div>
+      <div id="home-plus" style="cursor:pointer;color:var(--text-mute);font-size:14px;padding:0 8px" title="新建">+</div>
     </div>
-    <div class="ct-list">${items || '<div class="guide-card" style="height:auto;padding:24px 16px"><div>还没有会话</div><div style="font-size:9px;color:#555;margin-top:4px">点 + 添加好友或创建群</div></div>'}</div>
+    <div class="ct-list">${items || '<div class="guide-card" style="height:auto;padding:24px 16px"><div>还没有会话</div><div style="font-size:9px;color:var(--text-weak);margin-top:4px">点 + 添加好友或创建群</div></div>'}</div>
     <div class="ct-user" style="cursor:pointer">
       ${selfAvatarHtml}
       <div>

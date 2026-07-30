@@ -4,9 +4,9 @@ import { saveState } from "../persist.js";
 import { renderSettingsPanel } from "../dialogs/settingsPanel.js";
 import { showToast } from "../toast.js";
 
-// Task 13: 把 Contact::get_color() 返回的 u32 转成 #rrggbb。null/undefined → 默认 #222。
+// Task 13: 把 Contact::get_color() 返回的 u32 转成 #rrggbb。null/undefined → 默认 var(--border-strong)。
 function colorHex(c) {
-  if (!c && c !== 0) return "#222";
+  if (!c && c !== 0) return "var(--border-strong)";
   return "#" + (c & 0xffffff).toString(16).padStart(6, "0");
 }
 
@@ -88,7 +88,7 @@ async function renderRdBody() {
 
 async function renderMembers(body) {
   if (!state.currentChatId) {
-    body.innerHTML = `<div style="padding:16px;color:#555">未选中频道</div>`;
+    body.innerHTML = `<div style="padding:16px;color:var(--text-weak)">未选中频道</div>`;
     return;
   }
   try {
@@ -152,7 +152,7 @@ async function renderMembers(body) {
         })
     );
     const html = sectionResults.join("");
-    body.innerHTML = searchHtml + (html || `<div style="padding:16px;color:#555">无成员</div>`);
+    body.innerHTML = searchHtml + (html || `<div style="padding:16px;color:var(--text-weak)">无成员</div>`);
     const searchInput = body.querySelector("#rd-member-search");
     if (searchInput) {
       searchInput.addEventListener("input", () => {
@@ -171,7 +171,7 @@ async function renderMembers(body) {
       });
     });
   } catch (e) {
-    body.innerHTML = `<div style="padding:16px;color:#555">加载失败</div>`;
+    body.innerHTML = `<div style="padding:16px;color:var(--text-weak)">加载失败</div>`;
     showToast(e.message || String(e));
   }
 }
@@ -226,7 +226,7 @@ async function renderPins(body) {
         const msgEl = document.querySelector(`[data-msg="${msgId}"]`);
         if (msgEl) {
           msgEl.scrollIntoView({ behavior: "smooth" });
-          msgEl.style.background = "#1f1f1f";
+          msgEl.style.background = "var(--active)";
           setTimeout(() => { msgEl.style.background = ""; }, 2000);
         }
       }, 200);

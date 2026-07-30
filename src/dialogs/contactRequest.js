@@ -14,12 +14,12 @@ export async function renderContactRequest(chatId, mainEl) {
     const email = other.addr || "";
     mainEl.innerHTML = `
       <div class="guide-card" style="padding:40px 20px">
-        <div style="font-size:13px;color:#e5e5e5;font-weight:600">${escapeHtml(name)}</div>
-        <div style="font-size:11px;color:#888">${escapeHtml(email)}</div>
-        <div style="font-size:10px;color:#555;margin-top:8px">想与你建立联系</div>
+        <div style="font-size:13px;color:var(--text);font-weight:600">${escapeHtml(name)}</div>
+        <div style="font-size:11px;color:var(--text-mute)">${escapeHtml(email)}</div>
+        <div style="font-size:10px;color:var(--text-weak);margin-top:8px">想与你建立联系</div>
         <div style="display:flex;gap:12px;margin-top:16px">
-          <button id="cr-accept" style="background:#e5e5e5;color:#0a0a0a;border:none;padding:8px 20px;border-radius:4px;font-size:11px;cursor:pointer">接受</button>
-          <button id="cr-decline" style="background:transparent;border:1px solid #222;color:#888;padding:8px 20px;border-radius:4px;font-size:11px;cursor:pointer">拒绝</button>
+          <button id="cr-accept" style="background:var(--text);color:var(--panel);border:none;padding:8px 20px;border-radius:4px;font-size:11px;cursor:pointer">接受</button>
+          <button id="cr-decline" style="background:transparent;border:1px solid var(--border-strong);color:var(--text-mute);padding:8px 20px;border-radius:4px;font-size:11px;cursor:pointer">拒绝</button>
         </div>
       </div>
     `;

@@ -114,7 +114,7 @@ function bindSearchResults() {
         const msgEl = document.querySelector(`[data-msg="${id}"]`);
         if (msgEl) {
           msgEl.scrollIntoView({ behavior: "smooth" });
-          msgEl.style.background = "#1f1f1f";
+          msgEl.style.background = "var(--active)";
           setTimeout(() => {
             msgEl.style.background = "";
           }, 2000);
