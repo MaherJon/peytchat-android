@@ -87,19 +87,19 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   color: #555; font-size: 9px;
 }
 .nav-view-icon { cursor: pointer; }
-.nav-tree .ct-header { padding: 14px 16px 12px; border-bottom: 1px solid var(--border); }
-.nav-tree .ct-name { font-size: 13px; font-weight: 600; letter-spacing: -0.2px; }
-.nav-tree .ct-sub { font-size: 9px; color: var(--text-weak); margin-top: 2px; }
-.nav-tree .ct-list { flex: 1; overflow-y: auto; padding: 8px 0; }
-.nav-tree .ct-category { padding: 8px 16px 2px; color: var(--text-weak); font-size: 9px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; display: flex; justify-content: space-between; cursor: pointer; }
-.nav-tree .ct-channel { padding: 5px 16px 5px 24px; color: var(--text-mute); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
-.nav-tree .ct-channel:hover { color: var(--text); }
-.nav-tree .ct-channel.active { background: var(--active); font-weight: 500; color: var(--text); border-radius: 0 4px 4px 0; margin-right: 8px; }
-.nav-tree .ct-unread { background: var(--text); color: var(--panel); border-radius: 8px; padding: 0 6px; font-size: 9px; font-weight: 600; }
-.nav-tree .ct-user { padding: 10px 16px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
-.nav-tree .ct-avatar { width: 24px; height: 24px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; }
-.nav-tree .ct-username { font-size: 11px; font-weight: 500; }
-.nav-tree .ct-userrole { font-size: 9px; color: var(--text-weak); }
+.channel-tree .ct-header, .nav-tree .ct-header { padding: 14px 16px 12px; border-bottom: 1px solid var(--border); }
+.channel-tree .ct-name, .nav-tree .ct-name { font-size: 13px; font-weight: 600; letter-spacing: -0.2px; }
+.channel-tree .ct-sub, .nav-tree .ct-sub { font-size: 9px; color: var(--text-weak); margin-top: 2px; }
+.channel-tree .ct-list, .nav-tree .ct-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+.channel-tree .ct-category, .nav-tree .ct-category { padding: 8px 16px 2px; color: var(--text-weak); font-size: 9px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; display: flex; justify-content: space-between; cursor: pointer; }
+.channel-tree .ct-channel, .nav-tree .ct-channel { padding: 5px 16px 5px 24px; color: var(--text-mute); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+.channel-tree .ct-channel:hover, .nav-tree .ct-channel:hover { color: var(--text); }
+.channel-tree .ct-channel.active, .nav-tree .ct-channel.active { background: var(--active); font-weight: 500; color: var(--text); border-radius: 0 4px 4px 0; margin-right: 8px; }
+.channel-tree .ct-unread, .nav-tree .ct-unread { background: var(--text); color: var(--panel); border-radius: 8px; padding: 0 6px; font-size: 9px; font-weight: 600; }
+.channel-tree .ct-user, .nav-tree .ct-user { padding: 10px 16px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+.channel-tree .ct-avatar, .nav-tree .ct-avatar { width: 24px; height: 24px; background: #222; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; }
+.channel-tree .ct-username, .nav-tree .ct-username { font-size: 11px; font-weight: 500; }
+.channel-tree .ct-userrole, .nav-tree .ct-userrole { font-size: 9px; color: var(--text-weak); }
 
 /* homeView 列表项：头像首字母 + name + last_msg 预览 + 相对时间 + 未读徽标 */
 .home-item { display: flex; gap: 10px; padding: 8px 16px; cursor: pointer; border-bottom: 1px solid #1a1a1a; }
