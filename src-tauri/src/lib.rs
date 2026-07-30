@@ -77,6 +77,11 @@ pub fn run() {
             commands::create_chat_by_contact,
             commands::get_asset_url,
             commands::search_msgs,
+            commands::create_card,
+            commands::update_card,
+            commands::delete_card,
+            commands::list_cards,
+            commands::get_card,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

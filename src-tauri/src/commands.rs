@@ -12,8 +12,8 @@ use deltachat::securejoin;
 use tauri::State;
 
 use crate::dto::{
-    AdvancedLogin, ChannelDto, ChatDto, ChatInfoDto, ContactDto, ContactRoleDto, MemberDto, MsgDto,
-    PinDto, ProfileDto, ReactionDto, RoleDto, SearchResultDto, WorkspaceDto,
+    AdvancedLogin, CardDto, ChannelDto, ChatDto, ChatInfoDto, ContactDto, ContactRoleDto, MemberDto,
+    MsgDto, PinDto, ProfileDto, ReactionDto, RoleDto, SearchResultDto, WorkspaceDto,
 };
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
@@ -1176,4 +1176,289 @@ pub async fn search_msgs(
         }
     }
     Ok(out)
+}
+
+// ── card commands ───────────────────────────────────────────────────────────
+
+async fn row_to_card_dto(
+    state: &State<'_, AppState>,
+    row: (
+        i64,
+        i64,
+        u32,
+        Option<u32>,
+        String,
+        String,
+        Option<String>,
+        String,
+        Option<u32>,
+        Option<i64>,
+        u32,
+        i64,
+        i64,
+        i64,
+        i64,
+        Option<u32>,
+    ),
+) -> AppResult<CardDto> {
+    let (
+        id,
+        workspace_id,
+        channel_chat_id,
+        msg_id,
+        type_,
+        title,
+        description,
+        status,
+        assignee_contact_id,
+        due_date,
+        created_by,
+        created_at,
+        updated_at,
+        position,
+        _placeholder,
+        source_msg_id,
+    ) = row;
+    let ctx = state
+        .current()
+        .await
+        .ok_or_else(|| AppError::Core("no account".into()))?;
+    // 填充 assignee_name
+    let assignee_name = if let Some(cid) = assignee_contact_id {
+        Some(
+            Contact::get_by_id(&ctx, ContactId::new(cid))
+                .await?
+                .get_display_name()
+                .to_string(),
+        )
+    } else {
+        None
+    };
+    // 填充 created_by_name
+    let created_by_name = if created_by == 1 {
+        // SELF
+        ctx.get_config(Config::Displayname)
+            .await?
+            .unwrap_or_else(|| "我".to_string())
+    } else {
+        Contact::get_by_id(&ctx, ContactId::new(created_by))
+            .await?
+            .get_display_name()
+            .to_string()
+    };
+    Ok(CardDto {
+        id,
+        workspace_id,
+        channel_chat_id,
+        msg_id,
+        type_,
+        title,
+        description,
+        status,
+        assignee_contact_id,
+        assignee_name,
+        due_date,
+        created_by,
+        created_by_name,
+        created_at,
+        updated_at,
+        position,
+        source_msg_id,
+    })
+}
+
+#[tauri::command]
+pub async fn create_card(
+    state: State<'_, AppState>,
+    workspace_id: i64,
+    chat_id: u32,
+    type_: String,
+    title: String,
+    description: Option<String>,
+    assignee_contact_id: Option<u32>,
+    due_date: Option<i64>,
+) -> AppResult<CardDto> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or_else(|| AppError::Core("no account".into()))?;
+    let now = chrono::Utc::now().timestamp();
+    let created_by = ctx.get_id();
+
+    // 1. 写本地 sqlite
+    let card_id = state
+        .db
+        .insert_card(
+            workspace_id,
+            chat_id,
+            &type_,
+            &title,
+            description.as_deref(),
+            "todo",
+            assignee_contact_id,
+            due_date,
+            created_by,
+            now,
+            None,
+        )
+        .await?;
+
+    // 2. 构造 [CARD] 消息
+    let assignee_addr = if let Some(cid) = assignee_contact_id {
+        Contact::get_by_id(&ctx, ContactId::new(cid))
+            .await?
+            .get_addr()
+            .to_string()
+    } else {
+        String::new()
+    };
+    let created_by_addr = Contact::get_by_id(&ctx, ContactId::SELF)
+        .await?
+        .get_addr()
+        .to_string();
+    let card_json = serde_json::json!({
+        "action": "create",
+        "id": card_id,
+        "type": type_,
+        "title": title,
+        "status": "todo",
+        "assignee_addr": assignee_addr,
+        "due_date": due_date,
+        "description": description,
+        "created_by_addr": created_by_addr,
+        "created_at": now,
+    })
+    .to_string();
+    let msg_text = format!("[CARD]{}", card_json);
+
+    // 3. 发送到 deltachat
+    let chat_id_dc = deltachat::chat::ChatId::new(chat_id);
+    let mut msg = Message::new_text(msg_text);
+    let sent_msg_id = chat::send_msg(&ctx, chat_id_dc, &mut msg).await?;
+
+    // 4. 回填 msg_id
+    state
+        .db
+        .set_card_msg_id(card_id, sent_msg_id.to_u32())
+        .await?;
+
+    // 5. 返回 CardDto
+    let row = state
+        .db
+        .get_card_row(card_id)
+        .await?
+        .ok_or_else(|| AppError::Core("card not found after insert".into()))?;
+    row_to_card_dto(&state, row).await
+}
+
+#[tauri::command]
+pub async fn update_card(
+    state: State<'_, AppState>,
+    card_id: i64,
+    title: Option<String>,
+    description: Option<Option<String>>,
+    status: Option<String>,
+    assignee_contact_id: Option<Option<u32>>,
+    due_date: Option<Option<i64>>,
+) -> AppResult<CardDto> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or_else(|| AppError::Core("no account".into()))?;
+    let now = chrono::Utc::now().timestamp();
+
+    state
+        .db
+        .update_card_fields(
+            card_id,
+            title.as_deref(),
+            description.as_ref().map(|d| d.as_deref()),
+            status.as_deref(),
+            assignee_contact_id,
+            due_date,
+            now,
+        )
+        .await?;
+
+    // 发送更新消息(供其他设备同步)
+    let row = state
+        .db
+        .get_card_row(card_id)
+        .await?
+        .ok_or_else(|| AppError::Core("card not found".into()))?;
+    let assignee_addr = if let Some(cid) = row.8 {
+        Contact::get_by_id(&ctx, ContactId::new(cid))
+            .await?
+            .get_addr()
+            .to_string()
+    } else {
+        String::new()
+    };
+    let card_json = serde_json::json!({
+        "action": "update",
+        "id": card_id,
+        "type": row.4,
+        "title": row.5,
+        "status": row.7,
+        "assignee_addr": assignee_addr,
+        "due_date": row.9,
+        "description": row.6,
+        "created_at": row.11,
+    })
+    .to_string();
+    let msg_text = format!("[CARD]{}", card_json);
+    let chat_id_dc = deltachat::chat::ChatId::new(row.2);
+    let mut msg = Message::new_text(msg_text);
+    let _ = chat::send_msg(&ctx, chat_id_dc, &mut msg).await;
+
+    row_to_card_dto(&state, row).await
+}
+
+#[tauri::command]
+pub async fn delete_card(state: State<'_, AppState>, card_id: i64) -> AppResult<()> {
+    let ctx = state
+        .current()
+        .await
+        .ok_or_else(|| AppError::Core("no account".into()))?;
+    // 先取 row 用于发删除消息
+    let row = state.db.get_card_row(card_id).await?;
+    state.db.delete_card(card_id).await?;
+    if let Some(r) = row {
+        let card_json = serde_json::json!({
+            "action": "delete",
+            "id": card_id,
+            "title": r.5,
+            "created_at": r.11,
+        })
+        .to_string();
+        let msg_text = format!("[CARD]{}", card_json);
+        let chat_id_dc = deltachat::chat::ChatId::new(r.2);
+        let mut msg = Message::new_text(msg_text);
+        let _ = chat::send_msg(&ctx, chat_id_dc, &mut msg).await;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn list_cards(
+    state: State<'_, AppState>,
+    workspace_id: i64,
+    chat_id: u32,
+) -> AppResult<Vec<CardDto>> {
+    let rows = state.db.list_cards(workspace_id, chat_id).await?;
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        out.push(row_to_card_dto(&state, row).await?);
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+pub async fn get_card(state: State<'_, AppState>, card_id: i64) -> AppResult<CardDto> {
+    let row = state
+        .db
+        .get_card_row(card_id)
+        .await?
+        .ok_or_else(|| AppError::Core("card not found".into()))?;
+    row_to_card_dto(&state, row).await
 }
