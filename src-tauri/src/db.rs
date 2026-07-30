@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use rusqlite::Connection;
+use rusqlite::params;
 use tokio::sync::Mutex;
 
 use crate::dto::{ChannelDto, PinDto, RoleDto, WorkspaceDto};
@@ -294,6 +295,83 @@ impl Db {
         })
         .await?
     }
+
+    pub async fn update_workspace(
+        &self,
+        id: i64,
+        name: Option<&str>,
+        icon: Option<&str>,
+    ) -> AppResult<()> {
+        let conn = self.conn.clone();
+        let name = name.map(|s| s.to_string());
+        let icon = icon.map(|s| s.to_string());
+        tokio::task::spawn_blocking(move || -> AppResult<()> {
+            let c = conn.blocking_lock();
+            if let Some(n) = name {
+                c.execute("UPDATE workspaces SET name = ?1 WHERE id = ?2", params![n, id])?;
+            }
+            if let Some(ic) = icon {
+                c.execute("UPDATE workspaces SET icon = ?1 WHERE id = ?2", params![ic, id])?;
+            }
+            Ok(())
+        })
+        .await??;
+        Ok(())
+    }
+
+    pub async fn update_channel(
+        &self,
+        chat_id: u32,
+        name: Option<&str>,
+        topic: Option<&str>,
+        category: Option<&str>,
+    ) -> AppResult<()> {
+        let conn = self.conn.clone();
+        let name = name.map(|s| s.to_string());
+        let topic = topic.map(|s| s.to_string());
+        let category = category.map(|s| s.to_string());
+        tokio::task::spawn_blocking(move || -> AppResult<()> {
+            let c = conn.blocking_lock();
+            if let Some(n) = name {
+                c.execute("UPDATE channels SET name = ?1 WHERE chat_id = ?2", params![n, chat_id])?;
+            }
+            if let Some(t) = topic {
+                c.execute("UPDATE channels SET topic = ?1 WHERE chat_id = ?2", params![t, chat_id])?;
+            }
+            if let Some(cat) = category {
+                c.execute("UPDATE channels SET category = ?1 WHERE chat_id = ?2", params![cat, chat_id])?;
+            }
+            Ok(())
+        })
+        .await??;
+        Ok(())
+    }
+
+    pub async fn delete_workspace_rows(&self, id: i64) -> AppResult<()> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || -> AppResult<()> {
+            let c = conn.blocking_lock();
+            c.execute("DELETE FROM pins WHERE workspace_id = ?1", params![id])?;
+            c.execute("DELETE FROM contact_roles WHERE workspace_id = ?1", params![id])?;
+            c.execute("DELETE FROM roles WHERE workspace_id = ?1", params![id])?;
+            c.execute("DELETE FROM channels WHERE workspace_id = ?1", params![id])?;
+            c.execute("DELETE FROM workspaces WHERE id = ?1", params![id])?;
+            Ok(())
+        })
+        .await??;
+        Ok(())
+    }
+
+    pub async fn delete_channel_row(&self, chat_id: u32) -> AppResult<()> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || -> AppResult<()> {
+            let c = conn.blocking_lock();
+            c.execute("DELETE FROM channels WHERE chat_id = ?1", params![chat_id])?;
+            Ok(())
+        })
+        .await??;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -383,5 +461,33 @@ mod tests {
         assert!(!pinned2);
         let pins2 = db.list_pins(200).await.unwrap();
         assert_eq!(pins2.len(), 0);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_update_workspace_and_channel() {
+        let tmp = tempfile::tempdir().unwrap();
+        let db = Db::new(tmp.path().join("test.db")).await.unwrap();
+        db.migrate().await.unwrap();
+        let ws_id = db.insert_workspace("Old", 100, Some("O")).await.unwrap();
+        let ch_id = db.insert_channel(ws_id, 200, "old-name", "General", 0).await.unwrap();
+        // update workspace
+        db.update_workspace(ws_id, Some("New"), Some("N")).await.unwrap();
+        let ws = db.list_workspaces().await.unwrap().into_iter().find(|w| w.id == ws_id).unwrap();
+        assert_eq!(ws.name, "New");
+        assert_eq!(ws.icon.as_deref(), Some("N"));
+        // update channel (by chat_id)
+        db.update_channel(200, Some("new-name"), Some("topic-x"), Some("Events")).await.unwrap();
+        let ch = db.list_channels(ws_id).await.unwrap().into_iter().find(|c| c.chat_id == 200).unwrap();
+        assert_eq!(ch.name, "new-name");
+        assert_eq!(ch.topic.as_deref(), Some("topic-x"));
+        assert_eq!(ch.category, "Events");
+        // delete channel row
+        db.delete_channel_row(200).await.unwrap();
+        assert!(db.list_channels(ws_id).await.unwrap().is_empty());
+        // delete workspace rows (cascades channels)
+        db.insert_channel(ws_id, 300, "c2", "General", 1).await.unwrap();
+        db.delete_workspace_rows(ws_id).await.unwrap();
+        assert!(db.list_workspaces().await.unwrap().is_empty());
+        assert!(db.list_channels(ws_id).await.unwrap().is_empty());
     }
 }
