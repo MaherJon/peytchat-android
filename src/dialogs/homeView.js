@@ -6,6 +6,26 @@ import { showContextMenu } from "./contextMenu.js";
 import { openHomePlus } from "./homePlus.js";
 import { renderContactRequest } from "./contactRequest.js";
 
+function formatRelativeTime(ts) {
+  if (!ts) return "";
+  const now = Date.now() / 1000;
+  const diff = now - ts;
+  const date = new Date(ts * 1000);
+  if (diff < 60) return "刚刚";
+  if (diff < 3600) return Math.floor(diff / 60) + " 分";
+  if (diff < 86400) {
+    return date.getHours().toString().padStart(2, "0") + ":" + date.getMinutes().toString().padStart(2, "0");
+  }
+  if (diff < 86400 * 2) return "昨天";
+  return (date.getMonth() + 1).toString().padStart(2, "0") + "-" + date.getDate().toString().padStart(2, "0");
+}
+
+function avatarLetter(name) {
+  if (!name) return "?";
+  const chars = [...name];
+  return chars[0]?.toUpperCase() || "?";
+}
+
 export async function renderHomeView() {
   const tree = document.getElementById("channel-tree");
   const main = document.getElementById("chat-main");
@@ -18,14 +38,28 @@ export async function renderHomeView() {
     state.workspaces.flatMap((ws) => (ws.master_chat_id ? [ws.master_chat_id] : []))
   );
   const items = chats.map((c) => {
-    const tag = c.is_group ? "群" : c.is_self_talk ? "我" : "DM";
-    const badge = c.is_contact_request
-      ? `<span class="ct-unread" style="background:transparent;color:#888;border:1px solid #222">请求</span>`
-      : c.unread > 0
-        ? `<span class="ct-unread">${c.unread}</span>`
-        : "";
+    const unread = c.unread || 0;
     const active = state.currentChatId === c.chat_id ? "active" : "";
-    return `<div class="ct-channel ${active}" data-id="${c.chat_id}"><span>[${tag}] ${escapeHtml(c.name)}</span>${badge}</div>`;
+    const unreadBadge = c.is_contact_request
+      ? `<span class="home-unread" style="background:transparent;color:#888;border:1px solid #222">请求</span>`
+      : unread > 0
+        ? `<span class="home-unread">${unread}</span>`
+        : "";
+    return `
+      <div class="home-item ${unread > 0 ? "has-unread" : ""} ${active}" data-id="${c.chat_id}">
+        <div class="home-avatar">${avatarLetter(c.name)}</div>
+        <div class="home-content">
+          <div class="home-row">
+            <span class="home-name">${escapeHtml(c.name)}</span>
+            <span class="home-time">${formatRelativeTime(c.last_ts)}</span>
+          </div>
+          <div class="home-row">
+            <span class="home-lastmsg">${escapeHtml((c.last_msg || "").slice(0, 40))}</span>
+            ${unreadBadge}
+          </div>
+        </div>
+      </div>
+    `;
   }).join("");
   tree.innerHTML = `
     <div class="ct-header" style="display:flex;justify-content:space-between;align-items:center">
@@ -45,12 +79,12 @@ export async function renderHomeView() {
   `;
   main.innerHTML = `<div class="empty">选择一个会话</div>`;
   document.getElementById("home-plus").addEventListener("click", () => openHomePlus());
-  tree.querySelectorAll(".ct-channel").forEach((el) => {
+  tree.querySelectorAll(".home-item").forEach((el) => {
     el.addEventListener("click", async () => {
       const id = Number(el.dataset.id);
       const chat = chats.find((c) => c.chat_id === id);
       state.currentChatId = id;
-      tree.querySelectorAll(".ct-channel").forEach((x) => x.classList.remove("active"));
+      tree.querySelectorAll(".home-item").forEach((x) => x.classList.remove("active"));
       el.classList.add("active");
       if (chat?.is_contact_request) {
         await renderContactRequest(id, main);
