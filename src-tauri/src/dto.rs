@@ -65,6 +65,15 @@ pub struct MsgDto {
     pub state: String,
     pub quote_from: Option<String>,
     pub quote_text: Option<String>,
+    pub view_type: String, // "Text"|"Image"|"Gif"|"Sticker"|"Audio"|"Voice"|"Video"|"File"|"Vcard"|"Webxdc"|"Unknown"
+    pub file: Option<String>, // blobdir absolute path
+    pub file_name: Option<String>,
+    pub file_mime: Option<String>,
+    pub file_bytes: Option<u64>,
+    pub width: Option<i32>,
+    pub height: Option<i32>,
+    pub download_state: String, // "Done"|"Available"|"Failure"|"InProgress"|"Undecipherable"
+    pub subject: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]

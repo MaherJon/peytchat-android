@@ -3,8 +3,9 @@ use deltachat::chatlist::Chatlist;
 use deltachat::config::Config;
 use deltachat::constants::Chattype;
 use deltachat::contact::{Contact, ContactId};
+use deltachat::download::DownloadState;
 use deltachat::login_param::{EnteredCertificateChecks, EnteredLoginParam};
-use deltachat::message::{self, Message, MessageState, MsgId};
+use deltachat::message::{self, Message, MessageState, MsgId, Viewtype};
 use deltachat::provider::Socket;
 use deltachat::reaction;
 use deltachat::securejoin;
@@ -185,6 +186,36 @@ fn state_str(s: MessageState) -> &'static str {
     }
 }
 
+fn viewtype_str(v: Viewtype) -> &'static str {
+    use Viewtype::*;
+    match v {
+        Text => "Text",
+        Image => "Image",
+        Gif => "Gif",
+        Sticker => "Sticker",
+        Audio => "Audio",
+        Voice => "Voice",
+        Video => "Video",
+        File => "File",
+        Vcard => "Vcard",
+        Webxdc => "Webxdc",
+        Unknown => "Unknown",
+        _ => "Unknown",
+    }
+}
+
+fn download_state_str(s: DownloadState) -> &'static str {
+    use DownloadState::*;
+    match s {
+        Done => "Done",
+        Available => "Available",
+        Failure => "Failure",
+        Undecipherable => "Undecipherable",
+        InProgress => "InProgress",
+        _ => "Unknown",
+    }
+}
+
 #[tauri::command]
 pub async fn get_chatlist(state: State<'_, AppState>) -> AppResult<Vec<ChatDto>> {
     let ctx = state
@@ -348,6 +379,18 @@ pub async fn get_chat_msgs(
                 }
                 None => (None, None),
             };
+            let file_path = m.get_file(&ctx).map(|p| p.to_string_lossy().to_string());
+            let file_name = m.get_filename();
+            let file_mime = m.get_filemime();
+            let file_bytes = m.get_filebytes(&ctx).await.unwrap_or(None);
+            let width = m.get_width();
+            let height = m.get_height();
+            let view_type = viewtype_str(m.get_viewtype()).to_string();
+            let download_state = download_state_str(m.download_state()).to_string();
+            let subject = {
+                let s = m.get_subject();
+                if s.is_empty() { None } else { Some(s.to_string()) }
+            };
             out.push(MsgDto {
                 msg_id: msg_id.to_u32(),
                 from_id: from_id.to_u32(),
@@ -358,6 +401,15 @@ pub async fn get_chat_msgs(
                 state: state_str(m.get_state()).to_string(),
                 quote_from,
                 quote_text,
+                view_type,
+                file: file_path,
+                file_name,
+                file_mime,
+                file_bytes,
+                width: if width > 0 { Some(width) } else { None },
+                height: if height > 0 { Some(height) } else { None },
+                download_state,
+                subject,
             });
         }
     }
