@@ -690,3 +690,78 @@ body {
 .um-item:hover { background: var(--active); }
 .um-item.um-danger { color: var(--text-mute); }
 .um-item.um-danger:hover { color: var(--text); }
+
+/* === SP5 Task 6: 看板视图 === */
+.main-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.main-title { font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: -0.2px; }
+.main-subtitle { font-size: 10px; color: var(--text-mute); margin-top: 2px; }
+.main-actions { display: flex; align-items: center; gap: 10px; }
+.view-toggle {
+  display: flex; border: 1px solid var(--border-strong); border-radius: 4px; overflow: hidden;
+}
+.view-btn {
+  padding: 5px 12px; background: var(--panel); color: var(--text-mute);
+  font-size: 11px; font-family: inherit; cursor: pointer; border: none;
+  font-weight: 500;
+}
+.view-btn:hover { background: var(--active); color: var(--text); }
+.view-btn.active { background: var(--active); color: var(--text); font-weight: 600; }
+
+.main-body { flex: 1; overflow: hidden; display: flex; }
+.kanban { display: flex; flex: 1; gap: 1px; background: var(--border); height: 100%; }
+.kanban-col {
+  flex: 1; min-width: 0; background: var(--bg); display: flex; flex-direction: column;
+}
+.kanban-col-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.kanban-col-title { font-size: 11px; font-weight: 600; color: var(--text); }
+.kanban-col-count {
+  font-size: 10px; color: var(--text-mute); background: var(--capsule);
+  border: 1px solid var(--border-strong); border-radius: 10px; padding: 1px 7px;
+}
+.kanban-col-body {
+  flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px;
+}
+.kanban-col-body::-webkit-scrollbar { width: 6px; }
+.kanban-col-body::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+
+.card {
+  background: var(--panel); border: 1px solid var(--border-strong); border-radius: 6px;
+  padding: 10px 12px; cursor: pointer; transition: border-color 120ms;
+}
+.card:hover { border-color: var(--text-weak); }
+.card.selected { border-color: var(--text); }
+.card-title {
+  font-size: 12px; font-weight: 500; color: var(--text); line-height: 1.4;
+  overflow: hidden; text-overflow: ellipsis; display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.card-meta {
+  display: flex; align-items: center; gap: 8px; margin-top: 8px;
+}
+.card-due { font-size: 10px; color: var(--text-mute); }
+.card-due.overdue { color: var(--text); font-weight: 600; }
+.card-assignee {
+  width: 18px; height: 18px; border-radius: 50%; background: var(--border-strong);
+  color: var(--text); font-size: 9px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  margin-left: auto;
+}
+.card-status-row { display: flex; gap: 6px; margin-top: 8px; }
+.card-status-btn {
+  width: 18px; height: 6px; border-radius: 3px; border: 1px solid var(--border-strong);
+  background: transparent; cursor: pointer; padding: 0; transition: background 120ms;
+}
+.card-status-btn:hover { background: var(--capsule); }
+.card-status-btn.active { background: var(--text); border-color: var(--text); }
+.card-add {
+  padding: 8px 12px; border: 1px dashed var(--border-dashed); border-radius: 6px;
+  color: var(--text-weak); font-size: 10px; cursor: pointer; text-align: center;
+  transition: border-color 120ms, color 120ms;
+}
+.card-add:hover { border-color: var(--text-weak); color: var(--text-mute); }
