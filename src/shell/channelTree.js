@@ -27,16 +27,24 @@ export async function refreshChannels() {
   } catch {}
 }
 
-export function renderChannelTree() {
+export async function renderChannelTree() {
   const tree = document.getElementById("channel-tree");
   if (!tree) return;
   tree.className = "nav-tree";
+  if (state.currentApp === "work") {
+    await renderWorkNavTree(tree);
+    // 若已有选中的 card 频道，自动渲染主区域（供 shell.js 初始化路由）
+    if (state.currentChatId != null) {
+      renderMain();
+    }
+    return;
+  }
   if (state.currentApp !== "chat") {
-    // Work/Inbox 占位（SP5/SP6 启用）
+    // Inbox 等其他模式占位（SP6 启用）
     tree.innerHTML = `
       <div class="nav-placeholder">
-        <div class="nav-placeholder-title">${state.currentApp === "work" ? "Work" : "Inbox"}</div>
-        <div class="nav-placeholder-desc">${state.currentApp === "work" ? "协作模式将在 SP5 启用" : "通知中心将在 SP6 启用"}</div>
+        <div class="nav-placeholder-title">${escapeHtml(state.currentApp)}</div>
+        <div class="nav-placeholder-desc">该模式将在后续 SP 启用</div>
       </div>
     `;
     return;
@@ -173,3 +181,102 @@ function escapeHtml(s) {
   return String(s || "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 }
 function escapeAttr(s) { return escapeHtml(s); }
+
+// SP5 Task 5: Work 模式 nav tree —— 列出当前 workspace 下 space_type='card' 的频道
+async function renderWorkNavTree(tree) {
+  if (state.currentWsId == null) {
+    tree.innerHTML = `
+      <div class="nav-placeholder">
+        <div class="nav-placeholder-title">Work</div>
+        <div class="nav-placeholder-desc">选择一个 workspace 查看协作频道</div>
+      </div>
+    `;
+    return;
+  }
+  // 过滤出 space_type='card' 的频道（并行查询，失败时按 chat 处理）
+  const channels = state.channels || [];
+  let cardChannels = [];
+  if (channels.length > 0) {
+    try {
+      const typed = await Promise.all(
+        channels.map((ch) =>
+          call("get_channel_space_type", { chatId: ch.chat_id })
+            .then((st) => ({ ch, st }))
+            .catch(() => ({ ch, st: "chat" }))
+        )
+      );
+      cardChannels = typed.filter((x) => x.st === "card").map((x) => x.ch);
+    } catch {
+      cardChannels = [];
+    }
+  }
+  if (cardChannels.length === 0) {
+    tree.innerHTML = `
+      <div class="nav-placeholder">
+        <div class="nav-placeholder-title">Work</div>
+        <div class="nav-placeholder-desc">该 workspace 暂无协作频道</div>
+      </div>
+    `;
+    return;
+  }
+  const ws = state.workspaces.find((w) => w.id === state.currentWsId);
+  const itemsHtml = cardChannels.map((ch) => `
+    <div class="nav-item ${state.currentChatId === ch.chat_id ? "active" : ""}" data-chat="${ch.chat_id}" title="${escapeAttr(ch.topic || "")}">
+      <span class="nav-icon">▣</span> ${escapeHtml(ch.name)}
+    </div>
+  `).join("");
+  tree.innerHTML = `
+    <div class="nav-header">${escapeHtml(ws?.name || "Work")}</div>
+    <div class="nav-group">
+      <div class="nav-group-title"><span class="caret">▾</span> 协作频道</div>
+      <div class="nav-children">
+        ${itemsHtml}
+      </div>
+    </div>
+  `;
+  tree.querySelectorAll(".nav-item").forEach((item) => {
+    item.addEventListener("click", async () => {
+      state.currentChatId = Number(item.dataset.chat);
+      state.currentView = "kanban";
+      state.currentCardId = null;
+      // Work 模式 right drawer 是 Card 详情（Task 8），切换频道时关闭避免显示旧成员面板
+      state.rightDrawerOpen = false;
+      renderRightDrawer();
+      saveState();
+      renderChannelTree();
+      await renderMain();
+    });
+  });
+}
+
+// SP5 Task 5: 按 state.currentView 渲染主区域。kanban.js/list.js 由 Task 6/7 创建，
+// 在此之前 dynamic import 运行时失败，捕获后显示开发中提示以避免白屏。
+export async function renderMain() {
+  const main = document.getElementById("chat-main");
+  if (!main) return;
+  if (state.currentChatId == null) {
+    main.innerHTML = `<div class="empty">选择一个协作频道</div>`;
+    return;
+  }
+  if (state.currentView === "kanban") {
+    try {
+      // 用变量路径让 Rollup 无法静态分析（kanban.js 由 Task 6 创建）
+      const mod = "../work/kanban.js";
+      const { renderKanban } = await import(/* @vite-ignore */ mod);
+      await renderKanban(state.currentChatId);
+    } catch (e) {
+      main.innerHTML = `<div class="empty">看板视图将在 SP5-T6 实现（kanban.js）</div>`;
+      console.warn("[renderMain] kanban import failed:", e);
+    }
+  } else if (state.currentView === "list") {
+    try {
+      // 用变量路径让 Rollup 无法静态分析（list.js 由 Task 7 创建）
+      const mod = "../work/list.js";
+      const { renderList } = await import(/* @vite-ignore */ mod);
+      await renderList(state.currentChatId);
+    } catch (e) {
+      main.innerHTML = `<div class="empty">列表视图将在 SP5-T7 实现（list.js）</div>`;
+      console.warn("[renderMain] list import failed:", e);
+    }
+  }
+}

@@ -37,15 +37,18 @@ export async function renderShell() {
     renderAppRail();
     await refreshChannels();
     renderChannelTree();
-    if (state.currentChatId != null) {
-      const ch = state.channels.find((c) => c.chat_id === state.currentChatId);
-      if (ch) {
-        await renderChatView(state.currentChatId);
+    // Work 模式：renderChannelTree 已触发 renderMain，跳过 chat 渲染避免覆盖
+    if (state.currentApp === "chat") {
+      if (state.currentChatId != null) {
+        const ch = state.channels.find((c) => c.chat_id === state.currentChatId);
+        if (ch) {
+          await renderChatView(state.currentChatId);
+        } else {
+          document.getElementById("chat-main").innerHTML = `<div class="empty">选择一个频道</div>`;
+        }
       } else {
         document.getElementById("chat-main").innerHTML = `<div class="empty">选择一个频道</div>`;
       }
-    } else {
-      document.getElementById("chat-main").innerHTML = `<div class="empty">选择一个频道</div>`;
     }
   } else {
     state.homeMode = true;

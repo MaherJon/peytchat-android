@@ -27,7 +27,7 @@ export async function renderAppRail() {
     : `<div class="app-avatar" style="background:${bg}">${escapeHtml(letter)}</div>`;
   rail.innerHTML = `
     <div class="app-icon ${state.currentApp === "chat" ? "active" : ""}" data-app="chat" title="Chat · 聊天">Ch</div>
-    <div class="app-icon disabled" data-app="work" title="Work · 协作（SP5 启用）">Wk</div>
+    <div class="app-icon ${state.currentApp === "work" ? "active" : ""}" data-app="work" title="Work · 协作">Wk</div>
     <div class="app-icon disabled" data-app="inbox" title="Inbox · 通知（SP6 启用）">In</div>
     <div class="app-separator"></div>
     ${workspacesHtml}

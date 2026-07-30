@@ -9,6 +9,9 @@ export const state = {
   rightDrawerTab: 'members',
   rightDrawerOpen: false,
   currentApp: 'chat',      // "chat" | "work" | "inbox"
+  currentView: 'messages', // "messages" | "kanban" | "list"
+  cards: [],               // 当前频道的 card 列表
+  currentCardId: null,     // 选中的 card id
   detailPanelOpen: true,   // detail panel 折叠状态
   homeMode: false,
   messagesOldestId: null,
