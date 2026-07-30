@@ -9,7 +9,7 @@ import { loadState, saveState } from "../persist.js";
 import { openSearch, closeSearch } from "../dialogs/search.js";
 import { hideContextMenu } from "../dialogs/contextMenu.js";
 import { showToast } from "../toast.js";
-import { stateLabel, renderReactionsHtml } from "../chat/message.js";
+import { stateLabel, renderReactionsHtml, updateReactionsCache, clearReactionsCache } from "../chat/message.js";
 
 export async function renderShell() {
   const app = document.getElementById("app");
@@ -244,6 +244,8 @@ function removeMsg(msgId) {
 async function refreshMsgReactions(msgId) {
   try {
     const reactions = await call("get_reactions", { msgId });
+    // 修复:同步更新 message.js 的 reactions 缓存,虚拟化重渲染时直接命中缓存
+    updateReactionsCache(msgId, reactions);
     const msgEl = document.querySelector(`[data-msg="${msgId}"]`);
     if (!msgEl) return;
     let el = msgEl.querySelector(".msg-reactions");

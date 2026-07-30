@@ -24,6 +24,17 @@ hljs.registerLanguage("sh", bash);
 hljs.registerLanguage("sql", sql);
 hljs.registerLanguage("json", json);
 
+// 修复:reactions 模块级缓存,避免虚拟化重渲染时每条消息都调 get_reactions IPC。
+// key = msgId, value = reactions 数组。shell.js refreshMsgReactions 时更新缓存。
+// 切换频道时由 clearReactionsCache() 清空(避免显示上一个频道的 reactions)。
+const reactionsCache = new Map();
+export function updateReactionsCache(msgId, reactions) {
+  reactionsCache.set(msgId, reactions);
+}
+export function clearReactionsCache() {
+  reactionsCache.clear();
+}
+
 function formatBytes(bytes) {
   if (!bytes) return "";
   if (bytes < 1024) return bytes + " B";
@@ -57,12 +68,16 @@ export async function renderMessage(m) {
     ? `<img src="${escapeHtml(avatarUrl)}" class="msg-avatar" alt="" />`
     : `<div class="msg-avatar" style="background:${bg}">${escapeHtml(letter)}</div>`;
   // 附件渲染（view_type != Text）
+  // 修复:改用 transformBlobURL(带模块级缓存),避免虚拟化重渲染时重复 IPC 调用。
   let attachmentHtml = "";
   if (m.view_type && m.view_type !== "Text" && m.file) {
     let assetUrl;
     try {
-      assetUrl = await call("get_asset_url", { path: m.file });
+      assetUrl = await transformBlobURL(m.file);
     } catch (e) {
+      assetUrl = null;
+    }
+    if (!assetUrl) {
       attachmentHtml = `<div class="msg-attachment file">
           <div class="file-icon">□</div>
           <div class="file-info">
@@ -70,8 +85,7 @@ export async function renderMessage(m) {
             <div class="file-meta">附件加载失败</div>
           </div>
         </div>`;
-    }
-    if (assetUrl) {
+    } else {
       switch (m.view_type) {
         case "Image":
         case "Gif":
@@ -192,9 +206,19 @@ function escapeRegex(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// 修复:renderReactions 先查模块级缓存,miss 时才调 IPC 并回填缓存。
+// 虚拟化重渲染时滚动会触发 30+ 条消息重渲染,无缓存时每条都调 get_reactions IPC。
 async function renderReactions(msgId) {
+  // 缓存命中:直接用缓存数据渲染
+  if (reactionsCache.has(msgId)) {
+    const reactions = reactionsCache.get(msgId);
+    const html = renderReactionsHtml(reactions, msgId);
+    return html ? `<div class="msg-reactions">${html}</div>` : "";
+  }
+  // 缓存 miss:调 IPC 获取并回填缓存
   try {
     const reactions = await call("get_reactions", { msgId });
+    reactionsCache.set(msgId, reactions);
     const html = renderReactionsHtml(reactions, msgId);
     return html ? `<div class="msg-reactions">${html}</div>` : "";
   } catch {

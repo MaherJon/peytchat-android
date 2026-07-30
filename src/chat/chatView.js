@@ -1,6 +1,6 @@
 import { call } from "../api.js";
 import { state } from "../state.js";
-import { renderMessage, bindMessageActions } from "./message.js";
+import { renderMessage, bindMessageActions, clearReactionsCache } from "./message.js";
 import { renderComposer } from "./composer.js";
 import { renderRightDrawer } from "../shell/rightDrawer.js";
 import { showToast } from "../toast.js";
@@ -26,8 +26,13 @@ export async function renderChatView(chatId) {
   // Task 9: 同频道且已有消息且 DOM 已渲染 → 跳过全量重渲染,
   // 保留分页状态(state.messages / messagesOldestId / noMoreMsgs)和 scroll 位置。
   // 新消息由 appendNewMessages 增量追加。
+  //
+  // 修复:原实现检查 state.currentChatId === chatId,但 channelTree.js 点击时
+  // 会先设置 state.currentChatId = id 再调 renderChatView(id),导致永远命中跳过逻辑。
+  // 改为检查 DOM 上记录的"最后渲染的 chatId",与 state.currentChatId 解耦。
+  const renderedChatId = main.dataset.renderedChatId;
   if (
-    state.currentChatId === chatId &&
+    renderedChatId === String(chatId) &&
     state.messages.length > 0 &&
     document.getElementById("messages")
   ) {
@@ -39,9 +44,12 @@ export async function renderChatView(chatId) {
     state.messages = [];
     state.messagesOldestId = null;
     state.noMoreMsgs = false;
+    // 修复:切换频道时清空 reactions 缓存,避免显示上一个频道的 reactions
+    clearReactionsCache();
   }
   state.currentChatId = chatId;
   state.homeMode = false;
+  main.dataset.renderedChatId = String(chatId);
   // 加载态
   main.innerHTML = `<div class="spinner"><span></span></div>`;
   try {
@@ -241,12 +249,17 @@ function getVisibleRange(scrollTop, clientHeight, itemHeight) {
 // Task 12: 若未读分隔位置(dividerIndex = state.messages.length - currentChatUnread)
 // 落在 [start, end) 内,在对应消息前插入"新消息"分隔线。divider 不计入 visible 消息计数,
 // 是消息之间的额外 DOM 元素。若 dividerIndex 在可视范围外则跳过(用户滚动到时再出现)。
+//
+// Task 14 修复:原实现在 await renderMessage 之前就 `box.innerHTML = ""`,
+// 浏览器在 await 期间绘制空容器 + 仅 spacerTop → 用户看到闪烁;
+// 且清空后 scrollTop 被钳位为 0,新内容渲染后未恢复 → 跳到最早消息。
+// 现改为:先在 off-DOM temp 中构建完整内容(含 awaits),再同步原子替换 box 子节点,
+// 并在替换前后保存/恢复 scrollTop。
 async function renderVisibleMessages(box, start, end) {
   const visible = state.messages.slice(start, end);
-  box.innerHTML = "";
-  const spacerTop = document.createElement("div");
-  spacerTop.style.height = (start * ITEM_HEIGHT) + "px";
-  box.appendChild(spacerTop);
+  const savedScrollTop = box.scrollTop;
+
+  // 1. 先在 off-DOM 中构建完整 HTML 字符串(此处含 await,旧 DOM 仍可见,无闪烁)
   let prevDate = null;
   if (start > 0 && state.messages.length > 0) {
     prevDate = formatDate(new Date(state.messages[start - 1].ts * 1000));
@@ -257,11 +270,9 @@ async function renderVisibleMessages(box, start, end) {
   const dividerIndex = (currentChatUnread > 0 && state.messages.length >= currentChatUnread)
     ? state.messages.length - currentChatUnread
     : -1;
-  const temp = document.createElement("div");
   let html = "";
   for (let i = 0; i < visible.length; i++) {
     const absIdx = start + i;
-    // 在 absIdx === dividerIndex 之前插入未读分隔线(仅当 divider 落在可视范围内)
     if (absIdx === dividerIndex) {
       html += `<div class="msg-unread-divider"><span class="divider-line"></span><span class="divider-label">新消息</span><span class="divider-line"></span></div>`;
     }
@@ -273,12 +284,28 @@ async function renderVisibleMessages(box, start, end) {
     }
     html += await renderMessage(m);
   }
-  temp.innerHTML = html;
-  bindMessageActions(temp);
-  while (temp.firstChild) box.appendChild(temp.firstChild);
+
+  // 2. 在 off-DOM temp 中组装完整子节点(spacerTop + 消息 + spacerBottom)
+  const temp = document.createElement("div");
+  const spacerTop = document.createElement("div");
+  spacerTop.style.height = (start * ITEM_HEIGHT) + "px";
+  temp.appendChild(spacerTop);
+  const msgContainer = document.createElement("div");
+  msgContainer.innerHTML = html;
+  bindMessageActions(msgContainer);
+  while (msgContainer.firstChild) temp.appendChild(msgContainer.firstChild);
   const spacerBottom = document.createElement("div");
   spacerBottom.style.height = ((state.messages.length - end) * ITEM_HEIGHT) + "px";
-  box.appendChild(spacerBottom);
+  temp.appendChild(spacerBottom);
+
+  // 3. 同步原子替换:清空 + 追加在同一 tick 内完成,浏览器只绘制一次
+  box.innerHTML = "";
+  while (temp.firstChild) box.appendChild(temp.firstChild);
+
+  // 4. 恢复 scrollTop(清空时被钳位为 0,新内容 spacerTop 高度 ≈ savedScrollTop)
+  if (box.scrollTop !== savedScrollTop) {
+    box.scrollTop = savedScrollTop;
+  }
 }
 
 function formatDate(d) {
@@ -287,6 +314,21 @@ function formatDate(d) {
   const y = new Date(now); y.setDate(y.getDate() - 1);
   if (d.toDateString() === y.toDateString()) return "昨天";
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+// 修复:composer.js 乐观更新时不能直接 insertAdjacentHTML 到 #messages,
+// 因为虚拟化下 #messages 的最后一个子元素是 spacerBottom,append 会把临时消息
+// 插到 spacerBottom 之后(不可见或位置错误)。
+// 改为:composer 调用此函数,push 到 state.messages 后触发虚拟化重渲染底部范围。
+export async function appendOptimisticMessage(tmpMsg) {
+  const box = document.getElementById("messages");
+  if (!box) return;
+  state.messages.push(tmpMsg);
+  // 渲染新的底部范围(含新消息),并滚到底
+  const end = state.messages.length;
+  const start = Math.max(0, end - VIEWPORT - 2 * BUFFER);
+  await renderVisibleMessages(box, start, end);
+  box.scrollTop = box.scrollHeight;
 }
 
 function bindScrollListener(chatId) {

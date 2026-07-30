@@ -1,6 +1,7 @@
 import { call } from "../api.js";
 import { state } from "../state.js";
 import { showToast } from "../toast.js";
+import { appendOptimisticMessage } from "./chatView.js";
 
 export function renderComposer(chatId, onSent) {
   const area = document.getElementById("composer-area");
@@ -72,15 +73,20 @@ async function send(chatId, input, area, onSent) {
     _state: "sending",
     quote_from: null,
     quote_text: null,
+    // 修复:补全附件字段默认值,避免 renderMessage 访问 undefined
+    view_type: "Text",
+    file: null,
+    file_name: null,
+    file_mime: null,
+    file_bytes: null,
+    width: null,
+    height: null,
+    download_state: "Done",
+    subject: null,
   };
-  state.messages.push(tmpMsg);
-  // 渲染临时消息到 DOM
-  const messagesEl = document.getElementById("messages");
-  if (messagesEl) {
-    const { renderMessage } = await import("./message.js");
-    messagesEl.insertAdjacentHTML("beforeend", await renderMessage(tmpMsg));
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-  }
+  // 修复:不直接 insertAdjacentHTML(虚拟化下会插到 spacerBottom 之后),
+  // 改为调用 chatView.appendOptimisticMessage,通过虚拟化渲染底部范围。
+  await appendOptimisticMessage(tmpMsg);
   // 清空输入
   input.value = "";
   input.style.height = "auto";
@@ -98,6 +104,7 @@ async function send(chatId, input, area, onSent) {
   } catch (e) {
     // 标记临时消息为 failed
     tmpMsg._state = "failed";
+    const messagesEl = document.getElementById("messages");
     const el = messagesEl?.querySelector(`[data-msg="${tmpId}"]`);
     if (el) {
       el.classList.remove("sending");
