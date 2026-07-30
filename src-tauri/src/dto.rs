@@ -123,6 +123,19 @@ pub struct ReactionDto {
     pub senders: Vec<u32>,
 }
 
+/// One row of `list_all_contact_roles`: a contact's assigned role
+/// in a workspace, with role name + color for right-pane grouping.
+/// Using a named DTO (instead of a raw tuple) so the JS side gets
+/// `{ contact_id, role_id, role_name, role_color }` rather than a
+/// positional array.
+#[derive(Debug, Serialize)]
+pub struct ContactRoleDto {
+    pub contact_id: u32,
+    pub role_id: i64,
+    pub role_name: String,
+    pub role_color: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

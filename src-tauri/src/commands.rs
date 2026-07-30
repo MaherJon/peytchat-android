@@ -4,14 +4,15 @@ use deltachat::config::Config;
 use deltachat::constants::Chattype;
 use deltachat::contact::{Contact, ContactId};
 use deltachat::login_param::{EnteredCertificateChecks, EnteredLoginParam};
-use deltachat::message::{self, MessageState};
+use deltachat::message::{self, Message, MessageState, MsgId};
 use deltachat::provider::Socket;
+use deltachat::reaction;
 use deltachat::securejoin;
 use tauri::State;
 
 use crate::dto::{
-    AdvancedLogin, ChannelDto, ChatDto, ChatInfoDto, ContactDto, MemberDto, MsgDto, ProfileDto,
-    WorkspaceDto,
+    AdvancedLogin, ChannelDto, ChatDto, ChatInfoDto, ContactDto, ContactRoleDto, MemberDto, MsgDto,
+    PinDto, ProfileDto, ReactionDto, RoleDto, WorkspaceDto,
 };
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
@@ -516,4 +517,180 @@ pub async fn create_channel(
     let chans = state.db.list_channels(workspace_id).await?;
     chans.into_iter().find(|c| c.chat_id == chat_id.to_u32())
         .ok_or(AppError::Core("channel not found after insert".into()))
+}
+
+// ── pin/role commands ───────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn get_channel_pins(
+    state: State<'_, AppState>,
+    chat_id: u32,
+) -> AppResult<Vec<PinDto>> {
+    Ok(state.db.list_pins(chat_id).await?)
+}
+
+#[tauri::command]
+pub async fn toggle_pin(
+    state: State<'_, AppState>,
+    workspace_id: i64,
+    chat_id: u32,
+    msg_id: u32,
+) -> AppResult<bool> {
+    // SELF contact_id 在 deltachat core 中固定为 1
+    let pinned_by = 1;
+    Ok(state.db.toggle_pin(workspace_id, chat_id, msg_id, pinned_by).await?)
+}
+
+#[tauri::command]
+pub async fn list_roles(
+    state: State<'_, AppState>,
+    workspace_id: i64,
+) -> AppResult<Vec<RoleDto>> {
+    Ok(state.db.list_roles(workspace_id).await?)
+}
+
+#[tauri::command]
+pub async fn set_contact_role(
+    state: State<'_, AppState>,
+    workspace_id: i64,
+    contact_id: u32,
+    role_id: i64,
+) -> AppResult<()> {
+    state.db.set_contact_role(workspace_id, contact_id, role_id).await?;
+    Ok(())
+}
+
+/// Returns every (contact_id, role_id, role_name, role_color) tuple for a
+/// workspace, serialized as a named DTO so the JS side gets field names
+/// instead of a positional array.
+#[tauri::command]
+pub async fn list_all_contact_roles(
+    state: State<'_, AppState>,
+    workspace_id: i64,
+) -> AppResult<Vec<ContactRoleDto>> {
+    let rows = state.db.list_all_contact_roles(workspace_id).await?;
+    Ok(rows
+        .into_iter()
+        .map(|(contact_id, role_id, role_name, role_color)| ContactRoleDto {
+            contact_id,
+            role_id,
+            role_name,
+            role_color,
+        })
+        .collect())
+}
+
+// ── reaction commands ───────────────────────────────────────────────────────
+//
+// Verified against `core/src/reaction.rs`:
+//   pub async fn send_reaction(context, msg_id, reaction: &str) -> Result<MsgId>
+//   pub async fn get_msg_reactions(context, msg_id) -> Result<Reactions>
+// `Reactions::iter()` yields `(&ContactId, &Reaction)`, and
+// `Reaction::as_str()` returns the emoji string. The brief assumed the
+// return was an iterable of `{ reaction, contact_id }`; that is NOT the
+// real API — we adapt via `.iter()` + `.as_str()` below.
+
+#[tauri::command]
+pub async fn send_reaction(
+    state: State<'_, AppState>,
+    chat_id: u32,
+    msg_id: u32,
+    emoji: String,
+) -> AppResult<()> {
+    let _chat_id = chat_id; // kept for API symmetry; reaction targets msg_id only
+    let ctx = state.current().await.ok_or(AppError::Core("no account".into()))?;
+    let msg_id = MsgId::new(msg_id);
+    // send_reaction returns the reaction message's MsgId; caller doesn't need it.
+    let _reaction_msg_id = reaction::send_reaction(&ctx, msg_id, &emoji).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_reactions(
+    state: State<'_, AppState>,
+    msg_id: u32,
+) -> AppResult<Vec<ReactionDto>> {
+    let ctx = state.current().await.ok_or(AppError::Core("no account".into()))?;
+    let msg_id = MsgId::new(msg_id);
+    let reactions = reaction::get_msg_reactions(&ctx, msg_id).await?;
+    let mut grouped: std::collections::HashMap<String, Vec<u32>> =
+        std::collections::HashMap::new();
+    for (contact_id, reaction) in reactions.iter() {
+        grouped
+            .entry(reaction.as_str().to_string())
+            .or_default()
+            .push(contact_id.to_u32());
+    }
+    Ok(grouped
+        .into_iter()
+        .map(|(emoji, senders)| ReactionDto {
+            count: senders.len() as i64,
+            senders,
+            emoji,
+        })
+        .collect())
+}
+
+// ── reply command ───────────────────────────────────────────────────────────
+//
+// Verified against `core/src/message.rs` + `core/src/chat.rs`:
+//   Message::new_text(text: String) -> Message            (line 483)
+//   Message::load_from_db(&Context, MsgId) -> Result<Message>   (line 495)
+//   Message::set_quote(&mut self, &Context, Option<&Message>) -> Result<()>  (line 1260)
+//   chat::send_msg(&Context, ChatId, &mut Message) -> Result<MsgId>          (line 2616)
+// All signatures match the brief.
+
+#[tauri::command]
+pub async fn send_reply(
+    state: State<'_, AppState>,
+    chat_id: u32,
+    text: String,
+    quote_msg_id: u32,
+) -> AppResult<u32> {
+    let ctx = state.current().await.ok_or(AppError::Core("no account".into()))?;
+    let chat_id = deltachat::chat::ChatId::new(chat_id);
+    let mut msg = Message::new_text(text);
+    let quote = Message::load_from_db(&ctx, MsgId::new(quote_msg_id)).await?;
+    msg.set_quote(&ctx, Some(&quote)).await?;
+    let sent_id = chat::send_msg(&ctx, chat_id, &mut msg).await?;
+    Ok(sent_id.to_u32())
+}
+
+// ── topic commands ──────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn get_channel_topic(
+    state: State<'_, AppState>,
+    chat_id: u32,
+) -> AppResult<Option<String>> {
+    // topic 存在 channels 表，需查 db。
+    // channels 表按 workspace_id 查，这里遍历所有 workspace 查找该 chat_id。
+    let workspaces = state.db.list_workspaces().await?;
+    for ws in workspaces {
+        let chans = state.db.list_channels(ws.id).await?;
+        if let Some(ch) = chans.iter().find(|c| c.chat_id == chat_id) {
+            return Ok(ch.topic.clone());
+        }
+    }
+    Ok(None)
+}
+
+#[tauri::command]
+pub async fn set_channel_topic(
+    state: State<'_, AppState>,
+    chat_id: u32,
+    topic: String,
+) -> AppResult<()> {
+    // 直接 UPDATE channels SET topic = ? WHERE chat_id = ?
+    // rusqlite 是同步 API，必须放到 spawn_blocking 里。
+    let conn = state.db.conn.clone();
+    tokio::task::spawn_blocking(move || -> AppResult<()> {
+        let c = conn.blocking_lock();
+        c.execute(
+            "UPDATE channels SET topic = ?1 WHERE chat_id = ?2",
+            rusqlite::params![topic, chat_id as i64],
+        )?;
+        Ok(())
+    })
+    .await?
 }
