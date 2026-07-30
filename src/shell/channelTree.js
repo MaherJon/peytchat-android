@@ -15,6 +15,13 @@ export async function refreshChannels() {
   } catch {
     state.channels = [];
   }
+  try {
+    const ws = state.workspaces.find((w) => w.id === state.currentWsId);
+    if (ws?.master_chat_id) {
+      const info = await call("get_chat_info", { chatId: ws.master_chat_id });
+      state.wsMembers[state.currentWsId] = info.members?.length || 0;
+    }
+  } catch {}
 }
 
 export function renderChannelTree() {
@@ -25,6 +32,9 @@ export function renderChannelTree() {
     tree.innerHTML = `<div class="empty">未选中 workspace</div>`;
     return;
   }
+  const collapsed = JSON.parse(localStorage.getItem("collapsedCategories") || "{}");
+  const wsCats = collapsed[state.currentWsId] || {};
+  state.collapsedCategories = collapsed;
   // 按 category 分组
   const byCategory = {};
   for (const ch of state.channels) {
@@ -33,14 +43,16 @@ export function renderChannelTree() {
   }
   const categories = Object.keys(byCategory).sort();
   const catHtml = categories.map((cat) => {
+    const isCollapsed = wsCats[cat] === true;
+    const arrow = isCollapsed ? "▸" : "▾";
     const chans = byCategory[cat].map((ch) => {
       const active = state.currentChatId === ch.chat_id ? "active" : "";
       const unread = ch.unread > 0 ? `<span class="ct-unread">${ch.unread}</span>` : "";
-      return `<div class="ct-channel ${active}" data-id="${ch.chat_id}" title="${escapeAttr(ch.topic || '')}">${escapeHtml(ch.name)}${unread}</div>`;
+      return `<div class="ct-channel ${active}" data-id="${ch.chat_id}" title="${escapeAttr(ch.topic || '')}" ${isCollapsed ? 'style="display:none"' : ''}>${escapeHtml(ch.name)}${unread}</div>`;
     }).join("");
     return `
       <div class="ct-category" data-cat="${escapeAttr(cat)}">
-        <span>${escapeHtml(cat)}</span><span>▾</span>
+        <span>${escapeHtml(cat)}</span><span>${arrow}</span>
       </div>
       ${chans}
     `;
@@ -48,7 +60,7 @@ export function renderChannelTree() {
   tree.innerHTML = `
     <div class="ct-header">
       <div class="ct-name">${escapeHtml(ws.name)}</div>
-      <div class="ct-sub">${escapeHtml(ws.icon || "")} · ${state.channels.length} channels</div>
+      <div class="ct-sub">${escapeHtml(ws.icon || "")} · ${state.wsMembers[state.currentWsId] || 0} members</div>
     </div>
     <div class="ct-list">${catHtml}</div>
     <div class="ct-user">
@@ -67,16 +79,16 @@ export function renderChannelTree() {
       await renderChatView(id);
     });
   });
-  // category 折叠（点击切换）
+  // category 折叠（点击切换，持久化到 localStorage）
   tree.querySelectorAll(".ct-category").forEach((el) => {
     el.addEventListener("click", () => {
-      let next = el.nextElementSibling;
-      while (next && !next.classList.contains("ct-category")) {
-        next.style.display = next.style.display === "none" ? "" : "none";
-        next = next.nextElementSibling;
-      }
-      const arrow = el.querySelector("span:last-child");
-      if (arrow) arrow.textContent = arrow.textContent === "▾" ? "▸" : "▾";
+      const catName = el.dataset.cat;
+      const collapsed = JSON.parse(localStorage.getItem("collapsedCategories") || "{}");
+      if (!collapsed[state.currentWsId]) collapsed[state.currentWsId] = {};
+      collapsed[state.currentWsId][catName] = !collapsed[state.currentWsId][catName];
+      localStorage.setItem("collapsedCategories", JSON.stringify(collapsed));
+      state.collapsedCategories = collapsed;
+      renderChannelTree();
     });
   });
   // 右键 category 新建频道
