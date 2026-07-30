@@ -4,6 +4,7 @@ import { renderMessage, bindMessageActions } from "./message.js";
 import { renderComposer } from "./composer.js";
 import { renderRightDrawer } from "../shell/rightDrawer.js";
 import { showToast } from "../toast.js";
+import { saveState } from "../persist.js";
 
 let loadingEarlier = false;
 
@@ -61,6 +62,7 @@ export async function renderChatView(chatId) {
     renderComposer(chatId, () => refreshMessages(chatId));
     bindScrollListener(chatId);
     try { await call("mark_chat_noticed", { chatId }); } catch {}
+    saveState();
     // 监听 message.js reply 按钮 dispatch 的事件
     if (!main._replyListenerBound) {
       main._replyListenerBound = true;

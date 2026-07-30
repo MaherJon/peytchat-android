@@ -6,6 +6,7 @@ import { openChannelCreateDialog } from "../dialogs/channelCreate.js";
 import { showContextMenu } from "../dialogs/contextMenu.js";
 import { renderRightDrawer } from "./rightDrawer.js";
 import { renderHomeView } from "../dialogs/homeView.js";
+import { saveState } from "../persist.js";
 
 export async function refreshChannels() {
   if (state.currentWsId == null) {
@@ -77,6 +78,7 @@ export function renderChannelTree() {
     el.addEventListener("click", async () => {
       const id = Number(el.dataset.id);
       state.currentChatId = id;
+      saveState();
       renderChannelTree();
       await renderChatView(id);
     });

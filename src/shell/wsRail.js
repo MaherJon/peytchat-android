@@ -3,6 +3,7 @@ import { state } from "../state.js";
 import { renderHomeView } from "../dialogs/homeView.js";
 import { renderChannelTree, refreshChannels } from "./channelTree.js";
 import { openWsWizard } from "../dialogs/wsWizard.js";
+import { saveState } from "../persist.js";
 
 export async function refreshWorkspaces() {
   try {
@@ -47,6 +48,7 @@ export function renderWsRail() {
       state.rightDrawerTab = "settings";
       const { renderRightDrawer } = await import("./rightDrawer.js");
       renderRightDrawer();
+      saveState();
     });
   });
   document.getElementById("ws-home").addEventListener("click", () => {
@@ -55,6 +57,7 @@ export function renderWsRail() {
     state.currentChatId = null;
     renderWsRail();
     renderHomeView();
+    saveState();
   });
   document.getElementById("ws-add").addEventListener("click", () => {
     openWsWizard(async () => {
