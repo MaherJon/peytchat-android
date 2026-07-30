@@ -1,12 +1,13 @@
 import { call } from "../api.js";
 import { state } from "../state.js";
+import { renderSettingsPanel } from "../dialogs/settingsPanel.js";
 
 export function renderRightDrawer() {
   const drawer = document.getElementById("right-drawer");
   if (!drawer) return;
   drawer.className = state.rightDrawerOpen ? "right-drawer" : "right-drawer collapsed";
   if (!state.rightDrawerOpen) return;
-  const tabs = ["members", "pin", "search"].map((t) => {
+  const tabs = ["members", "pin", "settings"].map((t) => {
     const cls = state.rightDrawerTab === t ? "rd-tab active" : "rd-tab";
     return `<span class="${cls}" data-tab="${t}">${t}</span>`;
   }).join("");
@@ -27,8 +28,8 @@ async function renderRdBody() {
     await renderMembers(body);
   } else if (state.rightDrawerTab === "pin") {
     await renderPins(body);
-  } else {
-    body.innerHTML = `<div class="rd-group">SEARCH</div><div style="padding:8px 16px;color:#555">搜索功能将在后续子项目实现</div>`;
+  } else if (state.rightDrawerTab === "settings") {
+    await renderSettingsPanel(body);
   }
 }
 

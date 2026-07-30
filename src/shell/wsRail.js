@@ -36,7 +36,10 @@ export function renderWsRail() {
       await refreshChannels();
       renderChannelTree();
       document.getElementById("chat-main").innerHTML = `<div class="empty">选择一个频道</div>`;
-      document.getElementById("right-drawer").className = "right-drawer collapsed";
+      state.rightDrawerOpen = true;
+      state.rightDrawerTab = "settings";
+      const { renderRightDrawer } = await import("./rightDrawer.js");
+      renderRightDrawer();
     });
   });
   document.getElementById("ws-home").addEventListener("click", () => {

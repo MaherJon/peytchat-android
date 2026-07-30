@@ -2,6 +2,8 @@ import { call } from "../api.js";
 import { state } from "../state.js";
 import { renderChatView } from "../chat/chatView.js";
 import { openChannelCreateDialog } from "../dialogs/channelCreate.js";
+import { renderRightDrawer } from "./rightDrawer.js";
+import { renderHomeView } from "../dialogs/homeView.js";
 
 export async function refreshChannels() {
   if (state.currentWsId == null) {
@@ -87,6 +89,19 @@ export function renderChannelTree() {
       });
     });
   });
+  const ctUser = tree.querySelector(".ct-user");
+  if (ctUser) {
+    ctUser.style.cursor = "pointer";
+    ctUser.onclick = async () => {
+      state.homeMode = true;
+      state.currentChatId = null;
+      state.currentWsId = null;
+      await renderHomeView();
+      state.rightDrawerOpen = true;
+      state.rightDrawerTab = "settings";
+      renderRightDrawer();
+    };
+  }
 }
 
 function escapeHtml(s) {

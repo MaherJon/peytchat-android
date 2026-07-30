@@ -42,6 +42,16 @@ export async function renderHomeView() {
       await renderChatView(id);
     });
   });
+  const ctUser = tree.querySelector(".ct-user");
+  if (ctUser) {
+    ctUser.style.cursor = "pointer";
+    ctUser.onclick = async () => {
+      state.rightDrawerOpen = true;
+      state.rightDrawerTab = "settings";
+      const { renderRightDrawer } = await import("../shell/rightDrawer.js");
+      renderRightDrawer();
+    };
+  }
 }
 
 function escapeHtml(s) {
