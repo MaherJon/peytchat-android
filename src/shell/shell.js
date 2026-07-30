@@ -3,7 +3,7 @@ import { state } from "../state.js";
 import { renderAppRail, refreshWorkspaces } from "./appRail.js";
 import { renderChannelTree, refreshChannels } from "./channelTree.js";
 import { renderRightDrawer } from "./rightDrawer.js";
-import { renderChatView } from "../chat/chatView.js";
+import { renderChatView, appendNewMessages } from "../chat/chatView.js";
 import { renderHomeView } from "../dialogs/homeView.js";
 import { loadState, saveState } from "../persist.js";
 import { openSearch, closeSearch } from "../dialogs/search.js";
@@ -191,7 +191,8 @@ async function updateBadge() {
 
 async function refreshCurrentChat() {
   if (state.currentChatId != null) {
-    await renderChatView(state.currentChatId);
+    // Task 9: 增量追加新消息,而非全量重渲染(保留 scroll 位置和已加载的历史)
+    await appendNewMessages(state.currentChatId);
     saveState();
   }
 }
