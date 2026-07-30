@@ -82,7 +82,7 @@ async function renderMembers(body) {
       .map((name) => {
         const list = grouped.get(name);
         const items = list.map((m) => `
-          <div class="rd-member ${m.is_self ? '' : 'muted'}">
+          <div class="rd-member ${m.is_self ? '' : 'muted'}" ${m.is_self ? '' : `data-cid="${m.contact_id}" style="cursor:pointer"`}>
             <div class="rd-avatar">${escapeHtml(m.name.charAt(0).toUpperCase())}</div>
             <span class="rd-name">${escapeHtml(m.name)}</span>
           </div>
@@ -90,6 +90,13 @@ async function renderMembers(body) {
         return `<div class="rd-group">${escapeHtml(name.toUpperCase())} · ${list.length}</div>${items}`;
       }).join("");
     body.innerHTML = html || `<div style="padding:16px;color:#555">无成员</div>`;
+    body.querySelectorAll(".rd-member[data-cid]").forEach((el) => {
+      el.addEventListener("click", async () => {
+        const cid = Number(el.dataset.cid);
+        const { renderMemberDetail } = await import("../dialogs/memberDetail.js");
+        await renderMemberDetail(body, cid);
+      });
+    });
   } catch (e) {
     body.innerHTML = `<div style="padding:16px;color:#555">加载失败</div>`;
     showToast(e.message || String(e));

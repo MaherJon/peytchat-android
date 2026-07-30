@@ -14,4 +14,5 @@ export const state = {
   roles: [],
   wsMembers: {},
   collapsedCategories: {},
+  searchOpen: false,
 };

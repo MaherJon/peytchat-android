@@ -5,6 +5,7 @@ import { refreshWorkspaces, renderWsRail } from "../shell/wsRail.js";
 import { refreshChannels, renderChannelTree } from "../shell/channelTree.js";
 import { renderChatView } from "../chat/chatView.js";
 import { renderHomeView } from "./homeView.js";
+import { showQrOverlay } from "./qrShow.js";
 
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -53,7 +54,7 @@ async function renderAccountSettings(body) {
   document.getElementById("acc-qr").onclick = async () => {
     try {
       const qr = await call("get_my_qr");
-      showQrOverlay(qr);
+      await showQrOverlay(qr, "我的二维码");
     } catch (e) { showToast(e.message || String(e)); }
   };
   document.getElementById("acc-logout").onclick = async () => {
@@ -100,7 +101,7 @@ async function renderWorkspaceSettings(body) {
   document.getElementById("ws-qr").onclick = async () => {
     try {
       const qr = await call("get_securejoin_qr", { chatId: ws.master_chat_id });
-      showQrOverlay(qr);
+      await showQrOverlay(qr, `${ws.name} workspace`);
     } catch (e) { showToast(e.message || String(e)); }
   };
   document.getElementById("ws-leave").onclick = async () => {
@@ -170,25 +171,3 @@ async function renderChannelSettings(body) {
   };
 }
 
-function showQrOverlay(qrStr) {
-  const overlay = document.createElement("div");
-  overlay.className = "overlay";
-  overlay.style.display = "flex";
-  overlay.innerHTML = `
-    <div class="dialog" style="max-width:320px">
-      <h2>我的二维码</h2>
-      <div style="font-size:9px;color:#555;margin:8px 0;word-break:break-all;max-height:120px;overflow:auto;background:#0a0a0a;padding:8px;border:1px solid #1a1a1a;border-radius:4px">${esc(qrStr)}</div>
-      <div style="font-size:9px;color:#555;margin-bottom:12px">复制此字符串,或用其他客户端扫描(若支持 URI 形式)</div>
-      <div class="dialog-actions">
-        <button class="primary" id="qr-copy">复制</button>
-        <button id="qr-close">关闭</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(overlay);
-  document.getElementById("qr-copy").onclick = () => {
-    navigator.clipboard.writeText(qrStr).then(() => showToast("已复制"));
-  };
-  document.getElementById("qr-close").onclick = () => overlay.remove();
-  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
-}
