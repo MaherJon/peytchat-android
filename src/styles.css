@@ -765,3 +765,77 @@ body {
   transition: border-color 120ms, color 120ms;
 }
 .card-add:hover { border-color: var(--text-weak); color: var(--text-mute); }
+
+/* === SP5 Task 7: 列表视图 === */
+/* 复用 .main-header/.main-title/.main-subtitle/.main-actions/.view-toggle/
+   .view-btn/.main-body/.btn/.btn-primary(Task 6 定义),此处仅定义表格专属样式。
+   配色 / 字号 / 字重遵循 Global Constraints:CSS 变量优先,字号 9/10/11/12/13px。*/
+.list-view {
+  flex: 1; overflow: auto; background: var(--bg);
+}
+.list-view::-webkit-scrollbar { width: 8px; }
+.list-view::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+.list-view::-webkit-scrollbar-track { background: transparent; }
+
+.list-table {
+  width: 100%; border-collapse: collapse; table-layout: fixed;
+}
+.list-table thead th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--panel); border-bottom: 1px solid var(--border-strong);
+  padding: 8px 12px; text-align: left;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.3px;
+  color: var(--text-mute);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.list-table thead th.th-sortable { cursor: pointer; }
+.list-table thead th.th-sortable:hover { color: var(--text); }
+.list-table thead th.th-sortable.sorted { color: var(--text); }
+
+/* 列宽分配:标题更宽,其余等宽 */
+.list-table thead th:nth-child(1),
+.list-table tbody td:nth-child(1) { width: 34%; }
+.list-table thead th:nth-child(2),
+.list-table tbody td:nth-child(2) { width: 10%; }
+.list-table thead th:nth-child(3),
+.list-table tbody td:nth-child(3) { width: 14%; }
+.list-table thead th:nth-child(4),
+.list-table tbody td:nth-child(4) { width: 14%; }
+.list-table thead th:nth-child(5),
+.list-table tbody td:nth-child(5) { width: 14%; }
+.list-table thead th:nth-child(6),
+.list-table tbody td:nth-child(6) { width: 14%; }
+
+.list-table tbody tr {
+  border-bottom: 1px solid var(--border); cursor: pointer;
+  transition: background 120ms;
+}
+.list-table tbody tr:hover { background: var(--capsule); }
+.list-table tbody tr.selected { background: var(--active); }
+.list-table tbody td {
+  padding: 8px 12px; font-size: 11px; color: var(--text-body);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.col-title { color: var(--text); font-weight: 500; }
+.col-type {
+  color: var(--text-mute); font-size: 10px;
+}
+.col-type.task { color: var(--text); font-weight: 600; }
+
+/* 状态列:圆点 + 文本,沿用看板黑白配色,用字重区分 */
+.col-status { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.col-status .dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  background: var(--text-weak); border: 1px solid var(--text-weak);
+}
+.col-status.todo .dot { background: transparent; }
+.col-status.in_progress .dot {
+  background: var(--text-mute); border-color: var(--text-mute);
+}
+.col-status.done .dot {
+  background: var(--text); border-color: var(--text);
+}
+.col-status.todo { color: var(--text-weak); }
+.col-status.in_progress { color: var(--text-mute); }
+.col-status.done { color: var(--text); font-weight: 600; }
