@@ -487,3 +487,6 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   display: flex; align-items: center; justify-content: center;
   font-size: 28px; font-weight: 600; color: #e5e5e5;
 }
+.space-type-toggle { display: flex; background: #0d0d0d; border: 1px solid #1a1a1a; border-radius: 4px; overflow: hidden; }
+.st-btn { padding: 4px 10px; font-size: 11px; color: #555; cursor: pointer; border: none; background: none; font-weight: 500; }
+.st-btn.active { background: #1f1f1f; color: #e5e5e5; }

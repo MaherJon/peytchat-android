@@ -84,6 +84,8 @@ pub fn run() {
             commands::get_card,
             commands::upsert_card_from_msg,
             commands::message_to_card,
+            commands::update_channel_space_type,
+            commands::get_channel_space_type,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

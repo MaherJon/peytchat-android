@@ -1679,3 +1679,21 @@ pub async fn message_to_card(
     let row = state.db.get_card_row(card_id).await?.unwrap();
     row_to_card_dto(&state, row).await
 }
+
+#[tauri::command]
+pub async fn update_channel_space_type(
+    state: State<'_, AppState>,
+    chat_id: u32,
+    space_type: String,
+) -> AppResult<()> {
+    state.db.set_channel_space_type(chat_id, &space_type).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_channel_space_type(
+    state: State<'_, AppState>,
+    chat_id: u32,
+) -> AppResult<Option<String>> {
+    state.db.get_channel_space_type(chat_id).await
+}

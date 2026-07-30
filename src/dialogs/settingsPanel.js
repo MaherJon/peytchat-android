@@ -184,6 +184,7 @@ async function renderWorkspaceSettings(body) {
 async function renderChannelSettings(body) {
   const ch = state.channels.find((c) => c.chat_id === state.currentChatId);
   if (!ch) { body.innerHTML = ""; return; }
+  const currentSpaceType = await call("get_channel_space_type", { chatId: state.currentChatId }).catch(() => "chat") || "chat";
   body.innerHTML = `
     <div class="rd-group">频道</div>
     <div style="padding:0 16px 8px;display:flex;flex-direction:column;gap:8px">
@@ -193,10 +194,25 @@ async function renderChannelSettings(body) {
       <input id="ch-topic" value="${esc(ch.topic || "")}" style="background:#0a0a0a;border:1px solid #222;border-radius:4px;padding:6px 10px;color:#e5e5e5;font-size:11px" />
       <label style="font-size:9px;color:#555">分类</label>
       <input id="ch-cat" value="${esc(ch.category)}" style="background:#0a0a0a;border:1px solid #222;border-radius:4px;padding:6px 10px;color:#e5e5e5;font-size:11px" />
+      <label style="font-size:9px;color:#555">空间类型</label>
+      <div class="space-type-toggle">
+        <button class="st-btn ${currentSpaceType === 'chat' ? 'active' : ''}" data-st="chat">聊天</button>
+        <button class="st-btn ${currentSpaceType === 'card' ? 'active' : ''}" data-st="card">协作</button>
+      </div>
       <button id="ch-save" style="background:#161616;border:1px solid #222;color:#e5e5e5;padding:6px;border-radius:4px;font-size:11px;cursor:pointer;margin-top:4px">保存</button>
       <button id="ch-leave" style="background:transparent;border:1px solid #222;color:#555;padding:6px;border-radius:4px;font-size:11px;cursor:pointer;margin-top:12px">离开频道</button>
     </div>
   `;
+  document.querySelectorAll(".st-btn").forEach((btn) => {
+    btn.onclick = async () => {
+      try {
+        await call("update_channel_space_type", { chatId: state.currentChatId, spaceType: btn.dataset.st });
+        showToast("已切换空间类型");
+        renderChannelTree();
+        await renderChannelSettings(body);
+      } catch (e) { showToast("切换失败: " + (e.message || String(e))); }
+    };
+  });
   document.getElementById("ch-save").onclick = async () => {
     const name = document.getElementById("ch-name").value.trim();
     const topic = document.getElementById("ch-topic").value.trim();
