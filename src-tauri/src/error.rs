@@ -13,6 +13,8 @@ pub enum AppError {
     Core(String),
     #[error("IO 错误：{0}")]
     Io(String),
+    #[error("数据库错误：{0}")]
+    Db(String),
 }
 
 impl From<anyhow::Error> for AppError {
@@ -24,6 +26,18 @@ impl From<anyhow::Error> for AppError {
 impl From<std::io::Error> for AppError {
     fn from(e: std::io::Error) -> Self {
         AppError::Io(e.to_string())
+    }
+}
+
+impl From<rusqlite::Error> for AppError {
+    fn from(e: rusqlite::Error) -> Self {
+        AppError::Db(e.to_string())
+    }
+}
+
+impl From<tokio::task::JoinError> for AppError {
+    fn from(e: tokio::task::JoinError) -> Self {
+        AppError::Core(e.to_string())
     }
 }
 

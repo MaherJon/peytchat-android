@@ -25,6 +25,7 @@ log = "0.4"
 # transitively via hyper-util; peytchat builds deltachat standalone without that
 # unification, so enable `all` explicitly here.
 socket2 = { version = "0.5", features = ["all"] }
+rusqlite = "0.37"
 
 [dev-dependencies]
 tempfile = "3"
