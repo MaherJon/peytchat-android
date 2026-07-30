@@ -45,12 +45,14 @@ export async function renderHomeView() {
       : unread > 0
         ? `<span class="home-unread">${unread}</span>`
         : "";
+    const displayName = c.is_group ? `# ${escapeHtml(c.name)}` : escapeHtml(c.name);
+    const avatar = c.is_group ? "#" : escapeHtml(avatarLetter(c.name));
     return `
       <div class="home-item ${unread > 0 ? "has-unread" : ""} ${active}" data-id="${c.chat_id}">
-        <div class="home-avatar">${avatarLetter(c.name)}</div>
+        <div class="home-avatar">${avatar}</div>
         <div class="home-content">
           <div class="home-row">
-            <span class="home-name">${escapeHtml(c.name)}</span>
+            <span class="home-name">${displayName}</span>
             <span class="home-time">${formatRelativeTime(c.last_ts)}</span>
           </div>
           <div class="home-row">
