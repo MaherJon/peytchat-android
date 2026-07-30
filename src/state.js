@@ -1,6 +1,12 @@
 export const state = {
   self: null,
-  chatlist: [],
+  workspaces: [],
+  currentWsId: null,
+  channels: [],
   currentChatId: null,
   messages: [],
+  pins: [],
+  rightDrawerTab: 'members',
+  rightDrawerOpen: false,
+  homeMode: false,
 };
