@@ -17,6 +17,9 @@ export async function renderShell() {
     </div>
   `;
   await refreshWorkspaces();
+  try {
+    state.self = await call("get_self_profile");
+  } catch {}
   renderWsRail();
   // 默认进入主页区
   state.homeMode = true;
