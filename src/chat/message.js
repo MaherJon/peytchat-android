@@ -42,35 +42,48 @@ export async function renderMessage(m) {
   // 附件渲染（view_type != Text）
   let attachmentHtml = "";
   if (m.view_type && m.view_type !== "Text" && m.file) {
-    const assetUrl = await call("get_asset_url", { path: m.file });
-    switch (m.view_type) {
-      case "Image":
-      case "Gif":
-      case "Sticker":
-        attachmentHtml = `<div class="msg-attachment img" data-asset="${escapeHtml(assetUrl)}">
+    let assetUrl;
+    try {
+      assetUrl = await call("get_asset_url", { path: m.file });
+    } catch (e) {
+      attachmentHtml = `<div class="msg-attachment file">
+          <div class="file-icon">□</div>
+          <div class="file-info">
+            <div class="file-name">${escapeHtml(m.file_name || "file")}</div>
+            <div class="file-meta">附件加载失败</div>
+          </div>
+        </div>`;
+    }
+    if (assetUrl) {
+      switch (m.view_type) {
+        case "Image":
+        case "Gif":
+        case "Sticker":
+          attachmentHtml = `<div class="msg-attachment img" data-asset="${escapeHtml(assetUrl)}">
           <img src="${escapeHtml(assetUrl)}" alt="${escapeHtml(m.file_name || "image")}" style="max-width:240px;max-height:180px;border-radius:4px;cursor:pointer" data-full="${escapeHtml(assetUrl)}" />
         </div>`;
-        break;
-      case "File":
-        attachmentHtml = `<div class="msg-attachment file" data-download="${escapeHtml(assetUrl)}">
+          break;
+        case "File":
+          attachmentHtml = `<div class="msg-attachment file" data-download="${escapeHtml(assetUrl)}">
           <div class="file-icon">□</div>
           <div class="file-info">
             <div class="file-name">${escapeHtml(m.file_name || "file")}</div>
             <div class="file-meta">${formatBytes(m.file_bytes)} · 点击下载</div>
           </div>
         </div>`;
-        break;
-      case "Audio":
-      case "Voice":
-        attachmentHtml = `<div class="msg-attachment audio">
+          break;
+        case "Audio":
+        case "Voice":
+          attachmentHtml = `<div class="msg-attachment audio">
           <audio controls src="${escapeHtml(assetUrl)}" style="max-width:280px"></audio>
         </div>`;
-        break;
-      case "Video":
-        attachmentHtml = `<div class="msg-attachment video">
+          break;
+        case "Video":
+          attachmentHtml = `<div class="msg-attachment video">
           <video controls src="${escapeHtml(assetUrl)}" style="max-width:280px;max-height:200px;border-radius:4px"></video>
         </div>`;
-        break;
+          break;
+      }
     }
   }
   const reactionsHtml = await renderReactions(m.msg_id);
