@@ -33,8 +33,8 @@ export function renderChannelTree() {
   const catHtml = categories.map((cat) => {
     const chans = byCategory[cat].map((ch) => {
       const active = state.currentChatId === ch.chat_id ? "active" : "";
-      const topic = ch.topic ? `<span class="ct-unread" style="background:transparent;color:#555;border:1px solid #222">${escapeHtml(ch.topic.slice(0,8))}</span>` : "";
-      return `<div class="ct-channel ${active}" data-id="${ch.chat_id}" title="${escapeAttr(ch.topic || '')}">${escapeHtml(ch.name)}${topic}</div>`;
+      const unread = ch.unread > 0 ? `<span class="ct-unread">${ch.unread}</span>` : "";
+      return `<div class="ct-channel ${active}" data-id="${ch.chat_id}" title="${escapeAttr(ch.topic || '')}">${escapeHtml(ch.name)}${unread}</div>`;
     }).join("");
     return `
       <div class="ct-category" data-cat="${escapeAttr(cat)}">

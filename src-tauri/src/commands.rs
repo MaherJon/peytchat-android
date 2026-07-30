@@ -278,6 +278,21 @@ pub async fn get_chat_msgs(state: State<'_, AppState>, chat_id: u32) -> AppResul
                     .get_display_name()
                     .to_string()
             };
+            let (quote_from, quote_text) = match m.quoted_message(&ctx).await? {
+                Some(q) => {
+                    let q_from_id = q.get_from_id();
+                    let q_name = if q_from_id == deltachat::contact::ContactId::SELF {
+                        "我".to_string()
+                    } else {
+                        Contact::get_by_id(&ctx, q_from_id)
+                            .await?
+                            .get_display_name()
+                            .to_string()
+                    };
+                    (Some(q_name), Some(q.get_text()))
+                }
+                None => (None, None),
+            };
             out.push(MsgDto {
                 msg_id: msg_id.to_u32(),
                 from_id: from_id.to_u32(),
@@ -286,6 +301,8 @@ pub async fn get_chat_msgs(state: State<'_, AppState>, chat_id: u32) -> AppResul
                 ts: m.get_timestamp(),
                 is_out: m.get_state().is_outgoing(),
                 state: state_str(m.get_state()).to_string(),
+                quote_from,
+                quote_text,
             });
         }
     }
@@ -500,7 +517,16 @@ pub async fn list_channels(
     state: State<'_, AppState>,
     workspace_id: i64,
 ) -> AppResult<Vec<ChannelDto>> {
-    Ok(state.db.list_channels(workspace_id).await?)
+    let ctx = state
+        .current()
+        .await
+        .ok_or(AppError::Core("no account".into()))?;
+    let mut chans = state.db.list_channels(workspace_id).await?;
+    for ch in &mut chans {
+        let chat_id = deltachat::chat::ChatId::new(ch.chat_id);
+        ch.unread = chat_id.get_fresh_msg_cnt(&ctx).await.unwrap_or(0) as u32;
+    }
+    Ok(chans)
 }
 
 #[tauri::command]

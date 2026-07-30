@@ -124,6 +124,7 @@ impl Db {
                     category: r.get(4)?,
                     position: r.get(5)?,
                     topic: r.get(6)?,
+                    unread: 0,
                 })
             })?;
             Ok(rows.filter_map(|x| x.ok()).collect())

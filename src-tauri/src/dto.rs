@@ -59,6 +59,8 @@ pub struct MsgDto {
     pub ts: i64,
     pub is_out: bool,
     pub state: String,
+    pub quote_from: Option<String>,
+    pub quote_text: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -96,6 +98,7 @@ pub struct ChannelDto {
     pub category: String,
     pub position: i64,
     pub topic: Option<String>,
+    pub unread: u32,
 }
 
 #[derive(Debug, Serialize)]
