@@ -978,3 +978,22 @@ pub async fn create_chat_by_contact(
     let chat_id = deltachat::chat::ChatId::create_for_contact(&ctx, cid).await?;
     Ok(chat_id.to_u32())
 }
+
+// ── SP4 asset protocol ──────────────────────────────────────────────────────
+//
+// 将本地文件路径转为 webview 可访问的 `asset://localhost/<encoded>` URL，
+// 用于加载 deltachat blobdir 中的头像/图片/文件附件。
+//
+// 注: brief 主方案 (`PathResolver::asset_protocol().get(path) -> Result<Url>`)
+// 在已安装的 Tauri 2.11.5 中并不存在该方法 (经查 tauri-2.11.5/src/path/mod.rs
+// `PathResolver` 只有 `resolve`/`parse`，无 `asset_protocol`)。按 brief 回退
+// 条件改用简化方案: 直接拼 `asset://localhost/` + URL 编码的绝对路径。
+// `assetProtocol.enable=true` 仍由 tauri.conf.json 配置 + Cargo.toml 的
+// `protocol-asset` feature 满足 (tauri-build 校验)。
+
+/// 将本地文件绝对路径转为 webview 可加载的 asset:// URL。
+#[tauri::command]
+pub async fn get_asset_url(path: String) -> AppResult<String> {
+    let encoded = urlencoding::encode(&path);
+    Ok(format!("asset://localhost/{}", encoded))
+}
