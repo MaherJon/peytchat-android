@@ -1,6 +1,6 @@
 import { call, clearError } from "../api.js";
 import { state } from "../state.js";
-import { refreshWorkspaces, renderWsRail } from "../shell/wsRail.js";
+import { refreshWorkspaces, renderAppRail } from "../shell/appRail.js";
 import { refreshChannels, renderChannelTree } from "../shell/channelTree.js";
 
 export function openWsWizard(onDone) {
@@ -51,7 +51,7 @@ export function openWsWizard(onDone) {
       state.currentWsId = ws.id;
       state.homeMode = false;
       await refreshWorkspaces();
-      renderWsRail();
+      renderAppRail();
       await refreshChannels();
       renderChannelTree();
       close();
@@ -70,7 +70,7 @@ export function openWsWizard(onDone) {
       state.currentWsId = ws.id;
       state.homeMode = false;
       await refreshWorkspaces();
-      renderWsRail();
+      renderAppRail();
       await refreshChannels();
       renderChannelTree();
       close();

@@ -8,6 +8,8 @@ export const state = {
   pins: [],
   rightDrawerTab: 'members',
   rightDrawerOpen: false,
+  currentApp: 'chat',      // "chat" | "work" | "inbox"
+  detailPanelOpen: true,   // detail panel 折叠状态
   homeMode: false,
   messagesOldestId: null,
   noMoreMsgs: false,

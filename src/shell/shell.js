@@ -1,6 +1,6 @@
 import { call } from "../api.js";
 import { state } from "../state.js";
-import { renderWsRail, refreshWorkspaces } from "./wsRail.js";
+import { renderAppRail, refreshWorkspaces } from "./appRail.js";
 import { renderChannelTree, refreshChannels } from "./channelTree.js";
 import { renderRightDrawer } from "./rightDrawer.js";
 import { renderChatView } from "../chat/chatView.js";
@@ -32,7 +32,7 @@ export async function renderShell() {
   // 根据恢复的状态决定初始视图
   if (state.currentWsId != null && state.workspaces.find((w) => w.id === state.currentWsId)) {
     state.homeMode = false;
-    renderWsRail();
+    renderAppRail();
     await refreshChannels();
     renderChannelTree();
     if (state.currentChatId != null) {
@@ -48,7 +48,7 @@ export async function renderShell() {
   } else {
     state.homeMode = true;
     state.currentWsId = null;
-    renderWsRail();
+    renderAppRail();
     await renderHomeView();
     if (state.currentChatId != null) {
       try {
@@ -172,7 +172,7 @@ async function refreshCurrentChat() {
 async function refreshSidebar() {
   await refreshWorkspaces();
   await refreshChannels();
-  renderWsRail();
+  renderAppRail();
   if (state.currentWsId != null && !state.homeMode) {
     renderChannelTree();
   }

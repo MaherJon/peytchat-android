@@ -1,7 +1,7 @@
 import { call } from "../api.js";
 import { showToast } from "../toast.js";
 import { state } from "../state.js";
-import { refreshWorkspaces, renderWsRail } from "../shell/wsRail.js";
+import { refreshWorkspaces, renderAppRail } from "../shell/appRail.js";
 import { refreshChannels, renderChannelTree } from "../shell/channelTree.js";
 import { renderChatView } from "../chat/chatView.js";
 import { renderHomeView } from "./homeView.js";
@@ -89,7 +89,7 @@ async function renderWorkspaceSettings(body) {
     try {
       await call("update_workspace", { id: ws.id, name, icon: icon || null });
       await refreshWorkspaces();
-      renderWsRail();
+      renderAppRail();
       showToast("已保存");
     } catch (e) { showToast(e.message || String(e)); }
   };
@@ -109,7 +109,7 @@ async function renderWorkspaceSettings(body) {
     try {
       await call("leave_workspace", { id: ws.id });
       await refreshWorkspaces();
-      renderWsRail();
+      renderAppRail();
       state.currentWsId = null;
       state.homeMode = true;
       await renderHomeView();
@@ -121,7 +121,7 @@ async function renderWorkspaceSettings(body) {
     try {
       await call("delete_workspace", { id: ws.id });
       await refreshWorkspaces();
-      renderWsRail();
+      renderAppRail();
       state.currentWsId = null;
       state.homeMode = true;
       await renderHomeView();
