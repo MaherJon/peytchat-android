@@ -24,6 +24,12 @@ async function renderAvatarHtml(member) {
 export function renderRightDrawer() {
   const drawer = document.getElementById("right-drawer");
   if (!drawer) return;
+  // SP5 Task 8: Work 模式 + 选中卡片时，right drawer 渲染 Card 详情。
+  // 用 dynamic import 避免 static import 循环依赖。
+  if (state.currentApp === "work" && state.currentCardId) {
+    import("../work/cardDetail.js").then(({ renderCardDetail }) => renderCardDetail(state.currentCardId));
+    return;
+  }
   const collapsed = !state.rightDrawerOpen || !state.detailPanelOpen;
   drawer.classList.toggle("collapsed", collapsed);
   if (!state.rightDrawerOpen) return;
