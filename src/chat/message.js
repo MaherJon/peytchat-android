@@ -122,6 +122,8 @@ export async function renderMessage(m) {
   const replyBtn = `<span class="msg-reply-btn" data-msg="${m.msg_id}" title="reply">reply</span>`;
   const reactBtn = `<span class="msg-react-btn" data-msg="${m.msg_id}" title="react">+</span>`;
   const delBtn = isOut ? `<span class="msg-del-btn" data-msg="${m.msg_id}" title="delete">del</span>` : "";
+  // Task 9: 转 Card —— hover 动作栏按钮,调 message_to_card 把消息转成卡片。
+  const cardBtn = `<span class="msg-card-btn" data-msg="${m.msg_id}" title="转 Card">card</span>`;
   // Task 8: 仅出消息显示发送状态;失败时附加重发按钮
   const stateHtml = isOut
     ? `<span class="msg-state state-${m.state || "pending"}" data-msg-state="${m.msg_id}">${stateLabel(m.state)}</span>`
@@ -138,7 +140,7 @@ export async function renderMessage(m) {
             <span class="msg-name">${escapeHtml(m.from_name)}</span>
             <span class="msg-time">${formatTs(m.ts)}</span>
             ${roleTag}${replyMark}
-            ${pinBtn} ${replyBtn} ${reactBtn} ${delBtn}
+            ${pinBtn} ${replyBtn} ${reactBtn} ${delBtn} ${cardBtn}
             ${stateHtml} ${resendBtn}
           </div>
           ${quoteBlock}
@@ -311,6 +313,25 @@ export function bindMessageActions(container) {
       try {
         await call("delete_msg", { msgId: Number(msgId) });
       } catch (e) { showToast(e.message || String(e)); }
+    });
+  });
+  // Task 9: 转 Card —— 调 message_to_card 把消息转成卡片。
+  // title 留空时后端用消息文本(已处理截断)。workspaceId/chatId 取当前视图。
+  container.querySelectorAll(".msg-card-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const msgId = Number(btn.dataset.msg);
+      const title = prompt("卡片标题(留空用消息文本):");
+      if (title === null) return; // 取消
+      try {
+        await call("message_to_card", {
+          msgId,
+          workspaceId: state.currentWsId,
+          chatId: state.currentChatId,
+          type_: "task",
+          title: title || null,
+        });
+        showToast("已转为 Card");
+      } catch (e) { showToast("转换失败: " + (e.message || String(e))); }
     });
   });
   // Task 8: 重发失败消息(仅 is_out + state=failed 时渲染此按钮)

@@ -264,7 +264,8 @@ html { background: var(--bg); }
 .msg .msg-pin-btn,
 .msg .msg-reply-btn,
 .msg .msg-del-btn,
-.msg .msg-react-btn {
+.msg .msg-react-btn,
+.msg .msg-card-btn {
   display: none;
   cursor: pointer;
   color: var(--text-weak);
@@ -273,7 +274,8 @@ html { background: var(--bg); }
 .msg:hover .msg-pin-btn,
 .msg:hover .msg-reply-btn,
 .msg:hover .msg-del-btn,
-.msg:hover .msg-react-btn { display: inline; }
+.msg:hover .msg-react-btn,
+.msg:hover .msg-card-btn { display: inline; }
 
 /* reaction picker */
 .msg-reaction-picker {
