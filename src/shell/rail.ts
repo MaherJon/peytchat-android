@@ -61,8 +61,7 @@ function bindPluginsIcon(): void {
   const el = document.getElementById('rail-plugins');
   if (!el) return;
   el.addEventListener('click', () => {
-    state.currentPage = 'settings';
-    state.currentSettingsSection = 'plugins';
+    state.currentPage = 'plugins';
     saveState();
     void renderRail().then(() => {
       void import('./navPanel.js').then(({ renderNavPanel, renderMain }) => {

@@ -61,6 +61,11 @@ export async function renderNavPanel(): Promise<void> {
         await renderWorkPage(panel);
         break;
       }
+      case 'plugins': {
+        const { renderPluginsNav } = await import('../plugins/view.js');
+        await renderPluginsNav(panel);
+        break;
+      }
       case 'settings': {
         const { renderSettingsNav } = await import('../pages/settingsPage.js');
         await renderSettingsNav(panel);
@@ -75,6 +80,16 @@ export async function renderNavPanel(): Promise<void> {
 export async function renderMain(): Promise<void> {
   const main = document.getElementById('chat-main');
   if (!main) return;
+
+  if (state.currentPage === 'plugins') {
+    try {
+      const { renderPluginsMain } = await import('../plugins/view.js');
+      await renderPluginsMain(main);
+    } catch {
+      main.innerHTML = `<div class="empty">插件页加载失败</div>`;
+    }
+    return;
+  }
 
   if (state.currentPage === 'settings') {
     try {

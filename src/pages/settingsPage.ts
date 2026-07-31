@@ -50,8 +50,8 @@ export async function renderSettingsMain(main: HTMLElement): Promise<void> {
 }
 
 async function renderPlugins(main: HTMLElement): Promise<void> {
-  const { renderPluginsMain } = await import('../plugins/view.js');
-  await renderPluginsMain(main);
+  const { renderPluginSettings } = await import('../plugins/settings.js');
+  await renderPluginSettings(main);
 }
 
 async function renderAccount(main: HTMLElement): Promise<void> {

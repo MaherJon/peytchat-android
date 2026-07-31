@@ -1,5 +1,16 @@
-export type Page = 'messages' | 'groups' | 'work' | 'settings';
+export type Page = 'messages' | 'groups' | 'work' | 'plugins' | 'settings';
 export type SettingsSection = 'account' | 'appearance' | 'team' | 'notifications' | 'plugins' | 'about';
+export type PluginsTab = 'market' | 'installed';
+
+/** Plugin permission keys — gate which plugin API surfaces are usable. */
+export type PluginPermission =
+  | 'messages:read'
+  | 'messages:send'
+  | 'ui:css'
+  | 'ui:theme'
+  | 'commands'
+  | 'llm'
+  | 'network';
 export type SpaceType = 'chat' | 'card';
 export type CurrentView = 'kanban' | 'list';
 export type MsgState = 'pending' | 'delivered' | 'failed' | 'read';
@@ -85,6 +96,7 @@ export interface RoleDto {
 export interface AppState {
   currentPage: Page;
   currentSettingsSection: SettingsSection;
+  pluginsTab: PluginsTab;
   currentWsId: number | null;
   currentChatId: number | null;
   workspaces: WorkspaceDto[];

@@ -1,44 +1,58 @@
 import { call } from '../api.js';
+import { state } from '../state.js';
 import { showToast } from '../toast.js';
 import { loadPlugin, unloadPlugin } from './manager.js';
 import type { PluginStatus, RegistryPlugin } from './types.js';
 
 /**
- * Plugin management view rendered inside the Settings page (zero-popup).
- * Two inline tabs: 市场 (marketplace) and 已安装 (local installed).
+ * Plugin page (rail entry). Nav panel shows 市场 / 已安装 toggles,
+ * main panel renders the selected view.
  */
-export async function renderPluginsMain(main: HTMLElement): Promise<void> {
-  main.innerHTML = `
-    <div class="settings-section">
-      <h2>插件</h2>
-      <div class="plugin-tabs">
-        <button class="plugin-tab active" data-tab="market">插件市场</button>
-        <button class="plugin-tab" data-tab="local">已安装</button>
-      </div>
-      <div id="plugin-market-pane"></div>
-      <div id="plugin-local-pane" hidden></div>
+export async function renderPluginsNav(panel: HTMLElement): Promise<void> {
+  const tabs: Array<{ id: 'market' | 'installed'; label: string }> = [
+    { id: 'market', label: '插件市场' },
+    { id: 'installed', label: '已安装' },
+  ];
+  panel.innerHTML = `
+    <div class="nav-header"><div class="nav-title">插件</div></div>
+    <div class="nav-list">
+      ${tabs
+        .map(
+          (t) => `<div class="nav-chat-item ${state.pluginsTab === t.id ? 'active' : ''}" data-tab="${t.id}">
+            ${t.label}
+          </div>`,
+        )
+        .join('')}
     </div>
   `;
-
-  const marketPane = document.getElementById('plugin-market-pane')!;
-  const localPane = document.getElementById('plugin-local-pane')!;
-
-  main.querySelectorAll<HTMLButtonElement>('.plugin-tab').forEach((tab) => {
-    tab.addEventListener('click', () => {
-      main.querySelectorAll('.plugin-tab').forEach((t) => t.classList.remove('active'));
-      tab.classList.add('active');
-      marketPane.hidden = tab.dataset.tab !== 'market';
-      localPane.hidden = tab.dataset.tab !== 'local';
-      if (tab.dataset.tab === 'local') void renderLocal(localPane);
-      else void renderMarket(marketPane);
+  panel.querySelectorAll<HTMLElement>('.nav-chat-item[data-tab]').forEach((el) => {
+    el.addEventListener('click', async () => {
+      state.pluginsTab = el.dataset.tab as 'market' | 'installed';
+      panel.querySelectorAll('.nav-chat-item').forEach((x) => x.classList.remove('active'));
+      el.classList.add('active');
+      const { renderMain } = await import('../shell/navPanel.js');
+      await renderMain();
     });
   });
-
-  await renderMarket(marketPane);
 }
 
-async function renderMarket(pane: HTMLElement): Promise<void> {
-  pane.innerHTML = `<div class="plugin-empty">加载插件列表…</div>`;
+export async function renderPluginsMain(main: HTMLElement): Promise<void> {
+  if (state.pluginsTab === 'installed') {
+    await renderInstalled(main);
+  } else {
+    await renderMarket(main);
+  }
+}
+
+async function renderMarket(main: HTMLElement): Promise<void> {
+  main.innerHTML = `
+    <div class="settings-section">
+      <h2>插件市场</h2>
+      <div id="plugin-market-list"><div class="plugin-empty">加载插件列表…</div></div>
+    </div>
+  `;
+  const pane = document.getElementById('plugin-market-list')!;
+
   const [available, installed] = await Promise.all([
     call<RegistryPlugin[]>('fetch_registry').catch(() => null),
     call<PluginStatus[]>('list_plugins').catch(() => []),
@@ -55,17 +69,12 @@ async function renderMarket(pane: HTMLElement): Promise<void> {
     .map((plugin) => {
       const inst = installedMap.get(plugin.name);
       const isInstalled = !!inst;
-      const isEnabled = inst?.enabled ?? false;
       return `
         <div class="plugin-row" data-name="${plugin.name}">
           <span class="p-name">${esc(plugin.title)}</span>
+          <span class="plugin-desc">${esc(plugin.description)}</span>
           ${isInstalled
-            ? `
-              <label class="p-toggle">
-                <input type="checkbox" class="mk-toggle" data-name="${plugin.name}" ${isEnabled ? 'checked' : ''}>
-                <span>启用</span>
-              </label>
-              <button class="settings-btn plugin-uninstall" data-name="${plugin.name}">删除</button>`
+            ? `<span class="plugin-badge">已安装</span><button class="settings-btn plugin-uninstall" data-name="${plugin.name}">删除</button>`
             : `<button class="settings-btn plugin-install" data-name="${plugin.name}">安装</button>`}
         </div>`;
     })
@@ -79,7 +88,7 @@ async function renderMarket(pane: HTMLElement): Promise<void> {
         const plugin = await call<RegistryPlugin>('install_plugin', { name: btn.dataset.name });
         await loadPlugin(plugin.name, plugin.title);
         showToast(`已安装 ${plugin.title}`);
-        await renderMarket(pane);
+        await renderMarket(main);
       } catch (e) {
         btn.disabled = false;
         btn.textContent = '安装';
@@ -94,35 +103,25 @@ async function renderMarket(pane: HTMLElement): Promise<void> {
       try {
         unloadPlugin(btn.dataset.name!);
         await call('uninstall_plugin', { name: btn.dataset.name });
-        await renderMarket(pane);
+        await renderMarket(main);
       } catch (e) {
         showToast(e instanceof Error ? e.message : String(e));
       }
     });
   });
-
-  pane.querySelectorAll<HTMLInputElement>('.mk-toggle').forEach((cb) => {
-    cb.addEventListener('change', async () => {
-      const name = cb.dataset.name!;
-      try {
-        await call('toggle_plugin', { name, enabled: cb.checked });
-        if (cb.checked) await loadPlugin(name);
-        else unloadPlugin(name);
-      } catch {
-        cb.checked = !cb.checked;
-      }
-    });
-  });
 }
 
-async function renderLocal(pane: HTMLElement): Promise<void> {
-  // Install-from-disk control (zip), always visible at top.
-  pane.innerHTML = `
-    <div class="plugin-local-install">
-      <button class="settings-btn" id="plugin-zip-btn">${iconPlus()} 从 .zip 安装</button>
-      <input id="plugin-zip-input" type="file" accept=".zip" style="display:none" />
+async function renderInstalled(main: HTMLElement): Promise<void> {
+  main.innerHTML = `
+    <div class="settings-section">
+      <h2>已安装插件</h2>
+      <div class="plugin-local-install">
+        <button class="plugin-zip-btn" id="plugin-zip-btn" title="从磁盘安装 .zip 插件">+</button>
+        <span class="plugin-zip-label">从磁盘安装</span>
+        <input id="plugin-zip-input" type="file" accept=".zip" style="display:none" />
+      </div>
+      <div class="plugin-list" id="plugin-installed-list"><div class="plugin-empty">加载中…</div></div>
     </div>
-    <div class="plugin-list" id="plugin-local-list"><div class="plugin-empty">加载中…</div></div>
   `;
 
   document.getElementById('plugin-zip-btn')!.addEventListener('click', () => {
@@ -143,14 +142,14 @@ async function renderLocal(pane: HTMLElement): Promise<void> {
       });
       await loadPlugin(plugin.name, plugin.title);
       showToast(`已安装 ${plugin.title}`);
-      await renderLocal(pane);
+      await renderInstalled(main);
     } catch (err) {
       showToast(err instanceof Error ? err.message : String(err));
     }
     (e.target as HTMLInputElement).value = '';
   });
 
-  const listEl = document.getElementById('plugin-local-list')!;
+  const listEl = document.getElementById('plugin-installed-list')!;
   const installed = await call<PluginStatus[]>('list_plugins').catch(() => []);
 
   if (installed.length === 0) {
@@ -191,16 +190,12 @@ async function renderLocal(pane: HTMLElement): Promise<void> {
       try {
         unloadPlugin(btn.dataset.name!);
         await call('uninstall_plugin', { name: btn.dataset.name });
-        await renderLocal(pane);
+        await renderInstalled(main);
       } catch (e) {
         showToast(e instanceof Error ? e.message : String(e));
       }
     });
   });
-}
-
-function iconPlus(): string {
-  return '<span style="font-size:13px;line-height:1">+</span>';
 }
 
 function esc(s: string): string {

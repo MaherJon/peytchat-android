@@ -1199,7 +1199,42 @@ body {
 .p-toggle { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-mute); cursor: pointer; }
 .p-toggle input { accent-color: var(--text); }
 .plugin-empty { color: var(--text-weak); text-align: center; padding: 40px 0; font-size: 12px; }
-.plugin-local-install { margin-bottom: 16px; }
+.plugin-local-install { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.plugin-zip-btn {
+  width: 28px; height: 28px;
+  background: var(--capsule);
+  border: 1px solid var(--border-strong);
+  color: var(--text-mute);
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 16px; line-height: 1; padding: 0 0 1px;
+  transition: color 0.1s, border-color 0.1s;
+}
+.plugin-zip-btn:hover { color: var(--text); border-color: var(--text-mute); }
+.plugin-zip-label { font-size: 11px; color: var(--text-mute); }
+.plugin-desc { font-size: 11px; color: var(--text-weak); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plugin-badge { font-size: 10px; color: var(--success); }
+
+/* 插件设置卡片（权限） */
+.plugin-settings-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+  background: var(--panel);
+}
+.plugin-settings-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.plugin-settings-head .p-name { font-size: 13px; color: var(--text); font-weight: 600; margin-right: auto; }
+.plugin-perms { display: flex; flex-direction: column; gap: 6px; }
+.plugin-perm {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--text); cursor: pointer;
+  padding: 4px 0;
+}
+.plugin-perm input { accent-color: var(--text); }
+.plugin-perm-label { min-width: 72px; font-weight: 500; }
+.plugin-perm-desc { font-size: 10px; color: var(--text-faint); }
 
 /* === Message hover actions === */
 .msg-item { position: relative; }

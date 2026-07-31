@@ -1,9 +1,15 @@
 import { call, onEvent } from '../api.js';
+import { hasPermission } from './permissions.js';
 import type { PluginApi, PluginThemeConfig } from './types.js';
+
+function deny(pluginName: string, perm: string): never {
+  throw new Error(`[${pluginName}] 缺少权限: ${perm}（可在 设置 → 插件 中开启）`);
+}
 
 /**
  * Build the API object handed to a plugin when it loads.
- * Each API surface is scoped/cleaned up via the unload callbacks.
+ * Each API surface is gated by the plugin's granted permissions and
+ * cleaned up via the unload callbacks.
  */
 export function createPluginApi(pluginName: string, unloadCallbacks: Array<() => void>): PluginApi {
   // Plugin-scoped localStorage
@@ -11,16 +17,19 @@ export function createPluginApi(pluginName: string, unloadCallbacks: Array<() =>
 
   return {
     sendText(chatId, text) {
+      if (!hasPermission(pluginName, 'messages:send')) return deny(pluginName, 'messages:send');
       return call('send_text', { chatId, text });
     },
 
     async onMessage(cb) {
+      if (!hasPermission(pluginName, 'messages:read')) return deny(pluginName, 'messages:read');
       return onEvent('IncomingMsg', (payload) => {
         if (payload.chat_id != null) cb(payload as Record<string, unknown>);
       });
     },
 
     addCSS(css) {
+      if (!hasPermission(pluginName, 'ui:css')) return deny(pluginName, 'ui:css');
       const tag = document.createElement('style');
       tag.textContent = css;
       tag.setAttribute('data-plugin', pluginName);
@@ -30,6 +39,7 @@ export function createPluginApi(pluginName: string, unloadCallbacks: Array<() =>
     },
 
     registerTheme(config: PluginThemeConfig) {
+      if (!hasPermission(pluginName, 'ui:theme')) return deny(pluginName, 'ui:theme');
       const themeId = `plugin-${pluginName}-${config.id}`;
       // Inject the [data-theme="<id>"] block, matching the built-in themes.
       let css = `[data-theme="${themeId}"] {\n`;
@@ -57,6 +67,7 @@ export function createPluginApi(pluginName: string, unloadCallbacks: Array<() =>
     },
 
     onCommand(name, cb) {
+      if (!hasPermission(pluginName, 'commands')) return deny(pluginName, 'commands');
       if (!window.__peytchat_commands) window.__peytchat_commands = {};
       window.__peytchat_commands[name] = cb;
       unloadCallbacks.push(() => {
@@ -65,6 +76,7 @@ export function createPluginApi(pluginName: string, unloadCallbacks: Array<() =>
     },
 
     registerLLM(name, config) {
+      if (!hasPermission(pluginName, 'llm')) return deny(pluginName, 'llm');
       if (!window.__peytchat_llms) window.__peytchat_llms = {};
       window.__peytchat_llms[name] = config;
       unloadCallbacks.push(() => {
@@ -74,9 +86,11 @@ export function createPluginApi(pluginName: string, unloadCallbacks: Array<() =>
 
     http: {
       async get<T = unknown>(url: string): Promise<T> {
+        if (!hasPermission(pluginName, 'network')) return deny(pluginName, 'network');
         return (await fetch(url)).json() as Promise<T>;
       },
       async post<T = unknown>(url: string, body: unknown): Promise<T> {
+        if (!hasPermission(pluginName, 'network')) return deny(pluginName, 'network');
         const r = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
