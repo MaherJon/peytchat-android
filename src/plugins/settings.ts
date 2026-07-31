@@ -60,6 +60,7 @@ export async function renderPluginSettings(main: HTMLElement): Promise<void> {
                   </label>`;
               })
               .join('')}
+          <button class="settings-btn plugin-settings-save" data-plugin="${p.name}">保存</button>
           </div>`
         : '';
       return `
@@ -118,16 +119,16 @@ export async function renderPluginSettings(main: HTMLElement): Promise<void> {
     });
   });
 
-  // 自定义配置项 — 输入框失焦保存；select 变更即保存
-  listEl.querySelectorAll<HTMLInputElement | HTMLSelectElement>('.ps-setting').forEach((el) => {
-    const save = (): void => {
-      setPluginSetting(el.dataset.plugin!, el.dataset.key!, el.value);
-    };
-    if (el instanceof HTMLSelectElement) {
-      el.addEventListener('change', save);
-    } else {
-      el.addEventListener('blur', save);
-    }
+  // 自定义配置项 — 点「保存」统一写入
+  listEl.querySelectorAll<HTMLButtonElement>('.plugin-settings-save').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const card = btn.closest<HTMLElement>('.plugin-settings-card');
+      if (!card) return;
+      card.querySelectorAll<HTMLInputElement | HTMLSelectElement>('.ps-setting').forEach((el) => {
+        setPluginSetting(el.dataset.plugin!, el.dataset.key!, el.value);
+      });
+      showToast('配置已保存');
+    });
   });
 
   // Uninstall
