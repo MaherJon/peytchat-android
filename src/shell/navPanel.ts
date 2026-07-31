@@ -61,6 +61,11 @@ export async function renderNavPanel(): Promise<void> {
         await renderWorkPage(panel);
         break;
       }
+      case 'inbox': {
+        const { renderInboxPage } = await import('../pages/inboxPage.js');
+        await renderInboxPage(panel);
+        break;
+      }
       case 'plugins': {
         const { renderPluginsNav } = await import('../plugins/view.js');
         await renderPluginsNav(panel);
@@ -102,25 +107,36 @@ export async function renderMain(): Promise<void> {
     return;
   }
 
+  if (state.currentPage === 'inbox') {
+    main.innerHTML = `<div class="empty">在左侧查看通知</div>`;
+    return;
+  }
+
   if (state.currentPage === 'work') {
     if (state.currentChatId == null) {
       main.innerHTML = `<div class="empty">选择一个协作频道</div>`;
       return;
     }
-    if (state.currentView === 'kanban') {
-      try {
+    // 优先按频道记忆的视图偏好,回退到 state.currentView
+    const chatId = state.currentChatId;
+    const view = state.viewPrefs[chatId] ?? state.currentView;
+    state.currentView = view;
+    try {
+      if (view === 'kanban') {
         const { renderKanban } = await import('../work/kanban.js');
-        await renderKanban(state.currentChatId);
-      } catch {
-        main.innerHTML = `<div class="empty">看板视图加载失败</div>`;
-      }
-    } else {
-      try {
+        await renderKanban(chatId);
+      } else if (view === 'list') {
         const { renderList } = await import('../work/list.js');
-        await renderList(state.currentChatId);
-      } catch {
-        main.innerHTML = `<div class="empty">列表视图加载失败</div>`;
+        await renderList(chatId);
+      } else if (view === 'calendar') {
+        const { renderCalendar } = await import('../work/calendar.js');
+        await renderCalendar(chatId);
+      } else if (view === 'timeline') {
+        const { renderTimeline } = await import('../work/timeline.js');
+        await renderTimeline(chatId);
       }
+    } catch {
+      main.innerHTML = `<div class="empty">视图加载失败</div>`;
     }
     return;
   }

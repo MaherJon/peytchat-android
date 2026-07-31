@@ -6,7 +6,7 @@ use rusqlite::params;
 use rusqlite::OptionalExtension;
 use tokio::sync::Mutex;
 
-use crate::dto::{ChannelDto, PinDto, RoleDto, WorkspaceDto};
+use crate::dto::{ActivityDto, ChannelDto, InboxEventDto, PinDto, RoleDto, WorkspaceDto};
 use crate::error::{AppError, AppResult};
 
 pub struct Db {
@@ -90,7 +90,35 @@ impl Db {
                 CREATE INDEX IF NOT EXISTS idx_cards_workspace_channel ON cards(workspace_id, channel_chat_id);
                 CREATE INDEX IF NOT EXISTS idx_cards_status ON cards(status);
                 CREATE INDEX IF NOT EXISTS idx_cards_assignee ON cards(assignee_contact_id);
-                CREATE INDEX IF NOT EXISTS idx_cards_msg_id ON cards(msg_id);",
+                CREATE INDEX IF NOT EXISTS idx_cards_msg_id ON cards(msg_id);
+                CREATE TABLE IF NOT EXISTS inbox_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    workspace_id INTEGER NOT NULL,
+                    type TEXT NOT NULL,
+                    source_chat_id INTEGER NOT NULL,
+                    msg_id INTEGER,
+                    actor_id INTEGER NOT NULL,
+                    actor_name TEXT NOT NULL,
+                    summary TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    read_at INTEGER
+                );
+                CREATE INDEX IF NOT EXISTS idx_inbox_workspace ON inbox_events(workspace_id, read_at);
+                CREATE INDEX IF NOT EXISTS idx_inbox_created ON inbox_events(created_at DESC);
+                CREATE TABLE IF NOT EXISTS activities (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    workspace_id INTEGER NOT NULL,
+                    channel_chat_id INTEGER,
+                    actor_id INTEGER NOT NULL,
+                    actor_name TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    target_type TEXT NOT NULL,
+                    target_id INTEGER NOT NULL,
+                    payload TEXT,
+                    created_at INTEGER NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_activities_workspace ON activities(workspace_id, created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_activities_channel ON activities(channel_chat_id, created_at DESC);",
             )?;
             Ok(())
         })
@@ -582,6 +610,201 @@ impl Db {
                 |row| row.get(0),
             ).optional()?;
             row.ok_or_else(|| AppError::Core(format!("channel {chat_id} not found")))
+        })
+        .await?
+    }
+
+    // ── SP6: Inbox + Activity ───────────────────────────────────────────────
+
+    pub async fn list_inbox_events(
+        &self,
+        workspace_id: i64,
+        limit: i64,
+    ) -> AppResult<Vec<InboxEventDto>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || -> AppResult<Vec<InboxEventDto>> {
+            let c = conn.blocking_lock();
+            let mut stmt = c.prepare(
+                "SELECT id, workspace_id, type, source_chat_id, msg_id, actor_id, actor_name, summary, created_at, read_at
+                 FROM inbox_events WHERE workspace_id = ?1 ORDER BY created_at DESC LIMIT ?2",
+            )?;
+            let rows = stmt.query_map(params![workspace_id, limit], |r| {
+                Ok(InboxEventDto {
+                    id: r.get(0)?,
+                    workspace_id: r.get(1)?,
+                    type_: r.get(2)?,
+                    source_chat_id: r.get(3)?,
+                    msg_id: r.get(4)?,
+                    actor_id: r.get(5)?,
+                    actor_name: r.get(6)?,
+                    summary: r.get(7)?,
+                    created_at: r.get(8)?,
+                    read_at: r.get(9)?,
+                })
+            })?;
+            Ok(rows.filter_map(|x| x.ok()).collect())
+        })
+        .await?
+    }
+
+    pub async fn mark_inbox_read(&self, event_id: i64) -> AppResult<()> {
+        let conn = self.conn.clone();
+        let now = chrono::Utc::now().timestamp();
+        tokio::task::spawn_blocking(move || -> AppResult<()> {
+            let c = conn.blocking_lock();
+            c.execute(
+                "UPDATE inbox_events SET read_at = ?1 WHERE id = ?2 AND read_at IS NULL",
+                params![now, event_id],
+            )?;
+            Ok(())
+        })
+        .await?
+    }
+
+    pub async fn mark_all_inbox_read(&self, workspace_id: i64) -> AppResult<()> {
+        let conn = self.conn.clone();
+        let now = chrono::Utc::now().timestamp();
+        tokio::task::spawn_blocking(move || -> AppResult<()> {
+            let c = conn.blocking_lock();
+            c.execute(
+                "UPDATE inbox_events SET read_at = ?1 WHERE workspace_id = ?2 AND read_at IS NULL",
+                params![now, workspace_id],
+            )?;
+            Ok(())
+        })
+        .await?
+    }
+
+    pub async fn get_inbox_unread_count(&self, workspace_id: i64) -> AppResult<i64> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || -> AppResult<i64> {
+            let c = conn.blocking_lock();
+            let count: i64 = c.query_row(
+                "SELECT COUNT(*) FROM inbox_events WHERE workspace_id = ?1 AND read_at IS NULL",
+                params![workspace_id],
+                |r| r.get(0),
+            )?;
+            Ok(count)
+        })
+        .await?
+    }
+
+    pub async fn list_activities(
+        &self,
+        workspace_id: i64,
+        channel_chat_id: Option<i64>,
+        limit: i64,
+    ) -> AppResult<Vec<ActivityDto>> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || -> AppResult<Vec<ActivityDto>> {
+            let c = conn.blocking_lock();
+            let sql = if channel_chat_id.is_some() {
+                "SELECT id, workspace_id, channel_chat_id, actor_id, actor_name, action, target_type, target_id, payload, created_at
+                 FROM activities WHERE workspace_id = ?1 AND channel_chat_id = ?2 ORDER BY created_at DESC LIMIT ?3"
+            } else {
+                "SELECT id, workspace_id, channel_chat_id, actor_id, actor_name, action, target_type, target_id, payload, created_at
+                 FROM activities WHERE workspace_id = ?1 ORDER BY created_at DESC LIMIT ?2"
+            };
+            let mut stmt = c.prepare(sql)?;
+            let map = |r: &rusqlite::Row| {
+                Ok(ActivityDto {
+                    id: r.get(0)?,
+                    workspace_id: r.get(1)?,
+                    channel_chat_id: r.get(2)?,
+                    actor_id: r.get(3)?,
+                    actor_name: r.get(4)?,
+                    action: r.get(5)?,
+                    target_type: r.get(6)?,
+                    target_id: r.get(7)?,
+                    payload: r.get(8)?,
+                    created_at: r.get(9)?,
+                })
+            };
+            let rows = if let Some(ch_id) = channel_chat_id {
+                stmt.query_map(params![workspace_id, ch_id, limit], map)?
+                    .filter_map(|x| x.ok())
+                    .collect::<Vec<_>>()
+            } else {
+                stmt.query_map(params![workspace_id, limit], map)?
+                    .filter_map(|x| x.ok())
+                    .collect::<Vec<_>>()
+            };
+            Ok(rows)
+        })
+        .await?
+    }
+
+    pub async fn record_activity(
+        &self,
+        workspace_id: i64,
+        channel_chat_id: Option<i64>,
+        actor_id: i64,
+        actor_name: &str,
+        action: &str,
+        target_type: &str,
+        target_id: i64,
+        payload: Option<&str>,
+    ) -> AppResult<()> {
+        let conn = self.conn.clone();
+        let actor_name = actor_name.to_string();
+        let action = action.to_string();
+        let target_type = target_type.to_string();
+        let payload = payload.map(|s| s.to_string());
+        let now = chrono::Utc::now().timestamp();
+        tokio::task::spawn_blocking(move || -> AppResult<()> {
+            let c = conn.blocking_lock();
+            c.execute(
+                "INSERT INTO activities (workspace_id, channel_chat_id, actor_id, actor_name, action, target_type, target_id, payload, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![
+                    workspace_id,
+                    channel_chat_id,
+                    actor_id,
+                    actor_name,
+                    action,
+                    target_type,
+                    target_id,
+                    payload,
+                    now
+                ],
+            )?;
+            Ok(())
+        })
+        .await?
+    }
+
+    pub async fn record_inbox_event(
+        &self,
+        workspace_id: i64,
+        event_type: &str,
+        source_chat_id: i64,
+        msg_id: Option<i64>,
+        actor_id: i64,
+        actor_name: &str,
+        summary: &str,
+    ) -> AppResult<()> {
+        let conn = self.conn.clone();
+        let event_type = event_type.to_string();
+        let actor_name = actor_name.to_string();
+        let summary = summary.to_string();
+        let now = chrono::Utc::now().timestamp();
+        tokio::task::spawn_blocking(move || -> AppResult<()> {
+            let c = conn.blocking_lock();
+            c.execute(
+                "INSERT INTO inbox_events (workspace_id, type, source_chat_id, msg_id, actor_id, actor_name, summary, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![
+                    workspace_id,
+                    event_type,
+                    source_chat_id,
+                    msg_id,
+                    actor_id,
+                    actor_name,
+                    summary,
+                    now
+                ],
+            )?;
+            Ok(())
         })
         .await?
     }

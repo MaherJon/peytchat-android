@@ -106,6 +106,7 @@ export async function renderCardDetail(cardId: number): Promise<void> {
     showInlineConfirm(deleteBtn, {
       message: '删除此卡片?',
       confirmLabel: '确认删除',
+      successLabel: '已删除卡片',
       onConfirm: async () => {
         await call('delete_card', { cardId });
         state.currentCardId = null;

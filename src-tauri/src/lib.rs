@@ -89,6 +89,14 @@ pub fn run() {
             commands::ensure_peyt_studio,
             commands::join_peyt_studio,
             commands::join_peyt_channel,
+            // SP6: Inbox + Activity
+            commands::list_inbox_events,
+            commands::mark_inbox_read,
+            commands::mark_all_inbox_read,
+            commands::get_inbox_unread_count,
+            commands::list_activities,
+            commands::record_inbox_event,
+            // Plugin Commands
             commands::fetch_registry,
             commands::install_plugin,
             commands::install_plugin_from_zip,

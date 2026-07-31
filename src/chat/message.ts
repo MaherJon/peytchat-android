@@ -28,14 +28,14 @@ hljs.registerLanguage('sh', bash);
 hljs.registerLanguage('sql', sql);
 hljs.registerLanguage('json', json);
 
-// RenderableMsg extends MsgDto with optimistic-message fields (is_out/_state/file_bytes/pinned)
-// used by composer.ts temporary messages and context menu state. These fields don't exist on
-// real backend MsgDto but are present at runtime via `as unknown as MsgDto` cast in composer.ts.
+// RenderableMsg extends MsgDto with optimistic-message fields (is_out/_state/file_bytes)
+// used by composer.ts temporary messages. These fields don't exist on real backend MsgDto
+// but are present at runtime via `as unknown as MsgDto` cast in composer.ts.
+// Note: pinned 状态改由模块级 pinnedMsgIds 集合管理 (见下方),不再挂在 RenderableMsg 上。
 interface RenderableMsg extends MsgDto {
   is_out?: boolean;
   _state?: string;
   file_bytes?: number | null;
-  pinned?: boolean;
 }
 
 interface Reaction {
@@ -57,6 +57,20 @@ export function updateReactionsCache(msgId: number, reactions: Reaction[]): void
 
 export function clearReactionsCache(): void {
   reactionsCache.clear();
+}
+
+// 模块级 pinned msg_id 集合:右键菜单据此显示 "取消置顶/置顶"。
+// 由 chatView.ts 加载频道 pins 时回填 (updatePinnedCache),
+// 切换频道时清理 (clearPinnedCache),togglePin 时本地 toggle。
+const pinnedMsgIds = new Set<number>();
+
+export function updatePinnedCache(ids: number[]): void {
+  pinnedMsgIds.clear();
+  for (const id of ids) pinnedMsgIds.add(id);
+}
+
+export function clearPinnedCache(): void {
+  pinnedMsgIds.clear();
 }
 
 // Task 8: message send state label (symbols, not emoji).
@@ -430,7 +444,15 @@ function dispatchReply(msgId: number): void {
 async function togglePin(msgId: number): Promise<void> {
   try {
     await call('toggle_pin', { workspaceId: state.currentWsId, chatId: state.currentChatId, msgId });
-    showToast('已切换置顶');
+    // 本地 toggle 缓存,使下次右键菜单显示正确状态 (无需重新拉取 pins)
+    const wasPinned = pinnedMsgIds.has(msgId);
+    if (wasPinned) {
+      pinnedMsgIds.delete(msgId);
+      showToast('已取消置顶');
+    } else {
+      pinnedMsgIds.add(msgId);
+      showToast('已置顶');
+    }
   } catch (e) {
     showToast(e instanceof Error ? e.message : String(e));
   }
@@ -503,7 +525,7 @@ function showContextMenuAt(
     action: () => dispatchReply(msgId),
   });
   items.push({
-    label: msg?.pinned ? '取消置顶' : '置顶',
+    label: pinnedMsgIds.has(msgId) ? '取消置顶' : '置顶',
     icon: 'pin',
     action: () => void togglePin(msgId),
   });

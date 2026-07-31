@@ -3,6 +3,7 @@ import { state } from '../state.js';
 import { showToast } from '../toast.js';
 import { iconSvg } from '../components/icon.js';
 import { createInlineInput } from '../components/inlineInput.js';
+import { renderViewToggle, bindViewToggle } from '../components/viewToggle.js';
 import { renderCardDetail } from './cardDetail.js';
 import type { CardDto } from '../types.js';
 
@@ -18,7 +19,6 @@ import type { CardDto } from '../types.js';
 // 这样排序 / 新建 / 删除 (由 cardDetail.ts 调 renderList 触发) 都能正确呈现。
 declare global {
   interface Window {
-    __switchToKanban?: (chatId: number) => Promise<void>;
     __sortList?: (field: SortField) => void;
   }
 }
@@ -56,10 +56,7 @@ export async function renderList(chatId: number): Promise<void> {
         <div class="main-subtitle">${cards.length} 个卡片</div>
       </div>
       <div class="main-actions" id="list-actions">
-        <div class="view-toggle">
-          <button class="view-btn" onclick="window.__switchToKanban(${chatId})">看板</button>
-          <button class="view-btn active">列表</button>
-        </div>
+        ${renderViewToggle(chatId)}
         <button class="btn btn-primary" id="list-new-card">${iconSvg('plus', { width: 14, height: 14 })} 新建</button>
       </div>
     </div>
@@ -83,6 +80,8 @@ export async function renderList(chatId: number): Promise<void> {
       </div>
     </div>
   `;
+  // 绑定 ViewToggle (4 视图切换:看板/列表/日历/时间线)
+  bindViewToggle(chatId);
   // 绑定行点击 → 打开详情
   main.querySelectorAll<HTMLElement>('tbody tr').forEach((tr) => {
     tr.onclick = () => {
@@ -101,12 +100,6 @@ export async function renderList(chatId: number): Promise<void> {
       showInlineCreateCard(actionsEl, newCardBtn, chatId);
     };
   }
-  // 切换到看板
-  window.__switchToKanban = async (cid: number): Promise<void> => {
-    state.currentView = 'kanban';
-    const { renderKanban } = await import('./kanban.js');
-    await renderKanban(cid);
-  };
   // 列头排序:记忆字段后重新调用 renderList(chatId) 刷新 (按 brief 要求)
   window.__sortList = (field: SortField): void => {
     currentSortField = field;
