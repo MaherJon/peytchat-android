@@ -114,11 +114,9 @@ async function renderMarket(main: HTMLElement): Promise<void> {
 async function renderInstalled(main: HTMLElement): Promise<void> {
   main.innerHTML = `
     <div class="settings-section">
-      <h2>已安装插件</h2>
-      <div class="plugin-local-install">
+      <div class="plugin-installed-head">
         <button class="plugin-zip-btn" id="plugin-zip-btn" title="从磁盘安装 .zip 插件">+</button>
-        <span class="plugin-zip-label">从磁盘安装</span>
-        <input id="plugin-zip-input" type="file" accept=".zip" style="display:none" />
+        <h2>已安装插件</h2>
       </div>
       <div class="plugin-list" id="plugin-installed-list"><div class="plugin-empty">加载中…</div></div>
     </div>
