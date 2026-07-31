@@ -85,8 +85,9 @@ export async function renderMain(): Promise<void> {
     try {
       const { renderPluginsMain } = await import('../plugins/view.js');
       await renderPluginsMain(main);
-    } catch {
-      main.innerHTML = `<div class="empty">插件页加载失败</div>`;
+    } catch (err) {
+      console.error('[plugins] renderPluginsMain failed:', err);
+      main.innerHTML = `<div class="empty">插件页加载失败<br><span style="font-size:10px;color:var(--text-faint)">${esc(String(err))}</span></div>`;
     }
     return;
   }
@@ -135,4 +136,14 @@ export async function renderMain(): Promise<void> {
   } catch {
     main.innerHTML = `<div class="empty">聊天视图加载失败</div>`;
   }
+}
+
+function esc(s: string): string {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[c]!);
 }
