@@ -1,6 +1,6 @@
 import { call } from '../api.js';
 import { state } from '../state.js';
-import { renderMessage, bindMessageActions, clearReactionsCache } from './message.js';
+import { renderMessage, bindMessageActions, clearReactionsCache, clearPinnedCache, updatePinnedCache } from './message.js';
 import { renderComposer } from './composer.js';
 import { renderRightDrawer } from '../shell/rightDrawer.js';
 import { showToast } from '../toast.js';
@@ -64,6 +64,8 @@ export async function renderChatView(chatId: number): Promise<void> {
     state.noMoreMsgs = false;
     // 修复:切换频道时清空 reactions 缓存,避免显示上一个频道的 reactions
     clearReactionsCache();
+    // F3:切换频道时清空 pinned 缓存,避免右键菜单显示上一个频道的置顶状态
+    clearPinnedCache();
   }
   state.currentChatId = chatId;
   (state as LegacyState).homeMode = false;
@@ -84,6 +86,8 @@ export async function renderChatView(chatId: number): Promise<void> {
     try {
       const pins = await call<ChannelPin[]>('get_channel_pins', { chatId });
       pinCount = pins.length;
+      // F3:回填 pinned msg_id 集合,供右键菜单显示真实置顶状态
+      updatePinnedCache(pins.map((p) => p.msg_id));
     } catch {}
     // Task 13: 拉取 chat_info 并把 members 存入 state.currentMembers,
     // 供 message.js 查找发送者的 avatar/color。失败时清空,避免显示上一个频道的成员。

@@ -43,6 +43,9 @@ let mentionQueryStart = -1;
 export function renderComposer(chatId: number, onSent: () => void): void {
   const area = document.getElementById('composer-area');
   if (!area) return;
+  // F5:切换 chat 时清理可能残留的 @提及/#频道建议面板 (模块级 mentionList),
+  // 避免上一个聊天的建议列表残留在新聊天界面。
+  closeMentionList();
   // reply 预览条(若 composer-area.dataset.replyTo 设置)
   let replyPreview = '';
   if (area.dataset.replyTo) {

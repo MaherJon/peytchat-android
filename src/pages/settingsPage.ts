@@ -225,18 +225,16 @@ async function renderTeam(main: HTMLElement): Promise<void> {
     showInlineConfirm(leaveBtn, {
       message: '确定退出当前团队?退出后将无法查看团队频道。',
       confirmLabel: '退出',
+      successLabel: '已退出团队',
       onConfirm: async () => {
-        try {
-          await call('leave_workspace', { id: ws.id });
-          state.currentWsId = null;
-          state.currentChatId = null;
-          saveState();
-          const { refreshWorkspaces, renderRail } = await import('../shell/rail.js');
-          await refreshWorkspaces();
-          await renderRail();
-          showToast('已退出团队');
-          await renderTeam(main);
-        } catch (e) { showToast(e instanceof Error ? e.message : String(e)); }
+        await call('leave_workspace', { id: ws.id });
+        state.currentWsId = null;
+        state.currentChatId = null;
+        saveState();
+        const { refreshWorkspaces, renderRail } = await import('../shell/rail.js');
+        await refreshWorkspaces();
+        await renderRail();
+        await renderTeam(main);
       },
     });
   });
@@ -292,7 +290,10 @@ function renderAbout(main: HTMLElement): void {
       message: '确定登出当前账号?',
       confirmLabel: '登出',
       onConfirm: async () => {
-        try { await call('logout'); location.reload(); } catch (e) { showToast(e instanceof Error ? e.message : String(e)); }
+        // 成功 → location.reload() 刷新页面,外层 toast 不会执行;
+        // 失败 → throw 让 inlineConfirm 外层显示具体错误 (而非默认 "已删除")。
+        await call('logout');
+        location.reload();
       },
     });
   });

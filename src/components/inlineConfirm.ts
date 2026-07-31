@@ -4,6 +4,9 @@ export interface InlineConfirmOpts {
   message: string;
   confirmLabel?: string;
   undoLabel?: string;
+  // 成功后 toast 文案;默认 "已删除"。同时用于撤销 toast 的前缀文案。
+  // 调用方 onConfirm 内部若已自行 showToast,应传 successLabel 与之相同并移除内部 showToast,避免重复。
+  successLabel?: string;
   onConfirm: () => Promise<void> | void;
   onUndo?: () => Promise<void> | void;
   autoCancelMs?: number;
@@ -37,22 +40,25 @@ export function showInlineConfirm(el: HTMLElement, opts: InlineConfirmOpts): voi
     el.classList.remove('inline-confirm-active');
     try {
       await opts.onConfirm();
+      const successLabel = opts.successLabel ?? '已删除';
       if (opts.onUndo) {
-        showUndoToast(opts.undoLabel ?? '撤销', opts.onUndo);
+        showUndoToast(successLabel, opts.undoLabel ?? '撤销', opts.onUndo);
       } else {
-        showToast('已删除');
+        showToast(successLabel);
       }
-    } catch {
-      showToast('操作失败');
+    } catch (e) {
+      // 调用方 onConfirm 失败应 throw (而非自行吞错),此处显示具体错误,
+      // 避免 onConfirm 内 catch 后不 throw 导致外层误显 successLabel。
+      showToast(e instanceof Error ? e.message : '操作失败');
     }
   });
   noBtn.addEventListener('click', cancel);
 }
 
-function showUndoToast(label: string, onUndo: () => Promise<void> | void): void {
+function showUndoToast(successLabel: string, undoLabel: string, onUndo: () => Promise<void> | void): void {
   const toast = document.createElement('div');
   toast.className = 'toast toast-with-action';
-  toast.innerHTML = `<span>已删除</span><button class="toast-action">${escapeHtml(label)}</button>`;
+  toast.innerHTML = `<span>${escapeHtml(successLabel)}</span><button class="toast-action">${escapeHtml(undoLabel)}</button>`;
   document.body.appendChild(toast);
   toast.classList.add('show');
   const btn = toast.querySelector<HTMLButtonElement>('.toast-action')!;
