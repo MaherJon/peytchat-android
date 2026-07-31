@@ -1215,6 +1215,21 @@ body {
   transition: color 0.1s, border-color 0.1s;
 }
 .plugin-zip-btn:hover { color: var(--text); border-color: var(--text-mute); }
+/* GNOME 风格图标按钮（删除/卸载等） */
+.plugin-icon-btn {
+  width: 28px; height: 28px;
+  background: var(--capsule);
+  border: 1px solid var(--border-strong);
+  color: var(--text-mute);
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: color 0.1s, border-color 0.1s;
+}
+.plugin-icon-btn:hover { color: var(--text); border-color: var(--text-mute); }
+.plugin-icon-btn.danger:hover { color: var(--danger); border-color: var(--danger); }
+.plugin-enable-wrap { display: flex; align-items: center; gap: 6px; }
+.plugin-enable-label { font-size: 11px; color: var(--text-mute); }
 .plugin-desc { font-size: 11px; color: var(--text-weak); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .plugin-badge { font-size: 10px; color: var(--success); }
 .plugin-tree-dot {

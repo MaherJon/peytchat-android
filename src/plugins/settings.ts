@@ -1,5 +1,6 @@
 import { call } from '../api.js';
 import { showToast } from '../toast.js';
+import { iconSvg } from '../components/icon.js';
 import { loadPlugin, unloadPlugin } from './manager.js';
 import { PERMISSION_LABELS, getPluginPermissions, setPluginPermissions } from './permissions.js';
 import type { PluginStatus } from './types.js';
@@ -30,11 +31,14 @@ export async function renderPluginSettings(main: HTMLElement): Promise<void> {
         <div class="plugin-settings-card" data-name="${p.name}">
           <div class="plugin-settings-head">
             <span class="p-name">${esc(p.title)}</span>
-            <label class="p-toggle">
-              <input type="checkbox" class="ps-enable" data-name="${p.name}" ${p.enabled ? 'checked' : ''}>
-              <span>启用</span>
-            </label>
-            <button class="settings-btn settings-btn-danger ps-uninstall" data-name="${p.name}">卸载</button>
+            <span class="plugin-enable-wrap">
+              <label class="toggle-switch">
+                <input type="checkbox" class="ps-enable" data-name="${p.name}" ${p.enabled ? 'checked' : ''}>
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="plugin-enable-label">启用</span>
+            </span>
+            <button class="plugin-icon-btn danger ps-uninstall" data-name="${p.name}" title="卸载">${iconSvg('trash', { width: 14, height: 14 })}</button>
           </div>
           <div class="plugin-perms">
             ${PERMISSION_LABELS.map((perm) => {

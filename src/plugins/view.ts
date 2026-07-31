@@ -1,6 +1,7 @@
 import { call } from '../api.js';
 import { state } from '../state.js';
 import { showToast } from '../toast.js';
+import { iconSvg } from '../components/icon.js';
 import { loadPlugin, unloadPlugin } from './manager.js';
 import type { PluginStatus, RegistryPlugin } from './types.js';
 
@@ -204,11 +205,14 @@ async function renderInstalled(main: HTMLElement): Promise<void> {
       (p) => `
         <div class="plugin-row" data-name="${p.name}">
           <span class="p-name">${esc(p.title)}</span>
-          <label class="p-toggle">
-            <input type="checkbox" class="lm-toggle" data-name="${p.name}" ${p.enabled ? 'checked' : ''}>
-            <span>启用</span>
-          </label>
-          <button class="settings-btn plugin-uninstall" data-name="${p.name}">删除</button>
+          <span class="plugin-enable-wrap">
+            <label class="toggle-switch">
+              <input type="checkbox" class="lm-toggle" data-name="${p.name}" ${p.enabled ? 'checked' : ''}>
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="plugin-enable-label">启用</span>
+          </span>
+          <button class="plugin-icon-btn danger plugin-uninstall" data-name="${p.name}" title="删除">${iconSvg('trash', { width: 14, height: 14 })}</button>
         </div>`,
     )
     .join('');
