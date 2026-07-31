@@ -3,6 +3,7 @@ mod db;
 mod dto;
 mod error;
 mod events;
+mod plugins;
 mod state;
 
 use tauri::Manager;
@@ -17,9 +18,8 @@ pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             let dir = app.path().app_data_dir().expect("no app data dir");
-            let accounts_dir = dir.join("accounts");
             let state = tauri::async_runtime::block_on(async move {
-                AppState::new(accounts_dir).await
+                AppState::new(dir).await
             })?;
             let handle = app.handle().clone();
             events::spawn_event_forwarder(handle, state.accounts.clone());
@@ -89,6 +89,13 @@ pub fn run() {
             commands::ensure_peyt_studio,
             commands::join_peyt_studio,
             commands::join_peyt_channel,
+            commands::fetch_registry,
+            commands::install_plugin,
+            commands::install_plugin_from_zip,
+            commands::uninstall_plugin,
+            commands::list_plugins,
+            commands::toggle_plugin,
+            commands::get_plugin_js,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

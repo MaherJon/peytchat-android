@@ -61,6 +61,11 @@ export async function renderNavPanel(): Promise<void> {
         await renderWorkPage(panel);
         break;
       }
+      case 'plugins': {
+        const { renderPluginsNav } = await import('../plugins/view.js');
+        await renderPluginsNav(panel);
+        break;
+      }
       case 'settings': {
         const { renderSettingsNav } = await import('../pages/settingsPage.js');
         await renderSettingsNav(panel);
@@ -75,6 +80,17 @@ export async function renderNavPanel(): Promise<void> {
 export async function renderMain(): Promise<void> {
   const main = document.getElementById('chat-main');
   if (!main) return;
+
+  if (state.currentPage === 'plugins') {
+    try {
+      const { renderPluginsMain } = await import('../plugins/view.js');
+      await renderPluginsMain(main);
+    } catch (err) {
+      console.error('[plugins] renderPluginsMain failed:', err);
+      main.innerHTML = `<div class="empty">插件页加载失败<br><span style="font-size:10px;color:var(--text-faint)">${esc(String(err))}</span></div>`;
+    }
+    return;
+  }
 
   if (state.currentPage === 'settings') {
     try {
@@ -120,4 +136,14 @@ export async function renderMain(): Promise<void> {
   } catch {
     main.innerHTML = `<div class="empty">聊天视图加载失败</div>`;
   }
+}
+
+function esc(s: string): string {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[c]!);
 }

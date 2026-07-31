@@ -15,6 +15,8 @@ pub enum AppError {
     Io(String),
     #[error("数据库错误：{0}")]
     Db(String),
+    #[error("插件错误：{0}")]
+    Plugin(String),
 }
 
 impl From<anyhow::Error> for AppError {
