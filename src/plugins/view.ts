@@ -210,7 +210,6 @@ async function renderInstalled(main: HTMLElement): Promise<void> {
               <input type="checkbox" class="lm-toggle" data-name="${p.name}" ${p.enabled ? 'checked' : ''}>
               <span class="toggle-slider"></span>
             </label>
-            <span class="plugin-enable-label">启用</span>
           </span>
           <button class="plugin-icon-btn danger plugin-uninstall" data-name="${p.name}" title="删除">${iconSvg('trash', { width: 14, height: 14 })}</button>
         </div>`,

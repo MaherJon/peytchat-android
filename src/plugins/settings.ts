@@ -36,7 +36,6 @@ export async function renderPluginSettings(main: HTMLElement): Promise<void> {
                 <input type="checkbox" class="ps-enable" data-name="${p.name}" ${p.enabled ? 'checked' : ''}>
                 <span class="toggle-slider"></span>
               </label>
-              <span class="plugin-enable-label">启用</span>
             </span>
             <button class="plugin-icon-btn danger ps-uninstall" data-name="${p.name}" title="卸载">${iconSvg('trash', { width: 14, height: 14 })}</button>
           </div>
