@@ -57,13 +57,11 @@ async function navigateToPage(page: Page): Promise<void> {
   }
   saveState();
   await renderRail();
-  // @ts-expect-error navPanel.ts 由 Task 7 创建,届时删除本指令
   const { renderNavPanel } = await import('./navPanel.js');
   await renderNavPanel();
   // @ts-expect-error rightDrawer.ts 由 Task 8 创建,届时删除本指令
   const { renderRightDrawer } = await import('./rightDrawer.js');
   renderRightDrawer();
-  // @ts-expect-error navPanel.ts 由 Task 7 创建,届时删除本指令
   const { renderMain } = await import('./navPanel.js');
   await renderMain();
 }
