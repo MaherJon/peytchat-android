@@ -91,12 +91,18 @@ export async function renderPluginsMain(main: HTMLElement): Promise<void> {
 
 async function renderMarket(main: HTMLElement): Promise<void> {
   main.innerHTML = `
-    <div class="settings-section">
-      <h2>插件市场</h2>
-      <div id="plugin-market-list"><div class="plugin-empty">加载插件列表…</div></div>
+    <div class="plugin-installed-view">
+      <div class="plugin-installed-head">
+        <h2>插件市场</h2>
+        <button class="plugin-icon-btn" id="plugin-market-refresh" title="刷新列表">↻</button>
+      </div>
+      <div class="plugin-list" id="plugin-market-list"><div class="plugin-empty">加载插件列表…</div></div>
     </div>
   `;
   const pane = document.getElementById('plugin-market-list')!;
+  document.getElementById('plugin-market-refresh')!.addEventListener('click', () => {
+    void renderMarket(main);
+  });
 
   const [available, installed] = await Promise.all([
     call<RegistryPlugin[]>('fetch_registry').catch(() => null),
@@ -110,7 +116,7 @@ async function renderMarket(main: HTMLElement): Promise<void> {
 
   const installedMap = new Map(installed.map((p) => [p.name, p]));
 
-  pane.innerHTML = `<div class="plugin-list">${available
+  pane.innerHTML = `${available
     .map((plugin) => {
       const inst = installedMap.get(plugin.name);
       const isInstalled = !!inst;
@@ -119,11 +125,11 @@ async function renderMarket(main: HTMLElement): Promise<void> {
           <span class="p-name">${esc(plugin.title)}</span>
           <span class="plugin-desc">${esc(plugin.description)}</span>
           ${isInstalled
-            ? `<span class="plugin-badge">已安装</span><button class="settings-btn plugin-uninstall" data-name="${plugin.name}">删除</button>`
+            ? `<span class="plugin-badge">已安装</span><button class="plugin-icon-btn danger plugin-uninstall" data-name="${plugin.name}" title="删除">${iconSvg('trash', { width: 14, height: 14 })}</button>`
             : `<button class="settings-btn plugin-install" data-name="${plugin.name}">安装</button>`}
         </div>`;
     })
-    .join('')}</div>`;
+    .join('')}`;
 
   pane.querySelectorAll<HTMLButtonElement>('.plugin-install').forEach((btn) => {
     btn.addEventListener('click', async () => {
