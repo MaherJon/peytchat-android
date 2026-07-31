@@ -93,7 +93,6 @@ export async function renderMain(): Promise<void> {
     }
     if (state.currentView === 'kanban') {
       try {
-        // @ts-expect-error kanban.js 待迁移为 .ts,届时删除本指令
         const { renderKanban } = await import('../work/kanban.js');
         await renderKanban(state.currentChatId);
       } catch {
@@ -101,7 +100,6 @@ export async function renderMain(): Promise<void> {
       }
     } else {
       try {
-        // @ts-expect-error list.js 待迁移为 .ts,届时删除本指令
         const { renderList } = await import('../work/list.js');
         await renderList(state.currentChatId);
       } catch {

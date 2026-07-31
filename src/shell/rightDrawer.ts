@@ -32,8 +32,7 @@ export function renderRightDrawer(): void {
   // 页3: work + 选中卡片 — 渲染卡片详情 (dynamic import 避免循环依赖)
   if (state.currentPage === 'work' && state.currentCardId) {
     drawer.classList.remove('collapsed');
-    // @ts-expect-error cardDetail.js 待迁移为 .ts,届时删除本指令
-    void import('../work/cardDetail.js').then(({ renderCardDetail }: { renderCardDetail: (id: number) => void }) =>
+    void import('../work/cardDetail.js').then(({ renderCardDetail }) =>
       renderCardDetail(state.currentCardId!)
     );
     return;
