@@ -3,7 +3,7 @@ import {
   Plus, X, Hash, Reply, Pin, Copy, Trash, Smile, ChevronDown, ChevronLeft, ChevronRight,
   Check, Send, Search, LogOut, Upload, Shield, Volume2, VolumeX, BookMarked,
   MoreHorizontal, Forward, FileText, Image as ImageIcon, Paperclip, Edit3,
-  ArrowUp, Star, AlertCircle, Package,
+  ArrowUp, Star, AlertCircle, Package, Download,
 } from 'lucide';
 import type { IconNode, SVGProps } from 'lucide';
 
@@ -16,7 +16,7 @@ export type IconName =
   | 'search' | 'log-out' | 'upload' | 'shield'
   | 'volume-2' | 'volume-x' | 'bookmark' | 'more-horizontal'
   | 'forward' | 'file-text' | 'image' | 'paperclip' | 'edit'
-  | 'arrow-up' | 'star' | 'alert-circle' | 'package';
+  | 'arrow-up' | 'star' | 'alert-circle' | 'package' | 'download';
 
 export interface IconOpts {
   width?: number;
@@ -65,6 +65,7 @@ const iconMap: Record<IconName, IconNode> = {
   'star': Star,
   'alert-circle': AlertCircle,
   'package': Package,
+  'download': Download,
 };
 
 const defaultAttributes: SVGProps = {

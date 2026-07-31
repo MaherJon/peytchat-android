@@ -126,7 +126,7 @@ async function renderMarket(main: HTMLElement): Promise<void> {
           <span class="plugin-desc">${esc(plugin.description)}</span>
           ${isInstalled
             ? `<button class="plugin-icon-btn plugin-install" disabled title="已安装">${iconSvg('check', { width: 14, height: 14 })}</button><button class="plugin-icon-btn danger plugin-uninstall" data-name="${plugin.name}" title="删除">${iconSvg('trash', { width: 14, height: 14 })}</button>`
-            : `<button class="plugin-icon-btn plugin-install" data-name="${plugin.name}" title="安装">${iconSvg('plus', { width: 14, height: 14 })}</button>`}
+            : `<button class="plugin-icon-btn plugin-install" data-name="${plugin.name}" title="安装">${iconSvg('download', { width: 14, height: 14 })}</button>`}
         </div>`;
     })
     .join('')}`;
