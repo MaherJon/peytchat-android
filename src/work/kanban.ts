@@ -4,6 +4,7 @@ import { showToast } from '../toast.js';
 import { saveState } from '../persist.js';
 import { iconSvg } from '../components/icon.js';
 import { createInlineInput } from '../components/inlineInput.js';
+import { renderViewToggle, bindViewToggle } from '../components/viewToggle.js';
 import type { CardDto, CardStatus } from '../types.js';
 
 // SP5 Task 6 → Task 15: 协作看板视图。三列 (Todo / In Progress / Done)，支持卡片
@@ -14,7 +15,6 @@ import type { CardDto, CardStatus } from '../types.js';
 // 全局函数 __switchToList / __newCard 保留以兼容原 inline onclick handlers。
 declare global {
   interface Window {
-    __switchToList?: (chatId: number) => Promise<void>;
     __newCard?: (chatId: number, status?: CardStatus) => void;
   }
 }
@@ -40,10 +40,7 @@ export async function renderKanban(chatId: number): Promise<void> {
         <div class="main-subtitle">${cards.length} 个卡片</div>
       </div>
       <div class="main-actions">
-        <div class="view-toggle">
-          <button class="view-btn active">看板</button>
-          <button class="view-btn" onclick="window.__switchToList(${chatId})">列表</button>
-        </div>
+        ${renderViewToggle(chatId)}
         <button class="btn btn-primary" onclick="window.__newCard(${chatId})">${iconSvg('plus', { width: 14, height: 14 })} 新建</button>
       </div>
     </div>
@@ -55,6 +52,8 @@ export async function renderKanban(chatId: number): Promise<void> {
       </div>
     </div>
   `;
+  // 绑定 ViewToggle (4 视图切换:看板/列表/日历/时间线)
+  bindViewToggle(chatId);
   // 绑定卡片点击 → 打开右侧详情抽屉
   main.querySelectorAll<HTMLElement>('.card').forEach((el) => {
     el.onclick = async () => {
@@ -96,11 +95,6 @@ export async function renderKanban(chatId: number): Promise<void> {
   });
 
   // 暴露全局函数 (兼容 inline onclick handlers,避免静态 import 循环)
-  window.__switchToList = async (cid: number): Promise<void> => {
-    state.currentView = 'list';
-    const { renderList } = await import('./list.js');
-    await renderList(cid);
-  };
   window.__newCard = (cid: number, status: CardStatus = 'todo'): void => {
     // 顶部 "新建" 按钮:在目标列 (默认 Todo) 底部展开内联输入
     const colBody = main.querySelector<HTMLElement>(`.kanban-col[data-status="${status}"] .kanban-col-body`);

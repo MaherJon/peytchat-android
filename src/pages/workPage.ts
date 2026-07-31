@@ -3,7 +3,7 @@ import { saveState } from '../persist.js';
 import { iconSvg } from '../components/icon.js';
 import { getSpaceType } from '../shell/navPanel.js';
 import { renderAvatarHtml } from '../components/avatar.js';
-import type { ChannelDto } from '../types.js';
+import type { ChannelDto, WorkTab } from '../types.js';
 
 export async function renderWorkPage(panel: HTMLElement): Promise<void> {
   const ws = state.workspaces.find((w) => w.id === state.currentWsId);
@@ -11,11 +11,19 @@ export async function renderWorkPage(panel: HTMLElement): Promise<void> {
   const headerClickable = multiWs ? 'clickable' : '';
   const avatarHtml = state.self ? await renderAvatarHtml(state.self) : '';
 
+  const tabsHtml = `
+    <div class="nav-tabs">
+      <button class="nav-tab ${state.currentWorkTab === 'channels' ? 'active' : ''}" data-tab="channels">${iconSvg('hash', { width: 12, height: 12 })} 频道</button>
+      <button class="nav-tab ${state.currentWorkTab === 'activity' ? 'active' : ''}" data-tab="activity">${iconSvg('clock', { width: 12, height: 12 })} 活动</button>
+    </div>
+  `;
+
   panel.innerHTML = `
     <div class="nav-header ${headerClickable}">
       <div class="nav-title">协作</div>
       <div class="nav-subtitle">${escapeHtml(ws?.name || '未选择团队')}</div>
     </div>
+    ${tabsHtml}
     <div class="nav-list" id="work-list"></div>
     <div class="nav-user">
       ${avatarHtml}
@@ -25,7 +33,27 @@ export async function renderWorkPage(panel: HTMLElement): Promise<void> {
     </div>
   `;
 
-  await renderWorkChannelList();
+  // 绑定 tab 切换
+  panel.querySelectorAll<HTMLElement>('.nav-tab').forEach((tab) => {
+    tab.onclick = async () => {
+      const t = tab.dataset.tab as WorkTab;
+      if (t === state.currentWorkTab) return;
+      state.currentWorkTab = t;
+      saveState();
+      const { renderNavPanel } = await import('../shell/navPanel.js');
+      await renderNavPanel();
+    };
+  });
+
+  // 根据 tab 渲染列表内容
+  const list = document.getElementById('work-list');
+  if (!list) return;
+  if (state.currentWorkTab === 'activity') {
+    const { renderActivityPanel } = await import('../work/activity.js');
+    await renderActivityPanel(list);
+  } else {
+    await renderWorkChannelList();
+  }
 }
 
 async function renderWorkChannelList(): Promise<void> {

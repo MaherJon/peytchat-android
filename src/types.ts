@@ -1,7 +1,9 @@
-export type Page = 'messages' | 'groups' | 'work' | 'settings';
+export type Page = 'messages' | 'groups' | 'work' | 'inbox' | 'settings';
 export type SettingsSection = 'account' | 'appearance' | 'team' | 'notifications' | 'about';
 export type SpaceType = 'chat' | 'card';
-export type CurrentView = 'kanban' | 'list';
+export type CurrentView = 'kanban' | 'list' | 'calendar' | 'timeline';
+export type WorkTab = 'channels' | 'activity';
+export type InboxEventType = 'mention' | 'reply' | 'card_assign' | 'system';
 export type MsgState = 'pending' | 'delivered' | 'failed' | 'read';
 export type CardType = 'card' | 'task';
 export type CardStatus = 'todo' | 'in_progress' | 'done';
@@ -67,6 +69,34 @@ export interface CardDto {
   created_at: number;
 }
 
+// Inbox 通知事件 (后端 inbox_events 表, type 字段经 serde rename)
+export interface InboxEventDto {
+  id: number;
+  workspace_id: number;
+  type: string; // InboxEventType
+  source_chat_id: number;
+  msg_id: number | null;
+  actor_id: number;
+  actor_name: string;
+  summary: string;
+  created_at: number;
+  read_at: number | null;
+}
+
+// Activity 活动流记录 (后端 activities 表)
+export interface ActivityDto {
+  id: number;
+  workspace_id: number;
+  channel_chat_id: number | null;
+  actor_id: number;
+  actor_name: string;
+  action: string;
+  target_type: string;
+  target_id: number;
+  payload: string | null;
+  created_at: number;
+}
+
 export interface SelfProfile {
   id: number;
   name: string;
@@ -105,6 +135,10 @@ export interface AppState {
   collapsedCategories: Record<number, Record<string, boolean>>;
   searchOpen: boolean;
   peytBannerDismissed: boolean;
+  // SP6: Inbox 未读数 + 协作页 tab + 按频道记忆视图偏好
+  inboxUnread: number;
+  currentWorkTab: WorkTab;
+  viewPrefs: Record<number, CurrentView>; // key = channel chat_id
 }
 
 export interface ChatListItem {

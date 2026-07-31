@@ -23,6 +23,9 @@ export const state: AppState = {
   collapsedCategories: {},
   searchOpen: false,
   peytBannerDismissed: false,
+  inboxUnread: 0,
+  currentWorkTab: 'channels',
+  viewPrefs: {},
 };
 
 export function setState(partial: Partial<AppState>): void {

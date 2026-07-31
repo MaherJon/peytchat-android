@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import type { Page, CurrentView, SettingsSection } from './types.js';
+import type { Page, CurrentView, SettingsSection, WorkTab } from './types.js';
 
 export function saveState(): void {
   try {
@@ -11,11 +11,14 @@ export function saveState(): void {
       ['peyt.currentView', state.currentView],
       ['peyt.detailPanelOpen', state.detailPanelOpen],
       ['peyt.peytBannerDismissed', state.peytBannerDismissed],
+      ['peyt.currentWorkTab', state.currentWorkTab],
     ];
     for (const [key, val] of persistKeys) {
       if (val == null) localStorage.removeItem(key);
       else localStorage.setItem(key, String(val));
     }
+    // viewPrefs 是 Record<number, CurrentView>,需 JSON 序列化
+    localStorage.setItem('peyt.viewPrefs', JSON.stringify(state.viewPrefs));
   } catch {}
 }
 
@@ -35,5 +38,11 @@ export function loadState(): void {
     if (detail) state.detailPanelOpen = detail === 'true';
     const banner = localStorage.getItem('peyt.peytBannerDismissed');
     if (banner) state.peytBannerDismissed = banner === 'true';
+    const workTab = localStorage.getItem('peyt.currentWorkTab') as WorkTab | null;
+    if (workTab) state.currentWorkTab = workTab;
+    const prefs = localStorage.getItem('peyt.viewPrefs');
+    if (prefs) {
+      try { state.viewPrefs = JSON.parse(prefs); } catch { state.viewPrefs = {}; }
+    }
   } catch {}
 }

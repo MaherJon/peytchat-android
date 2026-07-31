@@ -4,6 +4,8 @@ import {
   Check, Send, Search, LogOut, Upload, Shield, Volume2, VolumeX, BookMarked,
   MoreHorizontal, Forward, FileText, Image as ImageIcon, Paperclip, Edit3,
   ArrowUp, Star, AlertCircle,
+  Calendar, List, Clock, Inbox,
+  Columns3, GitCommitHorizontal,
 } from 'lucide';
 import type { IconNode, SVGProps } from 'lucide';
 
@@ -16,7 +18,10 @@ export type IconName =
   | 'search' | 'log-out' | 'upload' | 'shield'
   | 'volume-2' | 'volume-x' | 'bookmark' | 'more-horizontal'
   | 'forward' | 'file-text' | 'image' | 'paperclip' | 'edit'
-  | 'arrow-up' | 'star' | 'alert-circle';
+  | 'arrow-up' | 'star' | 'alert-circle'
+  | 'calendar' | 'list' | 'clock' | 'inbox'
+  // SP7: ViewToggle 视图切换图标 (kanban / timeline)
+  | 'columns' | 'timeline';
 
 export interface IconOpts {
   width?: number;
@@ -64,6 +69,12 @@ const iconMap: Record<IconName, IconNode> = {
   'arrow-up': ArrowUp,
   'star': Star,
   'alert-circle': AlertCircle,
+  'calendar': Calendar,
+  'list': List,
+  'clock': Clock,
+  'inbox': Inbox,
+  'columns': Columns3,
+  'timeline': GitCommitHorizontal,
 };
 
 const defaultAttributes: SVGProps = {

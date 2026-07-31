@@ -12,8 +12,9 @@ use deltachat::securejoin;
 use tauri::State;
 
 use crate::dto::{
-    AdvancedLogin, CardDto, ChannelDto, ChatDto, ChatInfoDto, ContactDto, ContactRoleDto, MemberDto,
-    MsgDto, PeytStudioDto, PinDto, ProfileDto, ReactionDto, RoleDto, SearchResultDto, WorkspaceDto,
+    ActivityDto, AdvancedLogin, CardDto, ChannelDto, ChatDto, ChatInfoDto, ContactDto,
+    ContactRoleDto, InboxEventDto, MemberDto, MsgDto, PeytStudioDto, PinDto, ProfileDto,
+    ReactionDto, RoleDto, SearchResultDto, WorkspaceDto,
 };
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
@@ -675,10 +676,23 @@ pub async fn create_channel(
 ) -> AppResult<ChannelDto> {
     let ctx = state.current().await.ok_or(AppError::Core("no account".into()))?;
     let chat_id = chat::create_group(&ctx, &name).await?;
-    state.db.insert_channel(workspace_id, chat_id.to_u32(), &name, &category, 0).await?;
+    let chat_u32 = chat_id.to_u32();
+    state.db.insert_channel(workspace_id, chat_u32, &name, &category, 0).await?;
+    // 记录活动 (SP6): target_id 用新频道 chat_id
+    log_activity(
+        &state,
+        &ctx,
+        workspace_id,
+        Some(chat_u32),
+        "channel_create",
+        "channel",
+        chat_u32 as i64,
+        Some(name.clone()),
+    )
+    .await;
     // 返回该频道 DTO（按 chat_id 查找）
     let chans = state.db.list_channels(workspace_id).await?;
-    chans.into_iter().find(|c| c.chat_id == chat_id.to_u32())
+    chans.into_iter().find(|c| c.chat_id == chat_u32)
         .ok_or(AppError::Core("channel not found after insert".into()))
 }
 
@@ -701,7 +715,22 @@ pub async fn toggle_pin(
 ) -> AppResult<bool> {
     // SELF contact_id 在 deltachat core 中固定为 1
     let pinned_by = 1;
-    Ok(state.db.toggle_pin(workspace_id, chat_id, msg_id, pinned_by).await?)
+    let pinned = state.db.toggle_pin(workspace_id, chat_id, msg_id, pinned_by).await?;
+    // 记录活动 (SP6)
+    if let Some(ctx) = state.current().await {
+        log_activity(
+            &state,
+            &ctx,
+            workspace_id,
+            Some(chat_id),
+            "pin_toggle",
+            "message",
+            msg_id as i64,
+            None,
+        )
+        .await;
+    }
+    Ok(pinned)
 }
 
 #[tauri::command]
@@ -1372,7 +1401,20 @@ pub async fn create_card(
         .set_card_msg_id(card_id, sent_msg_id.to_u32())
         .await?;
 
-    // 5. 返回 CardDto
+    // 5. 记录活动 (SP6)
+    log_activity(
+        &state,
+        &ctx,
+        workspace_id,
+        Some(chat_id),
+        "card_create",
+        "card",
+        card_id,
+        Some(title.clone()),
+    )
+    .await;
+
+    // 6. 返回 CardDto
     let row = state
         .db
         .get_card_row(card_id)
@@ -1446,6 +1488,29 @@ pub async fn update_card(
     let mut msg = Message::new_text(msg_text);
     let _ = chat::send_msg(&ctx, chat_id_dc, &mut msg).await;
 
+    // 记录活动 (SP6): payload 为变更字段后的快照
+    let activity_payload = serde_json::json!({
+        "title": row.5,
+        "status": row.7,
+        "description": row.6,
+        "assignee_contact_id": row.8,
+        "due_date": row.9,
+    })
+    .to_string();
+    let card_workspace_id = row.1;
+    let card_channel_chat_id = row.2;
+    log_activity(
+        &state,
+        &ctx,
+        card_workspace_id,
+        Some(card_channel_chat_id),
+        "card_update",
+        "card",
+        card_id,
+        Some(activity_payload),
+    )
+    .await;
+
     row_to_card_dto(&state, row).await
 }
 
@@ -1470,6 +1535,19 @@ pub async fn delete_card(state: State<'_, AppState>, card_id: i64) -> AppResult<
         let chat_id_dc = deltachat::chat::ChatId::new(r.2);
         let mut msg = Message::new_text(msg_text);
         let _ = chat::send_msg(&ctx, chat_id_dc, &mut msg).await;
+
+        // 记录活动 (SP6)
+        log_activity(
+            &state,
+            &ctx,
+            r.1,
+            Some(r.2),
+            "card_delete",
+            "card",
+            card_id,
+            None,
+        )
+        .await;
     }
     Ok(())
 }
@@ -1711,6 +1789,19 @@ pub async fn message_to_card(
     let sent_msg_id = chat::send_msg(&ctx, chat_id_dc, &mut sync_msg).await?;
     state.db.set_card_msg_id(card_id, sent_msg_id.to_u32()).await?;
 
+    // 记录活动 (SP6)
+    log_activity(
+        &state,
+        &ctx,
+        workspace_id,
+        Some(chat_id),
+        "message_to_card",
+        "card",
+        card_id,
+        None,
+    )
+    .await;
+
     let row = state.db.get_card_row(card_id).await?.unwrap();
     row_to_card_dto(&state, row).await
 }
@@ -1850,4 +1941,125 @@ pub async fn join_peyt_channel(
         state.db.set_channel_space_type(chat_u32, &st).await?;
     }
     Ok(chat_u32)
+}
+
+// ── SP6: Inbox + Activity ───────────────────────────────────────────────────
+//
+// 系统当前为单 workspace (PEYT Studio), workspace_id 通过 current_workspace_id
+// 从 state.db 解析 (优先匹配 PEYT Studio, 否则取首条)。
+// actor 信息: 注入式 activity 由本机账号产生 → actor_id = ctx.get_id(),
+// actor_name = Displayname (无则 "self")。失败不阻断主操作 (best-effort)。
+
+/// 解析当前 workspace_id (单 workspace 系统: 优先 PEYT Studio, 否则取首条)。
+async fn current_workspace_id(state: &State<'_, AppState>) -> AppResult<i64> {
+    let workspaces = state.db.list_workspaces().await?;
+    workspaces
+        .iter()
+        .find(|w| w.name == PEYT_STUDIO_NAME)
+        .or_else(|| workspaces.first())
+        .map(|w| w.id)
+        .ok_or_else(|| AppError::Core("no workspace".into()))
+}
+
+/// 记录一条活动 (best-effort: 失败仅吞掉, 不阻断主操作)。
+async fn log_activity(
+    state: &State<'_, AppState>,
+    ctx: &deltachat::context::Context,
+    workspace_id: i64,
+    channel_chat_id: Option<u32>,
+    action: &str,
+    target_type: &str,
+    target_id: i64,
+    payload: Option<String>,
+) {
+    let actor_id = ctx.get_id() as i64;
+    let actor_name = ctx
+        .get_config(Config::Displayname)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "self".to_string());
+    let _ = state
+        .db
+        .record_activity(
+            workspace_id,
+            channel_chat_id.map(|c| c as i64),
+            actor_id,
+            &actor_name,
+            action,
+            target_type,
+            target_id,
+            payload.as_deref(),
+        )
+        .await;
+}
+
+#[tauri::command]
+pub async fn list_inbox_events(
+    state: State<'_, AppState>,
+    limit: Option<i64>,
+) -> AppResult<Vec<InboxEventDto>> {
+    let workspace_id = current_workspace_id(&state).await?;
+    let limit = limit.unwrap_or(100);
+    Ok(state.db.list_inbox_events(workspace_id, limit).await?)
+}
+
+#[tauri::command]
+pub async fn mark_inbox_read(state: State<'_, AppState>, event_id: i64) -> AppResult<()> {
+    state.db.mark_inbox_read(event_id).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn mark_all_inbox_read(state: State<'_, AppState>) -> AppResult<()> {
+    let workspace_id = current_workspace_id(&state).await?;
+    state.db.mark_all_inbox_read(workspace_id).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_inbox_unread_count(state: State<'_, AppState>) -> AppResult<i64> {
+    let workspace_id = current_workspace_id(&state).await?;
+    Ok(state.db.get_inbox_unread_count(workspace_id).await?)
+}
+
+#[tauri::command]
+pub async fn list_activities(
+    state: State<'_, AppState>,
+    channel_chat_id: Option<i64>,
+    limit: Option<i64>,
+) -> AppResult<Vec<ActivityDto>> {
+    let workspace_id = current_workspace_id(&state).await?;
+    let limit = limit.unwrap_or(100);
+    Ok(state
+        .db
+        .list_activities(workspace_id, channel_chat_id, limit)
+        .await?)
+}
+
+/// 供前端 shell.ts 在收到 @提及 / 回复 / 卡片分配消息时调用, 写入 inbox_events。
+#[tauri::command]
+pub async fn record_inbox_event(
+    state: State<'_, AppState>,
+    event_type: String,
+    source_chat_id: i64,
+    msg_id: Option<i64>,
+    actor_id: i64,
+    actor_name: String,
+    summary: String,
+) -> AppResult<()> {
+    let workspace_id = current_workspace_id(&state).await?;
+    state
+        .db
+        .record_inbox_event(
+            workspace_id,
+            &event_type,
+            source_chat_id,
+            msg_id,
+            actor_id,
+            &actor_name,
+            &summary,
+        )
+        .await?;
+    Ok(())
 }

@@ -196,6 +196,41 @@ pub struct CardDto {
     pub source_msg_id: Option<u32>,
 }
 
+/// SP6 Inbox: 通知中心事件。
+/// type_: 'mention' | 'reply' | 'card_assign' | 'system'
+#[derive(Debug, Clone, Serialize)]
+pub struct InboxEventDto {
+    pub id: i64,
+    pub workspace_id: i64,
+    #[serde(rename = "type")]
+    pub type_: String,
+    pub source_chat_id: i64,
+    pub msg_id: Option<i64>,
+    pub actor_id: i64,
+    pub actor_name: String,
+    pub summary: String,
+    pub created_at: i64,
+    pub read_at: Option<i64>,
+}
+
+/// SP6 Activity: 团队活动流。
+/// action: 'card_create' | 'card_update' | 'card_delete' | 'pin_toggle' |
+///         'message_to_card' | 'channel_create'
+/// target_type: 'card' | 'message' | 'channel'
+#[derive(Debug, Clone, Serialize)]
+pub struct ActivityDto {
+    pub id: i64,
+    pub workspace_id: i64,
+    pub channel_chat_id: Option<i64>,
+    pub actor_id: i64,
+    pub actor_name: String,
+    pub action: String,
+    pub target_type: String,
+    pub target_id: i64,
+    pub payload: Option<String>,
+    pub created_at: i64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

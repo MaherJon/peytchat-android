@@ -7,7 +7,7 @@ import { loadState, saveState } from '../persist.js';
 import { showToast } from '../toast.js';
 import { stateLabel, renderReactionsHtml, updateReactionsCache } from '../chat/message.js';
 import { appendNewMessages } from '../chat/chatView.js';
-import type { MsgState } from '../types.js';
+import type { MsgState, MsgDto } from '../types.js';
 
 // Task 8: 消息 reactions 形状 — 与 message.ts 内部 Reaction 接口结构一致。
 // message.ts 未导出 Reaction,这里本地声明供 call<Reaction[]> 类型推断使用。
@@ -63,6 +63,11 @@ export async function renderShell(): Promise<void> {
   if (state.currentWsId != null && state.workspaces.find((w) => w.id === state.currentWsId)) {
     await refreshChannels();
   }
+
+  // SP6: 初始化 Inbox 未读数 (启动时拉取一次,后续增量更新)
+  try {
+    state.inboxUnread = await call<number>('get_inbox_unread_count');
+  } catch {}
 
   await renderRail();
   await renderNavPanel();
@@ -261,6 +266,9 @@ async function handleIncomingMsg(e: { [key: string]: unknown }): Promise<void> {
     return;
   }
 
+  // SP6: 检测 @提及,记录到 Inbox 通知中心 (增量更新未读角标)
+  void detectAndRecordMention(chatId, e.msg_id as number | undefined, text);
+
   if (state.currentChatId === chatId) {
     await refreshCurrentChat();
   } else {
@@ -368,5 +376,50 @@ async function refreshMsgReactions(msgId: number): Promise<void> {
         });
       });
     }
+  } catch {}
+}
+
+// SP6: 检测消息中的 @提及 (含 @all),记录到 inbox_events 并增量更新未读角标。
+// IncomingMsg 事件仅含 chat_id/msg_id/text,需调用 get_chat_msgs 获取发送者信息。
+// 排除自己发的消息 (多设备同步时自己消息也会触发 IncomingMsg)。
+async function detectAndRecordMention(
+  chatId: number,
+  msgId: number | undefined,
+  text: string
+): Promise<void> {
+  const selfName = state.self?.name || '';
+  const isMention =
+    !!selfName &&
+    !!msgId &&
+    (text.includes(`@${selfName}`) || text.includes('@all'));
+  if (!isMention) return;
+
+  // 拉取最近消息,定位 msg_id 对应的发送者
+  let fromId = 0;
+  let fromName = '未知';
+  try {
+    const msgs = await call<MsgDto[]>('get_chat_msgs', { chatId, beforeMsgId: null });
+    const msg = msgs.find((m) => m.msg_id === msgId);
+    if (msg) {
+      fromId = msg.from_id;
+      fromName = msg.from_name || '未知';
+    }
+  } catch {}
+
+  // 排除自己发的消息
+  if (state.self && fromId === state.self.id) return;
+
+  try {
+    await call('record_inbox_event', {
+      eventType: 'mention',
+      sourceChatId: chatId,
+      msgId: msgId ?? null,
+      actorId: fromId,
+      actorName: fromName,
+      summary: text.slice(0, 100),
+    });
+    state.inboxUnread++;
+    saveState();
+    await renderRail();
   } catch {}
 }

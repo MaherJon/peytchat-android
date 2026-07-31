@@ -89,6 +89,13 @@ pub fn run() {
             commands::ensure_peyt_studio,
             commands::join_peyt_studio,
             commands::join_peyt_channel,
+            // SP6: Inbox + Activity
+            commands::list_inbox_events,
+            commands::mark_inbox_read,
+            commands::mark_all_inbox_read,
+            commands::get_inbox_unread_count,
+            commands::list_activities,
+            commands::record_inbox_event,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -19,16 +19,21 @@ export async function renderRail(): Promise<void> {
   if (!rail) return;
   rail.className = 'rail';
 
-  const pages: Array<{ page: Page; icon: IconName; label: string }> = [
+  const pages: Array<{ page: Page; icon: IconName; label: string; badge?: number }> = [
     { page: 'messages', icon: 'message-circle', label: '消息' },
     { page: 'groups', icon: 'users', label: '群组' },
     { page: 'work', icon: 'layout-grid', label: '协作' },
+    { page: 'inbox', icon: 'inbox', label: '通知', badge: state.inboxUnread },
   ];
 
   const pageIconsHtml = pages.map((p) => {
     const active = state.currentPage === p.page ? 'active' : '';
+    const badge = (p.badge ?? 0) > 0
+      ? `<span class="rail-badge">${(p.badge! > 99) ? '99+' : p.badge}</span>`
+      : '';
     return `<div class="rail-icon ${active}" data-page="${p.page}" title="${p.label}">
       ${iconSvg(p.icon, { width: 24, height: 24, strokeWidth: 1.5 })}
+      ${badge}
     </div>`;
   }).join('');
 
