@@ -9,15 +9,18 @@ use deltachat::context::Context;
 
 use crate::db::Db;
 use crate::error::AppResult;
+use crate::plugins::PluginManager;
 
 pub struct AppState {
     pub accounts: Arc<Mutex<Accounts>>,
     pub current_id: StdMutex<Option<u32>>,
     pub db: Arc<Db>,
+    pub plugins: PluginManager,
 }
 
 impl AppState {
-    pub async fn new(dir: PathBuf) -> AppResult<Self> {
+    pub async fn new(app_data_dir: PathBuf) -> AppResult<Self> {
+        let dir = app_data_dir.join("accounts");
         tokio::fs::create_dir_all(&dir).await?;
         let accounts = Accounts::new(dir.clone(), true).await?;
         let current_id = accounts.get_selected_account_id();
@@ -26,12 +29,13 @@ impl AppState {
                 ctx.start_io().await;
             }
         }
-        let db = Db::new(dir.join("../peytchat.db")).await?;
+        let db = Db::new(app_data_dir.join("peytchat.db")).await?;
         db.migrate().await?;
         Ok(Self {
             accounts: Arc::new(Mutex::new(accounts)),
             current_id: StdMutex::new(current_id),
             db: Arc::new(db),
+            plugins: PluginManager::new(app_data_dir),
         })
     }
 

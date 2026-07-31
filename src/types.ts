@@ -1,5 +1,5 @@
 export type Page = 'messages' | 'groups' | 'work' | 'settings';
-export type SettingsSection = 'account' | 'appearance' | 'team' | 'notifications' | 'about';
+export type SettingsSection = 'account' | 'appearance' | 'team' | 'notifications' | 'plugins' | 'about';
 export type SpaceType = 'chat' | 'card';
 export type CurrentView = 'kanban' | 'list';
 export type MsgState = 'pending' | 'delivered' | 'failed' | 'read';

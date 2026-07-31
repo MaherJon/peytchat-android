@@ -1157,6 +1157,25 @@ body {
 .toggle-switch input:checked + .toggle-slider { background: #e5e5e5; }
 .toggle-switch input:checked + .toggle-slider:before { transform: translateX(18px); background: #0d0d0d; }
 
+/* === 插件管理（设置页内嵌）=== */
+.plugin-tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+.plugin-tab {
+  background: none; border: 1px solid transparent; color: #888;
+  padding: 6px 14px; border-radius: 6px; font-size: 12px; cursor: pointer; font-family: inherit;
+}
+.plugin-tab:hover { color: #e5e5e5; background: #161616; }
+.plugin-tab.active { background: #1f1f1f; color: #e5e5e5; }
+.plugin-list { display: flex; flex-direction: column; }
+.plugin-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 4px; border-bottom: 1px solid #1a1a1a;
+}
+.plugin-row .p-name { font-size: 13px; color: #e5e5e5; margin-right: auto; }
+.p-toggle { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #888; cursor: pointer; }
+.p-toggle input { accent-color: #e5e5e5; }
+.plugin-empty { color: #555; text-align: center; padding: 40px 0; font-size: 12px; }
+.plugin-local-install { margin-bottom: 16px; }
+
 /* === Message hover actions === */
 .msg-item { position: relative; }
 .msg-hover-actions { position: absolute; top: -12px; right: 8px; display: flex; gap: 2px; background: #1a1a1a; border: 1px solid #222; border-radius: 6px; padding: 2px; opacity: 0; transition: opacity 0.15s; }

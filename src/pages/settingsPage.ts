@@ -4,7 +4,7 @@ import { showToast } from '../toast.js';
 import { saveState } from '../persist.js';
 import { iconSvg, type IconName } from '../components/icon.js';
 import { renderAvatarHtml } from '../components/avatar.js';
-import { getCurrentTheme, applyTheme, type ThemeName } from '../theme.js';
+import { getCurrentTheme, applyTheme } from '../theme.js';
 import { showInlineConfirm } from '../components/inlineConfirm.js';
 import { createInlineInput } from '../components/inlineInput.js';
 import type { SettingsSection, SelfProfile } from '../types.js';
@@ -14,6 +14,7 @@ const sections: Array<{ id: SettingsSection; icon: IconName; label: string }> = 
   { id: 'appearance', icon: 'palette', label: '外观' },
   { id: 'team', icon: 'users', label: '当前团队' },
   { id: 'notifications', icon: 'bell', label: '通知' },
+  { id: 'plugins', icon: 'layout-grid', label: '插件' },
   { id: 'about', icon: 'info', label: '关于' },
 ];
 
@@ -43,8 +44,14 @@ export async function renderSettingsMain(main: HTMLElement): Promise<void> {
     case 'appearance': renderAppearance(main); break;
     case 'team': await renderTeam(main); break;
     case 'notifications': renderNotifications(main); break;
+    case 'plugins': await renderPlugins(main); break;
     case 'about': renderAbout(main); break;
   }
+}
+
+async function renderPlugins(main: HTMLElement): Promise<void> {
+  const { renderPluginsMain } = await import('../plugins/view.js');
+  await renderPluginsMain(main);
 }
 
 async function renderAccount(main: HTMLElement): Promise<void> {
@@ -125,27 +132,36 @@ function triggerAvatarUpload(main: HTMLElement): void {
 
 function renderAppearance(main: HTMLElement): void {
   const current = getCurrentTheme();
-  const themes: Array<{ id: ThemeName; label: string; cls: string }> = [
+  // 内置主题（渐变 swatch class）+ 插件注册主题（内联色）
+  const builtin: Array<{ id: string; label: string; cls: string }> = [
     { id: 'nowint', label: 'Nowint', cls: 'swatch-nowint' },
     { id: 'violet', label: 'Violet', cls: 'swatch-violet' },
     { id: 'goldenhour', label: 'GoldenHour', cls: 'swatch-goldenhour' },
   ];
+  const pluginThemes = window.__peytchat_themes || [];
+  const themesHtml = [
+    ...builtin.map((t) => `
+      <div class="settings-theme ${current === t.id ? 'active' : ''}" data-theme="${t.id}">
+        <div class="theme-swatch ${t.cls}"></div>
+        <span>${escapeHtml(t.label)}</span>
+      </div>`),
+    ...pluginThemes.map((t) => `
+      <div class="settings-theme ${current === t.id ? 'active' : ''}" data-theme="${t.id}">
+        <div class="theme-swatch" style="background:${t.swatch}"></div>
+        <span>${escapeHtml(t.name)}</span>
+      </div>`),
+  ].join('');
   main.innerHTML = `
     <div class="settings-section">
       <h2>外观</h2>
       <div class="settings-themes">
-        ${themes.map((t) => `
-          <div class="settings-theme ${current === t.id ? 'active' : ''}" data-theme="${t.id}">
-            <div class="theme-swatch ${t.cls}"></div>
-            <span>${escapeHtml(t.label)}</span>
-          </div>
-        `).join('')}
+        ${themesHtml}
       </div>
     </div>
   `;
   main.querySelectorAll<HTMLElement>('.settings-theme').forEach((el) => {
     el.addEventListener('click', () => {
-      const theme = el.dataset.theme as ThemeName;
+      const theme = el.dataset.theme as string;
       applyTheme(theme);
       main.querySelectorAll('.settings-theme').forEach((e) => e.classList.remove('active'));
       el.classList.add('active');

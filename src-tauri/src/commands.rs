@@ -16,6 +16,7 @@ use crate::dto::{
     MsgDto, PeytStudioDto, PinDto, ProfileDto, ReactionDto, RoleDto, SearchResultDto, WorkspaceDto,
 };
 use crate::error::{AppError, AppResult};
+use crate::plugins::{PluginStatus, RegistryPlugin};
 use crate::state::AppState;
 
 /// SP5 Task 11: 区分"字段缺失"(None, 不更新) / "字段为 null"(Some(None), 清空) /
@@ -1850,4 +1851,51 @@ pub async fn join_peyt_channel(
         state.db.set_channel_space_type(chat_u32, &st).await?;
     }
     Ok(chat_u32)
+}
+
+// ── Plugin Commands ──────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn fetch_registry(state: State<'_, AppState>) -> AppResult<Vec<RegistryPlugin>> {
+    state.plugins.fetch_registry().await
+}
+
+#[tauri::command]
+pub async fn install_plugin(
+    state: State<'_, AppState>,
+    name: String,
+) -> AppResult<RegistryPlugin> {
+    state.plugins.install_plugin(&name).await
+}
+
+#[tauri::command]
+pub async fn install_plugin_from_zip(
+    state: State<'_, AppState>,
+    data_base64: String,
+) -> AppResult<RegistryPlugin> {
+    state.plugins.install_plugin_from_zip(&data_base64)
+}
+
+#[tauri::command]
+pub async fn uninstall_plugin(state: State<'_, AppState>, name: String) -> AppResult<()> {
+    state.plugins.uninstall_plugin(&name)
+}
+
+#[tauri::command]
+pub async fn list_plugins(state: State<'_, AppState>) -> AppResult<Vec<PluginStatus>> {
+    state.plugins.list_plugins()
+}
+
+#[tauri::command]
+pub async fn toggle_plugin(
+    state: State<'_, AppState>,
+    name: String,
+    enabled: bool,
+) -> AppResult<()> {
+    state.plugins.toggle_plugin(&name, enabled)
+}
+
+#[tauri::command]
+pub async fn get_plugin_js(state: State<'_, AppState>, name: String) -> AppResult<String> {
+    state.plugins.get_plugin_js(&name)
 }
