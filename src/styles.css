@@ -1338,7 +1338,7 @@ body {
   position: absolute;
   top: 0; left: 0; bottom: 0;
   width: 40%;
-  background: var(--text);
+  background: var(--success);
   animation: plugin-progress-slide 1.1s ease-in-out infinite;
 }
 @keyframes plugin-progress-slide {
