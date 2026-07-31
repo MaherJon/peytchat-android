@@ -161,6 +161,7 @@ async function renderInstalled(main: HTMLElement): Promise<void> {
         <button class="plugin-zip-btn" id="plugin-zip-btn" title="从磁盘安装 .zip 插件">+</button>
         <h2>已安装插件</h2>
       </div>
+      <input id="plugin-zip-input" type="file" accept=".zip" style="display:none" />
       <div class="plugin-list" id="plugin-installed-list"><div class="plugin-empty">加载中…</div></div>
     </div>
   `;
