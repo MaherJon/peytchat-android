@@ -34,17 +34,17 @@ export async function renderPluginsNav(panel: HTMLElement): Promise<void> {
       el.classList.add('active');
       const { renderMain } = await import('../shell/navPanel.js');
       await renderMain();
-      await renderPluginTree(panel);
+      await refreshPluginTree();
     });
   });
   // 已安装 tab 激活时，在导航栏下方渲染所有插件的树（Steam 库风格）
   if (state.pluginsTab === 'installed') {
-    await renderPluginTree(panel);
+    await refreshPluginTree();
   }
 }
 
 /** 树状列出所有已安装插件，按类型分组，类似 Steam 库。 */
-async function renderPluginTree(panel: HTMLElement): Promise<void> {
+export async function refreshPluginTree(): Promise<void> {
   const treeEl = document.getElementById('plugin-tree');
   if (!treeEl) return;
   const installed = await call<PluginStatus[]>('list_plugins').catch(() => []);
@@ -226,6 +226,7 @@ async function renderInstalled(main: HTMLElement): Promise<void> {
       } catch {
         cb.checked = !cb.checked;
       }
+      await refreshPluginTree();
     });
   });
 
@@ -236,6 +237,7 @@ async function renderInstalled(main: HTMLElement): Promise<void> {
         unloadPlugin(btn.dataset.name!);
         await call('uninstall_plugin', { name: btn.dataset.name });
         await renderInstalled(main);
+        await refreshPluginTree();
       } catch (e) {
         showToast(e instanceof Error ? e.message : String(e));
       }
