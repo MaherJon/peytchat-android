@@ -95,6 +95,35 @@ html { background: var(--bg); }
   color: var(--text-weak); font-size: 9px;
 }
 .nav-view-icon { cursor: pointer; }
+
+/* C2 修复：Work 模式协作频道列表项样式（复用 .ct-channel 风格：hover 变色、active 高亮、cursor pointer） */
+.nav-header { padding: 14px 16px 12px; font-size: 13px; font-weight: 600; letter-spacing: -0.2px; border-bottom: 1px solid var(--border); }
+.nav-group { display: flex; flex-direction: column; padding: 8px 0; flex: 1; overflow-y: auto; }
+.nav-group-title { padding: 8px 16px 2px; font-size: 9px; font-weight: 600; color: var(--text-weak); letter-spacing: 0.5px; text-transform: uppercase; display: flex; align-items: center; gap: 4px; }
+.nav-group-title .caret { color: var(--text-weak); }
+.nav-children { display: flex; flex-direction: column; }
+.nav-item {
+  padding: 5px 16px 5px 24px; color: var(--text-mute); cursor: pointer;
+  display: flex; align-items: center; gap: 6px; font-size: 11px;
+  transition: background 120ms, color 120ms;
+}
+.nav-item:hover { color: var(--text); background: var(--capsule); }
+.nav-item.active {
+  background: var(--active); font-weight: 500; color: var(--text);
+  border-radius: 0 4px 4px 0; margin-right: 8px;
+}
+.nav-icon { color: var(--text-weak); font-size: 10px; flex-shrink: 0; }
+.nav-item.active .nav-icon { color: var(--text); }
+
+/* M6 修复：频道分类行右侧 + 图标，与折叠箭头并排 */
+.ct-cat-actions { display: flex; align-items: center; gap: 6px; }
+.ct-cat-add {
+  width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;
+  color: var(--text-weak); font-size: 12px; line-height: 1; cursor: pointer;
+  border-radius: 3px; transition: background 120ms, color 120ms;
+}
+.ct-cat-add:hover { background: var(--capsule); color: var(--text); }
+.ct-cat-arrow { color: var(--text-weak); font-size: 9px; }
 .channel-tree .ct-header, .nav-tree .ct-header { padding: 14px 16px 12px; border-bottom: 1px solid var(--border); }
 .channel-tree .ct-name, .nav-tree .ct-name { font-size: 13px; font-weight: 600; letter-spacing: -0.2px; }
 .channel-tree .ct-sub, .nav-tree .ct-sub { font-size: 9px; color: var(--text-weak); margin-top: 2px; }
@@ -511,6 +540,13 @@ html { background: var(--bg); }
   color: var(--text); font-weight: 600;
   border-bottom: 1px solid var(--text); padding-bottom: 6px;
 }
+/* M8 修复：卡片详情顶部 ✕ 关闭按钮（与 rd-tabs/.rd-collapse 风格一致） */
+.detail-flex { flex: 1; }
+.detail-close {
+  color: var(--text-weak); cursor: pointer; font-size: 11px;
+  padding: 0 4px; border-radius: 3px; transition: background 120ms, color 120ms;
+}
+.detail-close:hover { background: var(--capsule); color: var(--text); }
 .detail-body {
   padding: 16px; flex: 1; overflow-y: auto;
   display: flex; flex-direction: column; gap: 12px;
@@ -756,13 +792,17 @@ body {
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   margin-left: auto;
 }
-.card-status-row { display: flex; gap: 6px; margin-top: 8px; }
+.card-status-row { display: flex; gap: 4px; margin-top: 8px; }
+/* M5 修复：状态切换从无标签小圆点改为带文字的 segmented control（Todo/Doing/Done）。
+   原来是 18×6 的小条仅靠 title 区分，可发现性极低。 */
 .card-status-btn {
-  width: 18px; height: 6px; border-radius: 3px; border: 1px solid var(--border-strong);
-  background: transparent; cursor: pointer; padding: 0; transition: background 120ms;
+  flex: 1; padding: 3px 6px; border: 1px solid var(--border-strong); border-radius: 3px;
+  background: transparent; color: var(--text-weak); font-size: 9px; font-weight: 500;
+  cursor: pointer; transition: background 120ms, color 120ms, border-color 120ms;
+  font-family: inherit; line-height: 1.2;
 }
-.card-status-btn:hover { background: var(--capsule); }
-.card-status-btn.active { background: var(--text); border-color: var(--text); }
+.card-status-btn:hover { background: var(--capsule); color: var(--text-mute); }
+.card-status-btn.active { background: var(--text); color: var(--bg); border-color: var(--text); font-weight: 600; }
 .card-add {
   padding: 8px 12px; border: 1px dashed var(--border-dashed); border-radius: 6px;
   color: var(--text-weak); font-size: 10px; cursor: pointer; text-align: center;

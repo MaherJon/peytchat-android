@@ -1,7 +1,7 @@
 import { call } from "../api.js";
 import { state } from "../state.js";
 import { showToast } from "../toast.js";
-import { renderCardDetail } from "./cardDetail.js";
+import { saveState } from "../persist.js";
 
 // SP5 Task 6: 协作看板视图。三列 (Todo / In Progress / Done)，支持卡片状态
 // 切换、新建卡片、点击卡片打开详情（Task 8 的 renderCardDetail）。
@@ -45,12 +45,18 @@ export async function renderKanban(chatId) {
   `;
   // 绑定卡片点击
   main.querySelectorAll(".card").forEach((el) => {
-    el.onclick = () => {
+    el.onclick = async () => {
       const cardId = Number(el.dataset.cardId);
       state.currentCardId = cardId;
+      // C1 修复：点击卡片前先打开右侧抽屉，让 rightDrawer.js 的 work+card 分支
+      // 移除 collapsed 类，否则 renderCardDetail 写入的 innerHTML 会被零宽度抽屉隐藏。
+      state.rightDrawerOpen = true;
+      state.detailPanelOpen = true;
+      saveState();
       main.querySelectorAll(".card").forEach((c) => c.classList.remove("selected"));
       el.classList.add("selected");
-      renderCardDetail(cardId);
+      const { renderRightDrawer } = await import("../shell/rightDrawer.js");
+      renderRightDrawer();
     };
   });
   // 绑定状态切换按钮
@@ -73,11 +79,11 @@ export async function renderKanban(chatId) {
     const { renderList } = await import(/* @vite-ignore */ mod);
     await renderList(cid);
   };
-  window.__newCard = async (cid) => {
+  window.__newCard = async (cid, status) => {
     const title = prompt("卡片标题:");
     if (!title) return;
     try {
-      await call("create_card", {
+      const card = await call("create_card", {
         workspaceId: state.currentWsId,
         chatId: cid,
         type_: "task",
@@ -86,6 +92,10 @@ export async function renderKanban(chatId) {
         assigneeContactId: null,
         dueDate: null,
       });
+      // M7 修复：create_card 后端总是创建为 "todo"，若目标列非 todo 需追加 update_card。
+      if (status && status !== "todo" && card?.id) {
+        await call("update_card", { cardId: card.id, status });
+      }
       showToast("已创建");
       await renderKanban(cid);
     } catch (e) { showToast("创建失败: " + e.message); }
@@ -101,7 +111,7 @@ function renderColumn(title, cards, status, chatId) {
       </div>
       <div class="kanban-col-body">
         ${cards.map((c) => renderCard(c, status)).join("")}
-        <div class="card-add" onclick="window.__newCard(${chatId})">+ 添加卡片</div>
+        <div class="card-add" onclick="window.__newCard(${chatId}, '${status}')">+ 添加卡片</div>
       </div>
     </div>
   `;
@@ -111,6 +121,7 @@ function renderCard(c, currentStatus) {
   const dueStr = c.due_date ? new Date(c.due_date * 1000).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" }) : "";
   const isOverdue = c.due_date && c.due_date < Date.now() / 1000;
   const assigneeInitial = c.assignee_name ? c.assignee_name[0].toUpperCase() : "";
+  // M5 修复：状态切换从无标签小圆点改为带文字的 segmented control（Todo/Doing/Done）。
   return `
     <div class="card" data-card-id="${c.id}">
       <div class="card-title">${escapeHtml(c.title)}</div>
@@ -120,9 +131,9 @@ function renderCard(c, currentStatus) {
         ${assigneeInitial ? `<span class="card-assignee">${escapeHtml(assigneeInitial)}</span>` : ""}
       </div>
       <div class="card-status-row">
-        <button class="card-status-btn ${currentStatus === 'todo' ? 'active' : ''}" data-card-id="${c.id}" data-status="todo" title="Todo">·</button>
-        <button class="card-status-btn ${currentStatus === 'in_progress' ? 'active' : ''}" data-card-id="${c.id}" data-status="in_progress" title="In Progress">·</button>
-        <button class="card-status-btn ${currentStatus === 'done' ? 'active' : ''}" data-card-id="${c.id}" data-status="done" title="Done">·</button>
+        <button class="card-status-btn ${currentStatus === 'todo' ? 'active' : ''}" data-card-id="${c.id}" data-status="todo" title="Todo">Todo</button>
+        <button class="card-status-btn ${currentStatus === 'in_progress' ? 'active' : ''}" data-card-id="${c.id}" data-status="in_progress" title="In Progress">Doing</button>
+        <button class="card-status-btn ${currentStatus === 'done' ? 'active' : ''}" data-card-id="${c.id}" data-status="done" title="Done">Done</button>
       </div>
     </div>
   `;

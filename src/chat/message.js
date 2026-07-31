@@ -1,6 +1,7 @@
 import { call, transformBlobURL } from "../api.js";
 import { state } from "../state.js";
 import { showToast } from "../toast.js";
+import { showContextMenu } from "../dialogs/contextMenu.js";
 import hljs from "highlight.js/lib/core";
 import rust from "highlight.js/lib/languages/rust";
 import javascript from "highlight.js/lib/languages/javascript";
@@ -369,6 +370,78 @@ export function bindMessageActions(container) {
       a.href = el.dataset.download;
       a.download = "";
       a.click();
+    });
+  });
+  // M4 修复：消息右键菜单（Discord/微信/Telegram 桌面端 IM 主要交互）。
+  // 复用 contextMenu.js 的 showContextMenu + 现有 action 逻辑（pin/reply/react/del/card）。
+  container.querySelectorAll(".msg").forEach((el) => {
+    el.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      const msgId = Number(el.dataset.msg);
+      const msg = state.messages.find((m) => m.msg_id === msgId);
+      const items = [];
+      if (msg?.text) {
+        items.push({
+          label: "复制文本",
+          action: () => {
+            try {
+              navigator.clipboard?.writeText(msg.text);
+              showToast("已复制");
+            } catch (err) { showToast("复制失败"); }
+          },
+        });
+      }
+      items.push({
+        label: "回复",
+        action: () => {
+          const main = document.getElementById("chat-main");
+          if (main) main.dispatchEvent(new CustomEvent("composer:set-reply", { detail: { msgId } }));
+        },
+      });
+      items.push({
+        label: "置顶",
+        action: async () => {
+          try {
+            await call("toggle_pin", { workspaceId: state.currentWsId, chatId: state.currentChatId, msgId });
+            showToast("已切换置顶");
+          } catch (err) { showToast(err.message || String(err)); }
+        },
+      });
+      items.push({
+        label: "👍 反应",
+        action: async () => {
+          try {
+            await call("send_reaction", { chatId: state.currentChatId, msgId, emoji: "👍" });
+          } catch (err) { showToast(err.message || String(err)); }
+        },
+      });
+      items.push({
+        label: "转为 Card",
+        action: async () => {
+          const title = prompt("卡片标题(留空用消息文本):");
+          if (title === null) return;
+          try {
+            await call("message_to_card", {
+              msgId,
+              workspaceId: state.currentWsId,
+              chatId: state.currentChatId,
+              type_: "task",
+              title: title || null,
+            });
+            showToast("已转为 Card");
+          } catch (err) { showToast("转换失败: " + (err.message || String(err))); }
+        },
+      });
+      if (msg?.is_out) {
+        items.push({
+          label: "删除",
+          action: async () => {
+            if (!confirm("删除这条消息?")) return;
+            try { await call("delete_msg", { msgId }); } catch (err) { showToast(err.message || String(err)); }
+          },
+        });
+      }
+      showContextMenu(e.clientX, e.clientY, items);
     });
   });
   // 点击空白关闭所有 picker(绑定一次)

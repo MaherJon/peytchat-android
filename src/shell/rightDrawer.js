@@ -27,6 +27,9 @@ export function renderRightDrawer() {
   // SP5 Task 8: Work 模式 + 选中卡片时，right drawer 渲染 Card 详情。
   // 用 dynamic import 避免 static import 循环依赖。
   if (state.currentApp === "work" && state.currentCardId) {
+    // C1 修复：原 work+card 分支提前 return，未移除 collapsed 类，导致抽屉零宽度
+    // 隐藏 renderCardDetail 写入的 innerHTML。这里显式展开抽屉。
+    drawer.classList.remove("collapsed");
     import("../work/cardDetail.js").then(({ renderCardDetail }) => renderCardDetail(state.currentCardId));
     return;
   }

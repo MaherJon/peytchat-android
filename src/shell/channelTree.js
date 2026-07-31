@@ -5,7 +5,6 @@ import { renderChatView } from "../chat/chatView.js";
 import { openChannelCreateDialog } from "../dialogs/channelCreate.js";
 import { showContextMenu } from "../dialogs/contextMenu.js";
 import { renderRightDrawer } from "./rightDrawer.js";
-import { renderHomeView } from "../dialogs/homeView.js";
 import { saveState } from "../persist.js";
 
 export async function refreshChannels() {
@@ -72,9 +71,14 @@ export async function renderChannelTree() {
       const unread = ch.unread > 0 ? `<span class="ct-unread">${ch.unread}</span>` : "";
       return `<div class="ct-channel ${active}" data-id="${ch.chat_id}" title="${escapeAttr(ch.topic || '')}" ${isCollapsed ? 'style="display:none"' : ''}>${escapeHtml(ch.name)}${unread}</div>`;
     }).join("");
+    // M6 修复：分类行右侧加 + 图标（Discord 风格），与折叠箭头并排。
     return `
       <div class="ct-category" data-cat="${escapeAttr(cat)}">
-        <span>${escapeHtml(cat)}</span><span>${arrow}</span>
+        <span>${escapeHtml(cat)}</span>
+        <span class="ct-cat-actions">
+          <span class="ct-cat-add" data-cat="${escapeAttr(cat)}" title="新建频道">+</span>
+          <span class="ct-cat-arrow">${arrow}</span>
+        </span>
       </div>
       ${chans}
     `;
@@ -162,16 +166,26 @@ export async function renderChannelTree() {
       });
     });
   });
+  // M6 修复：分类行 + 图标点击直接新建频道（stopPropagation 防止触发折叠/展开）。
+  tree.querySelectorAll(".ct-cat-add").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openChannelCreateDialog(el.dataset.cat, async () => {
+        await refreshChannels();
+        renderChannelTree();
+      });
+    });
+  });
   const ctUser = tree.querySelector(".ct-user");
   if (ctUser) {
     ctUser.style.cursor = "pointer";
+    // M2 修复：与 homeView.js 行为统一 —— 点击用户条仅打开账号设置抽屉，
+    // 不跳转主页、不清 currentWsId/currentChatId（原行为会触发两个意外动作）。
     ctUser.onclick = async () => {
-      state.homeMode = true;
-      state.currentChatId = null;
-      state.currentWsId = null;
-      await renderHomeView();
       state.rightDrawerOpen = true;
+      state.detailPanelOpen = true;
       state.rightDrawerTab = "settings";
+      saveState();
       renderRightDrawer();
     };
   }

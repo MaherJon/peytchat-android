@@ -185,9 +185,14 @@ export async function renderHomeView() {
   });
   const ctUser = tree.querySelector(".ct-user");
   if (ctUser) {
+    // M2 修复：与 channelTree.js 行为统一 —— 仅打开账号设置抽屉，并确保 detailPanelOpen=true
+    // 以防用户之前手动折叠过抽屉导致点用户条后抽屉仍隐藏。
     ctUser.onclick = async () => {
       state.rightDrawerOpen = true;
+      state.detailPanelOpen = true;
       state.rightDrawerTab = "settings";
+      const { saveState } = await import("../persist.js");
+      saveState();
       const { renderRightDrawer } = await import("../shell/rightDrawer.js");
       renderRightDrawer();
     };

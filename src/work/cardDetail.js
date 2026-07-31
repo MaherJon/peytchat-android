@@ -1,6 +1,7 @@
 import { call } from "../api.js";
 import { state } from "../state.js";
 import { showToast } from "../toast.js";
+import { saveState } from "../persist.js";
 
 // SP5 Task 8: Card 详情面板。渲染到 #right-drawer，由 rightDrawer.js 在
 // Work 模式 + state.currentCardId 有值时通过 dynamic import 调用。
@@ -19,6 +20,8 @@ export async function renderCardDetail(cardId) {
   drawer.innerHTML = `
     <div class="detail-tabs">
       <div class="detail-tab active">Card</div>
+      <span class="detail-flex"></span>
+      <span class="detail-close" id="card-close" title="关闭">✕</span>
     </div>
     <div class="detail-body">
       <div class="card-detail-title" contenteditable="true" id="card-title"></div>
@@ -55,6 +58,14 @@ export async function renderCardDetail(cardId) {
   // 防止 XSS：contenteditable 元素用 textContent 设置初始内容
   drawer.querySelector("#card-title").textContent = card.title || "";
   drawer.querySelector("#card-desc").textContent = card.description || "";
+  // M8 修复：顶部 ✕ 关闭按钮 — 清 currentCardId + 收起抽屉，让用户回到全宽看板。
+  drawer.querySelector("#card-close").addEventListener("click", async () => {
+    state.currentCardId = null;
+    state.rightDrawerOpen = false;
+    saveState();
+    const { renderRightDrawer } = await import("../shell/rightDrawer.js");
+    renderRightDrawer();
+  });
   // 保存：只传实际改动的字段。
   // - Option<T> 字段 (title/status): 改动则传新值, 不改则 omit (undefined → JSON 缺失 → Rust None)
   // - Option<Option<T>> 字段 (description/dueDate/assigneeContactId):

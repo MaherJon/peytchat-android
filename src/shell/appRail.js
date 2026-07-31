@@ -207,6 +207,23 @@ function bindAppIcons() {
       // 触发 nav tree 切换（Ruling A: 用 await import 而非 require，兼容 Vite ESM）
       const { renderChannelTree } = await import("./channelTree.js");
       renderChannelTree();
+      // M3 修复：模式切换后同步主区内容，避免「频道树是 Chat、主区却是看板」错位。
+      // - Work 模式：renderChannelTree 已在 currentChatId 非空时触发 renderMain；
+      //   这里只补 currentChatId 为空时的空态。
+      // - Chat 模式：原代码完全不同步主区，这里按 currentChatId 调 renderChatView。
+      const main = document.getElementById("chat-main");
+      if (state.currentApp === "chat") {
+        if (state.currentChatId != null) {
+          const { renderChatView } = await import("../chat/chatView.js");
+          await renderChatView(state.currentChatId);
+        } else if (main) {
+          main.innerHTML = `<div class="empty">选择一个频道</div>`;
+        }
+      } else if (state.currentApp === "work") {
+        if (state.currentChatId == null && main) {
+          main.innerHTML = `<div class="empty">选择一个协作频道</div>`;
+        }
+      }
     });
   });
 }
@@ -224,10 +241,8 @@ function bindWorkspaceIcons() {
       const { renderChannelTree } = await import("./channelTree.js");
       renderChannelTree();
       document.getElementById("chat-main").innerHTML = `<div class="empty">选择一个频道</div>`;
-      state.rightDrawerOpen = true;
-      state.rightDrawerTab = "settings";
-      const { renderRightDrawer } = await import("./rightDrawer.js");
-      renderRightDrawer();
+      // M1 修复：切换 workspace 是高频导航操作，不应弹出设置面板。
+      // 删除 rightDrawerOpen=true / rightDrawerTab="settings" 强制展开抽屉的副作用。
       saveState();
     });
   });
