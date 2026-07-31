@@ -51,9 +51,11 @@ export async function renderNavPanel(): Promise<void> {
         await renderMessagesPage(panel);
         break;
       }
-      case 'groups':
-        // @ts-expect-error Task 10 创建 groupsPage.ts,届时删除本指令
-        { const { renderGroupsPage } = await import('../pages/groupsPage.js'); await renderGroupsPage(panel); break; }
+      case 'groups': {
+        const { renderGroupsPage } = await import('../pages/groupsPage.js');
+        await renderGroupsPage(panel);
+        break;
+      }
       case 'work':
         // @ts-expect-error Task 11 创建 workPage.ts,届时删除本指令
         { const { renderWorkPage } = await import('../pages/workPage.js'); await renderWorkPage(panel); break; }
