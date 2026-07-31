@@ -1,0 +1,135 @@
+import {
+  MessageCircle, Users, LayoutGrid, Settings, User, Palette, Bell, Info,
+  Plus, X, Hash, Reply, Pin, Copy, Trash, Smile, ChevronDown, ChevronRight,
+  Check, Send, Search, LogOut, Upload, Shield, Volume2, VolumeX, BookMarked,
+  MoreHorizontal, Forward, FileText, Image as ImageIcon, Paperclip, Edit3,
+  ArrowUp, Star, AlertCircle,
+} from 'lucide';
+import type { IconNode, SVGProps } from 'lucide';
+
+export type IconName =
+  | 'message-circle' | 'users' | 'layout-grid' | 'settings'
+  | 'user' | 'palette' | 'bell' | 'info'
+  | 'plus' | 'x' | 'hash' | 'reply'
+  | 'pin' | 'copy' | 'trash' | 'smile'
+  | 'chevron-down' | 'chevron-right' | 'check' | 'send'
+  | 'search' | 'log-out' | 'upload' | 'shield'
+  | 'volume-2' | 'volume-x' | 'bookmark' | 'more-horizontal'
+  | 'forward' | 'file-text' | 'image' | 'paperclip' | 'edit'
+  | 'arrow-up' | 'star' | 'alert-circle';
+
+export interface IconOpts {
+  width?: number;
+  height?: number;
+  strokeWidth?: number;
+  fill?: string;
+  class?: string;
+}
+
+const iconMap: Record<IconName, IconNode> = {
+  'message-circle': MessageCircle,
+  'users': Users,
+  'layout-grid': LayoutGrid,
+  'settings': Settings,
+  'user': User,
+  'palette': Palette,
+  'bell': Bell,
+  'info': Info,
+  'plus': Plus,
+  'x': X,
+  'hash': Hash,
+  'reply': Reply,
+  'pin': Pin,
+  'copy': Copy,
+  'trash': Trash,
+  'smile': Smile,
+  'chevron-down': ChevronDown,
+  'chevron-right': ChevronRight,
+  'check': Check,
+  'send': Send,
+  'search': Search,
+  'log-out': LogOut,
+  'upload': Upload,
+  'shield': Shield,
+  'volume-2': Volume2,
+  'volume-x': VolumeX,
+  'bookmark': BookMarked,
+  'more-horizontal': MoreHorizontal,
+  'forward': Forward,
+  'file-text': FileText,
+  'image': ImageIcon,
+  'paperclip': Paperclip,
+  'edit': Edit3,
+  'arrow-up': ArrowUp,
+  'star': Star,
+  'alert-circle': AlertCircle,
+};
+
+const defaultAttributes: SVGProps = {
+  xmlns: 'http://www.w3.org/2000/svg',
+  width: 24,
+  height: 24,
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  'stroke-width': 1.5,
+  'stroke-linecap': 'round',
+  'stroke-linejoin': 'round',
+};
+
+function escapeAttr(value: string | number): string {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function renderAttrs(attrs: SVGProps): string {
+  let result = '';
+  for (const key of Object.keys(attrs)) {
+    const value = attrs[key];
+    if (value !== undefined) {
+      result += ` ${key}="${escapeAttr(value)}"`;
+    }
+  }
+  return result;
+}
+
+function renderChildren(node: IconNode): string {
+  let result = '';
+  for (const [tag, attrs] of node) {
+    result += `<${tag}${renderAttrs(attrs)} />`;
+  }
+  return result;
+}
+
+export function iconSvg(name: IconName, opts: IconOpts = {}): string {
+  const icon = iconMap[name];
+  if (!icon) return '';
+  const w = opts.width ?? 24;
+  const h = opts.height ?? 24;
+  const sw = opts.strokeWidth ?? 1.5;
+  const attrs: SVGProps = {
+    ...defaultAttributes,
+    width: w,
+    height: h,
+    'stroke-width': sw,
+  };
+  if (opts.fill !== undefined) {
+    attrs.fill = opts.fill;
+  }
+  if (opts.class) {
+    attrs.class = opts.class;
+  }
+  return `<svg${renderAttrs(attrs)}>${renderChildren(icon)}</svg>`;
+}
+
+export function iconElement(name: IconName, opts: IconOpts = {}): HTMLElement {
+  const wrapper = document.createElement('span');
+  wrapper.style.display = 'inline-flex';
+  wrapper.style.alignItems = 'center';
+  wrapper.style.justifyContent = 'center';
+  wrapper.innerHTML = iconSvg(name, opts);
+  return wrapper;
+}
