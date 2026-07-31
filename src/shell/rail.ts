@@ -59,7 +59,6 @@ async function navigateToPage(page: Page): Promise<void> {
   await renderRail();
   const { renderNavPanel } = await import('./navPanel.js');
   await renderNavPanel();
-  // @ts-expect-error rightDrawer.ts 由 Task 8 创建,届时删除本指令
   const { renderRightDrawer } = await import('./rightDrawer.js');
   renderRightDrawer();
   const { renderMain } = await import('./navPanel.js');
