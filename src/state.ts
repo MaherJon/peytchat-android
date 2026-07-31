@@ -1,0 +1,30 @@
+import type { AppState } from './types.js';
+
+export const state: AppState = {
+  currentPage: 'messages',
+  currentSettingsSection: 'account',
+  currentWsId: null,
+  currentChatId: null,
+  workspaces: [],
+  channels: [],
+  messages: [],
+  messagesOldestId: null,
+  noMoreMsgs: false,
+  currentMembers: [],
+  cards: [],
+  currentCardId: null,
+  currentView: 'kanban',
+  rightDrawerOpen: false,
+  detailPanelOpen: true,
+  detailTab: 'members',
+  self: null,
+  roles: [],
+  wsMembers: {},
+  collapsedCategories: {},
+  searchOpen: false,
+  peytBannerDismissed: false,
+};
+
+export function setState(partial: Partial<AppState>): void {
+  Object.assign(state, partial);
+}

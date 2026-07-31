@@ -12,10 +12,13 @@
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
     "highlight.js": "^11.11.1",
+    "lucide": "^1.28.0",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",
+    "@types/node": "^26.1.2",
+    "typescript": "^7.0.2",
     "vite": "^5.4.0"
   }
 }

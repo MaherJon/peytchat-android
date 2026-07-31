@@ -13,10 +13,40 @@ use tauri::State;
 
 use crate::dto::{
     AdvancedLogin, CardDto, ChannelDto, ChatDto, ChatInfoDto, ContactDto, ContactRoleDto, MemberDto,
-    MsgDto, PinDto, ProfileDto, ReactionDto, RoleDto, SearchResultDto, WorkspaceDto,
+    MsgDto, PeytStudioDto, PinDto, ProfileDto, ReactionDto, RoleDto, SearchResultDto, WorkspaceDto,
 };
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
+
+/// SP5 Task 11: 区分"字段缺失"(None, 不更新) / "字段为 null"(Some(None), 清空) /
+/// "字段有值"(Some(Some(v)), 更新)。
+///
+/// 问题: Tauri 的 CommandItem 反序列化器在 deserialize_option 中, 对 key 缺失和
+/// JSON null 都调用 visit_none(), 导致 Option<Option<T>> 无法区分"清空"和"不更新"。
+/// 且 Tauri v2.11 的 #[command] 宏不支持 #[serde(...)] 函数参数属性。
+///
+/// 方案: 定义 Clearable<T> 包装类型, 手动实现 Deserialize。利用 deserialize_any
+/// 在 key 缺失时返回 Err 的特性来区分三种情况:
+///   - key 缺失 → Value::deserialize 返回 Err → Clearable(None) (不更新)
+///   - key 存在 + null → Value::Null → Clearable(Some(None)) (清空)
+///   - key 存在 + value → from_value → Clearable(Some(Some(v))) (更新)
+pub struct Clearable<T>(Option<Option<T>>);
+
+impl<'de, T: serde::de::DeserializeOwned> serde::Deserialize<'de> for Clearable<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        match serde_json::Value::deserialize(deserializer) {
+            Ok(serde_json::Value::Null) => Ok(Clearable(Some(None))),
+            Ok(v) => {
+                let t: T = serde_json::from_value(v).map_err(serde::de::Error::custom)?;
+                Ok(Clearable(Some(Some(t))))
+            }
+            Err(_) => Ok(Clearable(None)),
+        }
+    }
+}
 
 /// Debug log to project dir (stderr is swallowed by macOS GUI).
 fn dbg(msg: impl AsRef<str>) {
@@ -1356,16 +1386,21 @@ pub async fn update_card(
     state: State<'_, AppState>,
     card_id: i64,
     title: Option<String>,
-    description: Option<Option<String>>,
+    description: Clearable<String>,
     status: Option<String>,
-    assignee_contact_id: Option<Option<u32>>,
-    due_date: Option<Option<i64>>,
+    assignee_contact_id: Clearable<u32>,
+    due_date: Clearable<i64>,
 ) -> AppResult<CardDto> {
     let ctx = state
         .current()
         .await
         .ok_or_else(|| AppError::Core("no account".into()))?;
     let now = chrono::Utc::now().timestamp();
+
+    // Unwrap Clearable → Option<Option<T>> for db layer
+    let description: Option<Option<String>> = description.0;
+    let assignee_contact_id: Option<Option<u32>> = assignee_contact_id.0;
+    let due_date: Option<Option<i64>> = due_date.0;
 
     state
         .db
@@ -1696,4 +1731,123 @@ pub async fn get_channel_space_type(
     chat_id: u32,
 ) -> AppResult<Option<String>> {
     state.db.get_channel_space_type(chat_id).await
+}
+
+// ── PEYT Studio 默认团队空间 ────────────────────────────────────────────────
+//
+// 目标: 所有团队成员登录后默认进入 "PEYT Studio" workspace,无需手动创建。
+// 机制:
+//   - 首人登录: ensure_peyt_studio 检测本地无 PEYT Studio → 创建 workspace
+//     (master 群=公告频道) + 闲聊频道 + 工作频道 → 在 master 群发送
+//     [PEYT_INVITE] JSON (含闲聊/工作群的 securejoin QR) → 返回 founder + invite_qr
+//   - 后续成员: 扫描 invite_qr → join_peyt_studio → securejoin master 群 →
+//     本地创建 workspace → 监听 IncomingMsg 检测 [PEYT_INVITE] → 自动 securejoin
+//     其他群并 insert_channel
+//   - 已存在: ensure_peyt_studio 直接返回 existing
+
+const PEYT_STUDIO_NAME: &str = "PEYT Studio";
+
+#[tauri::command]
+pub async fn ensure_peyt_studio(state: State<'_, AppState>) -> AppResult<PeytStudioDto> {
+    let ctx = state.current().await.ok_or(AppError::Core("no account".into()))?;
+    // 1. 检测本地是否已有 PEYT Studio workspace (按 name 匹配)
+    let workspaces = state.db.list_workspaces().await?;
+    if let Some(ws) = workspaces.into_iter().find(|w| w.name == PEYT_STUDIO_NAME) {
+        return Ok(PeytStudioDto {
+            workspace: ws,
+            role: "existing".into(),
+            invite_qr: None,
+        });
+    }
+    // 2. 首人创建: master 群 (公告频道)
+    let master_chat_id = chat::create_group(&ctx, PEYT_STUDIO_NAME).await?;
+    let master_u32 = master_chat_id.to_u32();
+    let icon = Some("P".to_string());
+    let ws_id = state.db.insert_workspace(PEYT_STUDIO_NAME, master_u32, icon.as_deref()).await?;
+    // 3. 创建闲聊频道 + 工作频道
+    let general_chat = chat::create_group(&ctx, "闲聊").await?;
+    let general_u32 = general_chat.to_u32();
+    state.db.insert_channel(ws_id, general_u32, "闲聊", "General", 0).await?;
+    let work_chat = chat::create_group(&ctx, "工作").await?;
+    let work_u32 = work_chat.to_u32();
+    state.db.insert_channel(ws_id, work_u32, "工作", "General", 1).await?;
+    // 工作频道设为 card 类型 (看板)
+    state.db.set_channel_space_type(work_u32, "card").await?;
+    // 4. 默认 core role
+    let _ = state.db.insert_role(ws_id, "core", None).await?;
+    // 5. 在 master 群发送欢迎指引
+    let welcome = "👋 欢迎来到 PEYT Studio\n\n这是团队的默认协作空间。\n• 公告频道: 团队通知发布\n• 闲聊频道: 日常交流\n• 工作频道: 任务看板协作\n\n点击右上角头像可切换主题,左下角 + 可创建更多 workspace。";
+    let _ = chat::send_text_msg(&ctx, master_chat_id, welcome.to_string()).await?;
+    // 6. 在 master 群发送 [PEYT_INVITE] 包含其他频道 QR,供新成员自动加入
+    let general_qr = securejoin::get_securejoin_qr(&ctx, Some(general_chat)).await.unwrap_or_default();
+    let work_qr = securejoin::get_securejoin_qr(&ctx, Some(work_chat)).await.unwrap_or_default();
+    let invite_payload = format!(
+        "[PEYT_INVITE]{{\"general_qr\":\"{}\",\"work_qr\":\"{}\"}}",
+        general_qr.replace('"', "\\\""),
+        work_qr.replace('"', "\\\"")
+    );
+    let _ = chat::send_text_msg(&ctx, master_chat_id, invite_payload).await?;
+    // 7. 生成 master 群的 SecureJoin QR 供首人分享
+    let invite_qr = securejoin::get_securejoin_qr(&ctx, Some(master_chat_id)).await?;
+    let ws = state.db.find_workspace_by_master_chat(master_u32).await?
+        .ok_or(AppError::Core("workspace not found after insert".into()))?;
+    Ok(PeytStudioDto {
+        workspace: ws,
+        role: "founder".into(),
+        invite_qr: Some(invite_qr),
+    })
+}
+
+#[tauri::command]
+pub async fn join_peyt_studio(state: State<'_, AppState>, qr: String) -> AppResult<PeytStudioDto> {
+    let ctx = state.current().await.ok_or(AppError::Core("no account".into()))?;
+    // securejoin 加入 master 群 (公告频道)
+    let chat_id = securejoin::join_securejoin(&ctx, &qr).await?;
+    let master_u32 = chat_id.to_u32();
+    // 幂等: 已存在则返回
+    if let Some(existing) = state.db.find_workspace_by_master_chat(master_u32).await? {
+        return Ok(PeytStudioDto {
+            workspace: existing,
+            role: "existing".into(),
+            invite_qr: None,
+        });
+    }
+    // 本地创建 workspace (master = 公告群)
+    let ws_id = state.db.insert_workspace(PEYT_STUDIO_NAME, master_u32, Some("P")).await?;
+    let _ = state.db.insert_role(ws_id, "core", None).await?;
+    let ws = state.db.find_workspace_by_master_chat(master_u32).await?
+        .ok_or(AppError::Core("workspace not found after insert".into()))?;
+    // 注意: 其他频道 (闲聊/工作) 通过监听 [PEYT_INVITE] 消息自动加入,
+    //       见前端 shell.js handleIncomingMsg 的 PEYT_INVITE 分支。
+    Ok(PeytStudioDto {
+        workspace: ws,
+        role: "member".into(),
+        invite_qr: None,
+    })
+}
+
+/// 由前端在解析到 [PEYT_INVITE] 消息后调用: 依次 securejoin 闲聊/工作群,
+/// 并 insert_channel 关联到指定 workspace。已加入的群 securejoin 会幂等返回 chat_id。
+#[tauri::command]
+pub async fn join_peyt_channel(
+    state: State<'_, AppState>,
+    workspace_id: i64,
+    qr: String,
+    name: String,
+    category: String,
+    space_type: Option<String>,
+) -> AppResult<u32> {
+    let ctx = state.current().await.ok_or(AppError::Core("no account".into()))?;
+    let chat_id = securejoin::join_securejoin(&ctx, &qr).await?;
+    let chat_u32 = chat_id.to_u32();
+    // 幂等: 已关联则跳过
+    let chans = state.db.list_channels(workspace_id).await?;
+    if chans.iter().any(|c| c.chat_id == chat_u32) {
+        return Ok(chat_u32);
+    }
+    state.db.insert_channel(workspace_id, chat_u32, &name, &category, 0).await?;
+    if let Some(st) = space_type {
+        state.db.set_channel_space_type(chat_u32, &st).await?;
+    }
+    Ok(chat_u32)
 }

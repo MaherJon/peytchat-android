@@ -1,10 +1,29 @@
-import { call } from "../api.js";
-import { state } from "../state.js";
-import { renderMessage, bindMessageActions, clearReactionsCache } from "./message.js";
-import { renderComposer } from "./composer.js";
-import { renderRightDrawer } from "../shell/rightDrawer.js";
-import { showToast } from "../toast.js";
-import { saveState } from "../persist.js";
+import { call } from '../api.js';
+import { state } from '../state.js';
+import { renderMessage, bindMessageActions, clearReactionsCache } from './message.js';
+import { renderComposer } from './composer.js';
+import { renderRightDrawer } from '../shell/rightDrawer.js';
+import { showToast } from '../toast.js';
+import { saveState } from '../persist.js';
+import { iconSvg } from '../components/icon.js';
+import type { MsgDto, RoleDto, MemberDto, ChannelDto, ChatListItem, AppState } from '../types.js';
+
+interface ChatInfo {
+  members: MemberDto[];
+}
+
+interface ChannelPin {
+  msg_id: number;
+  channel_chat_id: number;
+}
+
+interface ReplyEventDetail {
+  msgId: number;
+}
+
+// shell.js (未迁移) 仍读 state.homeMode 等 legacy 字段,state.ts 未声明。
+// 用此 cast 保留原 chatView.js 行为(进入 chat 时 homeMode=false),shell.js 迁移后可移除。
+type LegacyState = AppState & { homeMode?: boolean };
 
 let loadingEarlier = false;
 
@@ -20,8 +39,8 @@ const ITEM_HEIGHT = 60;
 const BUFFER = 20; // 上下各 buffer 20 条
 const VIEWPORT = 30; // 可视区约 30 条
 
-export async function renderChatView(chatId) {
-  const main = document.getElementById("chat-main");
+export async function renderChatView(chatId: number): Promise<void> {
+  const main = document.getElementById('chat-main');
   if (!main) return;
   // Task 9: 同频道且已有消息且 DOM 已渲染 → 跳过全量重渲染,
   // 保留分页状态(state.messages / messagesOldestId / noMoreMsgs)和 scroll 位置。
@@ -34,9 +53,8 @@ export async function renderChatView(chatId) {
   if (
     renderedChatId === String(chatId) &&
     state.messages.length > 0 &&
-    document.getElementById("messages")
+    document.getElementById('messages')
   ) {
-    state.homeMode = false;
     return;
   }
   // 切换到不同频道时才重置分页状态(避免每次调用都清空已加载的历史)
@@ -48,7 +66,7 @@ export async function renderChatView(chatId) {
     clearReactionsCache();
   }
   state.currentChatId = chatId;
-  state.homeMode = false;
+  (state as LegacyState).homeMode = false;
   main.dataset.renderedChatId = String(chatId);
   // 加载态
   main.innerHTML = `<div class="spinner"><span></span></div>`;
@@ -56,55 +74,72 @@ export async function renderChatView(chatId) {
     // 拉 roles(用于 role tag 和 @mention)
     if (state.currentWsId != null) {
       try {
-        state.roles = await call("list_roles", { workspaceId: state.currentWsId });
+        state.roles = await call<RoleDto[]>('list_roles', { workspaceId: state.currentWsId });
       } catch {}
     }
     // 拉频道信息(topic + pins)
-    let topic = "";
+    let topic = '';
     let pinCount = 0;
-    try { topic = (await call("get_channel_topic", { chatId })) || ""; } catch {}
+    try { topic = (await call<string>('get_channel_topic', { chatId })) || ''; } catch {}
     try {
-      const pins = await call("get_channel_pins", { chatId });
+      const pins = await call<ChannelPin[]>('get_channel_pins', { chatId });
       pinCount = pins.length;
     } catch {}
     // Task 13: 拉取 chat_info 并把 members 存入 state.currentMembers,
     // 供 message.js 查找发送者的 avatar/color。失败时清空,避免显示上一个频道的成员。
     try {
-      const info = await call("get_chat_info", { chatId });
+      const info = await call<ChatInfo>('get_chat_info', { chatId });
       state.currentMembers = info.members || [];
     } catch {
       state.currentMembers = [];
     }
-    // 渲染骨架
+    // 渲染骨架(含 Task 13 头部按钮:members / pin,触发 detail panel)
+    const headerActions = `
+      <div class="chat-header-actions">
+        <button class="chat-header-btn ${state.detailPanelOpen && state.detailTab === 'members' ? 'active' : ''}" data-action="members" title="成员">
+          ${iconSvg('users', { width: 18, height: 18 })}
+        </button>
+        <button class="chat-header-btn ${state.detailPanelOpen && state.detailTab === 'pin' ? 'active' : ''}" data-action="pin" title="置顶 · ${pinCount}">
+          ${iconSvg('pin', { width: 18, height: 18 })}
+        </button>
+      </div>
+    `;
     main.innerHTML = `
       <div class="chat-header">
         <div>
           <span class="ch-title">${escapeHtml(channelName(chatId))}</span>
           <span class="ch-topic">${escapeHtml(topic)}</span>
         </div>
-        <div class="ch-actions">
-          <span id="act-pin">pin · ${pinCount}</span>
-          <span id="act-info">info</span>
-        </div>
+        ${headerActions}
       </div>
       <div class="messages" id="messages"></div>
       <div id="composer-area"></div>
     `;
-    document.getElementById("act-pin").addEventListener("click", () => {
-      state.rightDrawerOpen = true;
-      state.rightDrawerTab = "pin";
-      renderRightDrawer();
-    });
-    document.getElementById("act-info").addEventListener("click", () => {
-      state.rightDrawerOpen = !state.rightDrawerOpen;
-      state.rightDrawerTab = "members";
-      renderRightDrawer();
-    });
+    // Task 13: 头部按钮 — 切换 detail panel(members/pin)。
+    // 同 tab 已展开 → 折叠;否则展开并切到该 tab。同时确保 rightDrawerOpen=true 让抽屉可见。
+    const headerEl = main.querySelector<HTMLElement>('.chat-header-actions');
+    if (headerEl) {
+      headerEl.querySelectorAll<HTMLButtonElement>('.chat-header-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const action = btn.dataset.action;
+          const tab = action as 'members' | 'pin';
+          if (state.detailPanelOpen && state.detailTab === tab) {
+            state.detailPanelOpen = false;
+          } else {
+            state.detailPanelOpen = true;
+            state.detailTab = tab;
+            state.rightDrawerOpen = true;
+          }
+          saveState();
+          renderRightDrawer();
+        });
+      });
+    }
     // 分页状态已在函数开头按频道切换判断重置,此处不再重复
     // Task 12: 在 mark_chat_noticed 之前拉取 unread count,
     // 否则 unread 已被清零。失败时为 0,不渲染分隔线。
     try {
-      const chats = await call("get_chatlist");
+      const chats = await call<ChatListItem[]>('get_chatlist');
       const chat = chats.find((c) => c.chat_id === chatId);
       currentChatUnread = chat?.unread || 0;
     } catch {
@@ -113,23 +148,26 @@ export async function renderChatView(chatId) {
     await refreshMessages(chatId);
     renderComposer(chatId, () => refreshMessages(chatId));
     bindScrollListener(chatId);
-    try { await call("mark_chat_noticed", { chatId }); } catch {}
+    try { await call('mark_chat_noticed', { chatId }); } catch {}
     saveState();
     // 监听 message.js reply 按钮 dispatch 的事件
-    if (!main._replyListenerBound) {
-      main._replyListenerBound = true;
-      main.addEventListener("composer:set-reply", (e) => {
-        const msgId = e.detail.msgId;
-        const area = document.getElementById("composer-area");
+    if (!main.dataset.replyListenerBound) {
+      main.dataset.replyListenerBound = 'true';
+      main.addEventListener('composer:set-reply', (e: Event) => {
+        const detail = (e as CustomEvent<ReplyEventDetail>).detail;
+        const msgId = detail.msgId;
+        const area = document.getElementById('composer-area');
         if (area) {
-          area.dataset.replyTo = msgId;
-          renderComposer(state.currentChatId, () => refreshMessages(state.currentChatId));
+          area.dataset.replyTo = String(msgId);
+          if (state.currentChatId != null) {
+            renderComposer(state.currentChatId, () => refreshMessages(state.currentChatId!));
+          }
         }
       });
     }
   } catch (e) {
-    main.innerHTML = `<div class="guide-card">加载失败:${escapeHtml(e.message || String(e))}</div>`;
-    showToast(e.message || String(e));
+    main.innerHTML = `<div class="guide-card">加载失败:${escapeHtml(e instanceof Error ? e.message : String(e))}</div>`;
+    showToast(e instanceof Error ? e.message : String(e));
   }
 }
 
@@ -138,13 +176,13 @@ export async function renderChatView(chatId) {
 // renderMessage 已在文件顶部静态导入,此处直接复用(无需 require / 动态 import)。
 // Task 11: 改为 push 到 state.messages 后调 renderVisibleMessages 重算可视区,
 // 不再直接 append DOM(否则新节点会接到 bottom spacer 之后,破坏虚拟化布局)。
-export async function appendNewMessages(chatId) {
+export async function appendNewMessages(chatId: number): Promise<void> {
   if (state.currentChatId !== chatId) return;
-  const box = document.getElementById("messages");
+  const box = document.getElementById('messages');
   if (!box) return; // 频道未渲染,跳过(下次 renderChatView 会全量拉取)
   try {
     // 只拉取最新的 50 条,找出 state.messages 里没有的新消息
-    const msgs = await call("get_chat_msgs", { chatId, beforeMsgId: null });
+    const msgs = await call<MsgDto[]>('get_chat_msgs', { chatId, beforeMsgId: null });
     const existingIds = new Set(state.messages.map((m) => m.msg_id));
     const newMsgs = msgs.filter((m) => !existingIds.has(m.msg_id));
     if (newMsgs.length === 0) return;
@@ -159,26 +197,26 @@ export async function appendNewMessages(chatId) {
       box.scrollTop = box.scrollHeight;
     } else {
       // 用户滚在上方 → 仅刷新 spacers / 可视区(scrollTop 未变,可视范围不变)
-      const { start, end } = getVisibleRange(box.scrollTop, box.clientHeight, ITEM_HEIGHT);
-      await renderVisibleMessages(box, start, end);
+      const range = getVisibleRange(box.scrollTop, box.clientHeight, ITEM_HEIGHT);
+      await renderVisibleMessages(box, range.start, range.end);
     }
   } catch (e) {
-    console.error("appendNewMessages failed:", e);
+    console.error('appendNewMessages failed:', e);
   }
 }
 
-async function refreshMessages(chatId) {
-  let msgs = [];
+async function refreshMessages(chatId: number): Promise<void> {
+  let msgs: MsgDto[] = [];
   try {
-    msgs = await call("get_chat_msgs", { chatId, beforeMsgId: null });
+    msgs = await call<MsgDto[]>('get_chat_msgs', { chatId, beforeMsgId: null });
   } catch (e) {
-    showToast(e.message || String(e));
+    showToast(e instanceof Error ? e.message : String(e));
     return;
   }
   state.messages = msgs;
   state.messagesOldestId = msgs.length > 0 ? msgs[0].msg_id : null;
   state.noMoreMsgs = false;
-  const box = document.getElementById("messages");
+  const box = document.getElementById('messages');
   if (!box) return;
   if (msgs.length === 0) {
     box.innerHTML = `<div class="guide-card">这个频道还没有消息,发第一条吧</div>`;
@@ -192,15 +230,15 @@ async function refreshMessages(chatId) {
   box.scrollTop = box.scrollHeight;
 }
 
-async function loadEarlier(chatId) {
+async function loadEarlier(chatId: number): Promise<void> {
   if (loadingEarlier) return;
-  if (!state.messagesOldestId || state.noMoreMsgs) return;
+  if (state.messagesOldestId == null || state.noMoreMsgs) return;
   loadingEarlier = true;
-  let older = [];
+  let older: MsgDto[] = [];
   try {
-    older = await call("get_chat_msgs", { chatId, beforeMsgId: state.messagesOldestId });
+    older = await call<MsgDto[]>('get_chat_msgs', { chatId, beforeMsgId: state.messagesOldestId });
   } catch (e) {
-    showToast(e.message || String(e));
+    showToast(e instanceof Error ? e.message : String(e));
     loadingEarlier = false;
     return;
   }
@@ -213,7 +251,7 @@ async function loadEarlier(chatId) {
     loadingEarlier = false;
     return;
   }
-  const box = document.getElementById("messages");
+  const box = document.getElementById('messages');
   if (!box) {
     loadingEarlier = false;
     return;
@@ -228,15 +266,15 @@ async function loadEarlier(chatId) {
   // 先按目标 scrollTop 算可视范围,渲染后再赋值(避免浏览器按旧 scrollHeight 钳位)。
   const addedCount = state.messages.length - prevCount;
   const targetScrollTop = prevTop + addedCount * ITEM_HEIGHT;
-  const { start, end } = getVisibleRange(targetScrollTop, box.clientHeight, ITEM_HEIGHT);
-  await renderVisibleMessages(box, start, end);
+  const range = getVisibleRange(targetScrollTop, box.clientHeight, ITEM_HEIGHT);
+  await renderVisibleMessages(box, range.start, range.end);
   box.scrollTop = targetScrollTop;
   loadingEarlier = false;
 }
 
 // Task 11: 虚拟化 — 只渲染 scrollTop ± (BUFFER + VIEWPORT/2) 范围的消息,
 // 上下用 spacer div 撑住总高度(估算 ITEM_HEIGHT),保持滚动条约略正确。
-function getVisibleRange(scrollTop, clientHeight, itemHeight) {
+function getVisibleRange(scrollTop: number, clientHeight: number, itemHeight: number): { start: number; end: number } {
   const start = Math.max(0, Math.floor(scrollTop / itemHeight) - BUFFER);
   const end = Math.min(state.messages.length, start + VIEWPORT + 2 * BUFFER);
   return { start, end };
@@ -255,12 +293,12 @@ function getVisibleRange(scrollTop, clientHeight, itemHeight) {
 // 且清空后 scrollTop 被钳位为 0,新内容渲染后未恢复 → 跳到最早消息。
 // 现改为:先在 off-DOM temp 中构建完整内容(含 awaits),再同步原子替换 box 子节点,
 // 并在替换前后保存/恢复 scrollTop。
-async function renderVisibleMessages(box, start, end) {
+async function renderVisibleMessages(box: HTMLElement, start: number, end: number): Promise<void> {
   const visible = state.messages.slice(start, end);
   const savedScrollTop = box.scrollTop;
 
   // 1. 先在 off-DOM 中构建完整 HTML 字符串(此处含 await,旧 DOM 仍可见,无闪烁)
-  let prevDate = null;
+  let prevDate: string | null = null;
   if (start > 0 && state.messages.length > 0) {
     prevDate = formatDate(new Date(state.messages[start - 1].ts * 1000));
   }
@@ -270,7 +308,7 @@ async function renderVisibleMessages(box, start, end) {
   const dividerIndex = (currentChatUnread > 0 && state.messages.length >= currentChatUnread)
     ? state.messages.length - currentChatUnread
     : -1;
-  let html = "";
+  let html = '';
   for (let i = 0; i < visible.length; i++) {
     const absIdx = start + i;
     if (absIdx === dividerIndex) {
@@ -286,20 +324,20 @@ async function renderVisibleMessages(box, start, end) {
   }
 
   // 2. 在 off-DOM temp 中组装完整子节点(spacerTop + 消息 + spacerBottom)
-  const temp = document.createElement("div");
-  const spacerTop = document.createElement("div");
-  spacerTop.style.height = (start * ITEM_HEIGHT) + "px";
+  const temp = document.createElement('div');
+  const spacerTop = document.createElement('div');
+  spacerTop.style.height = (start * ITEM_HEIGHT) + 'px';
   temp.appendChild(spacerTop);
-  const msgContainer = document.createElement("div");
+  const msgContainer = document.createElement('div');
   msgContainer.innerHTML = html;
   bindMessageActions(msgContainer);
   while (msgContainer.firstChild) temp.appendChild(msgContainer.firstChild);
-  const spacerBottom = document.createElement("div");
-  spacerBottom.style.height = ((state.messages.length - end) * ITEM_HEIGHT) + "px";
+  const spacerBottom = document.createElement('div');
+  spacerBottom.style.height = ((state.messages.length - end) * ITEM_HEIGHT) + 'px';
   temp.appendChild(spacerBottom);
 
   // 3. 同步原子替换:清空 + 追加在同一 tick 内完成,浏览器只绘制一次
-  box.innerHTML = "";
+  box.innerHTML = '';
   while (temp.firstChild) box.appendChild(temp.firstChild);
 
   // 4. 恢复 scrollTop(清空时被钳位为 0,新内容 spacerTop 高度 ≈ savedScrollTop)
@@ -308,52 +346,53 @@ async function renderVisibleMessages(box, start, end) {
   }
 }
 
-function formatDate(d) {
+function formatDate(d: Date): string {
   const now = new Date();
-  if (d.toDateString() === now.toDateString()) return "今天";
+  if (d.toDateString() === now.toDateString()) return '今天';
   const y = new Date(now); y.setDate(y.getDate() - 1);
-  if (d.toDateString() === y.toDateString()) return "昨天";
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  if (d.toDateString() === y.toDateString()) return '昨天';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 // 修复:composer.js 乐观更新时不能直接 insertAdjacentHTML 到 #messages,
 // 因为虚拟化下 #messages 的最后一个子元素是 spacerBottom,append 会把临时消息
 // 插到 spacerBottom 之后(不可见或位置错误)。
 // 改为:composer 调用此函数,push 到 state.messages 后触发虚拟化重渲染底部范围。
-export async function appendOptimisticMessage(tmpMsg) {
-  const box = document.getElementById("messages");
+export function appendOptimisticMessage(tmpMsg: MsgDto): void {
+  const box = document.getElementById('messages');
   if (!box) return;
   state.messages.push(tmpMsg);
   // 渲染新的底部范围(含新消息),并滚到底
   const end = state.messages.length;
   const start = Math.max(0, end - VIEWPORT - 2 * BUFFER);
-  await renderVisibleMessages(box, start, end);
-  box.scrollTop = box.scrollHeight;
+  void renderVisibleMessages(box, start, end).then(() => {
+    box.scrollTop = box.scrollHeight;
+  });
 }
 
-function bindScrollListener(chatId) {
-  const box = document.getElementById("messages");
+function bindScrollListener(chatId: number): void {
+  const box = document.getElementById('messages');
   if (!box) return;
-  let scrollTimer = null;
-  box.addEventListener("scroll", () => {
+  let scrollTimer: ReturnType<typeof setTimeout> | null = null;
+  box.addEventListener('scroll', () => {
     // 顶部触发分页(loadEarlier 内部有 loadingEarlier / noMoreMsgs 守卫)
     if (box.scrollTop === 0) {
-      loadEarlier(chatId);
+      void loadEarlier(chatId);
     }
     // Task 11: 100ms debounce 重算可视区。fire-and-forget,错误吞掉避免 unhandledrejection。
-    clearTimeout(scrollTimer);
+    if (scrollTimer) clearTimeout(scrollTimer);
     scrollTimer = setTimeout(() => {
-      const { start, end } = getVisibleRange(box.scrollTop, box.clientHeight, ITEM_HEIGHT);
-      renderVisibleMessages(box, start, end).catch(() => {});
+      const range = getVisibleRange(box.scrollTop, box.clientHeight, ITEM_HEIGHT);
+      renderVisibleMessages(box, range.start, range.end).catch(() => {});
     }, 100);
   });
 }
 
-function channelName(chatId) {
-  const ch = state.channels.find((c) => c.chat_id === chatId);
+function channelName(chatId: number): string {
+  const ch = state.channels.find((c: ChannelDto) => c.chat_id === chatId);
   return ch ? ch.name : `#${chatId}`;
 }
 
-function escapeHtml(s) {
-  return String(s || "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+function escapeHtml(s: string): string {
+  return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 }

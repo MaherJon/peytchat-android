@@ -1,0 +1,372 @@
+import { call, onEvent } from '../api.js';
+import { state } from '../state.js';
+import { renderRail, refreshWorkspaces } from './rail.js';
+import { renderNavPanel, renderMain, refreshChannels } from './navPanel.js';
+import { renderRightDrawer } from './rightDrawer.js';
+import { loadState, saveState } from '../persist.js';
+import { showToast } from '../toast.js';
+import { stateLabel, renderReactionsHtml, updateReactionsCache } from '../chat/message.js';
+import { appendNewMessages } from '../chat/chatView.js';
+import type { MsgState } from '../types.js';
+
+// Task 8: 消息 reactions 形状 — 与 message.ts 内部 Reaction 接口结构一致。
+// message.ts 未导出 Reaction,这里本地声明供 call<Reaction[]> 类型推断使用。
+interface Reaction {
+  emoji: string;
+  count: number;
+}
+
+interface ChatInfo {
+  name: string;
+}
+
+interface ChatListItem {
+  chat_id: number;
+  unread: number;
+}
+
+// Tauri 全局对象局部类型(仅用 setBadgeCount)。
+interface TauriWindow {
+  __TAURI__?: {
+    app?: {
+      setBadgeCount?: (count: number) => Promise<void>;
+    };
+  };
+}
+
+const PEYT_INVITE_PREFIX = '[PEYT_INVITE]';
+const CARD_PREFIX = '[CARD]';
+
+export async function renderShell(): Promise<void> {
+  const app = document.getElementById('app');
+  if (!app) return;
+  app.innerHTML = `
+    <div class="shell">
+      <div id="ws-rail" class="rail"></div>
+      <div id="channel-tree" class="nav-panel"></div>
+      <div id="chat-main" class="chat-main"><div class="empty">选择一个频道</div></div>
+      <div id="right-drawer" class="right-drawer collapsed"></div>
+    </div>
+  `;
+
+  // 恢复持久化状态
+  loadState();
+  await refreshWorkspaces();
+  try {
+    state.self = await call('get_self_profile');
+  } catch {}
+  try {
+    await call('validate_channels');
+  } catch {}
+
+  // 根据恢复的状态预加载频道列表;渲染交由 renderNavPanel/renderMain 按 currentPage 路由
+  if (state.currentWsId != null && state.workspaces.find((w) => w.id === state.currentWsId)) {
+    await refreshChannels();
+  }
+
+  await renderRail();
+  await renderNavPanel();
+  await renderMain();
+  renderRightDrawer();
+
+  // 注册全局事件刷新(保留 shell.js 全部 19 个 handler,仅更新模块引用)
+  onEvent('MsgsChanged', () => {
+    if (state.currentChatId != null) void refreshCurrentChat();
+    void refreshSidebar();
+    void updateBadge();
+  });
+  onEvent('IncomingMsg', (e) => {
+    void handleIncomingMsg(e);
+  });
+  onEvent('ChatlistItemChanged', () => {
+    void refreshSidebar();
+    void updateBadge();
+  });
+  onEvent('ChatModified', () => {
+    void refreshSidebar();
+  });
+  onEvent('ContactsChanged', () => {
+    void refreshSidebar();
+  });
+
+  // Task 13: 自己的头像变了(本机设置 or 多设备同步) → 刷新 state.self + rail 底部头像。
+  onEvent('SelfavatarChanged', async () => {
+    try {
+      state.self = await call('get_self_profile');
+      await renderRail();
+    } catch {}
+  });
+
+  // Task 8: 消息状态/反应/删除/会话删除等 13 个事件 handler
+  onEvent('MsgDelivered', (e) => updateMsgState(e.msg_id as number, 'delivered'));
+  onEvent('MsgFailed', (e) => updateMsgState(e.msg_id as number, 'failed'));
+  onEvent('MsgDeleted', (e) => removeMsg(e.msg_id as number));
+  onEvent('ReactionsChanged', (e) => {
+    void refreshMsgReactions(e.msg_id as number);
+  });
+  onEvent('MsgRead', (e) => updateMsgState(e.msg_id as number, 'read'));
+  onEvent('MsgsNoticed', () => {
+    // 未读分隔线清除,UI 自然刷新
+  });
+  onEvent('ChatDeleted', async (e) => {
+    const chatId = e.chat_id as number;
+    state.channels = state.channels.filter((c) => c.chat_id !== chatId);
+    if (state.currentChatId === chatId) {
+      state.currentChatId = null;
+      state.currentMembers = [];
+      state.messages = [];
+      const main = document.getElementById('chat-main');
+      if (main) main.innerHTML = `<div class="empty">选择一个频道</div>`;
+    }
+    await renderRail();
+    await renderNavPanel();
+    saveState();
+  });
+  onEvent('ChatEphemeralTimerModified', () => {
+    // no-op
+  });
+  onEvent('IncomingReaction', (e) => {
+    void refreshMsgReactions(e.msg_id as number);
+  });
+  onEvent('IncomingMsgBunch', () => {
+    // no-op
+  });
+  onEvent('SecurejoinJoinerProgress', () => {
+    // no-op
+  });
+  onEvent('SecurejoinInviterProgress', () => {
+    // no-op
+  });
+  onEvent('WebxdcStatusUpdate', () => {
+    // no-op
+  });
+  onEvent('WebxdcRealtimeData', () => {
+    // no-op
+  });
+  onEvent('WebxdcInstanceDeleted', () => {
+    // no-op
+  });
+
+  // 全局快捷键
+  document.addEventListener('keydown', async (e) => {
+    // Cmd+K / Ctrl+K 搜索
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      const { openSearch, closeSearch } = await import('../components/search.js');
+      if (state.searchOpen) closeSearch();
+      else openSearch();
+      return;
+    }
+    // ESC 逐级关闭
+    if (e.key === 'Escape') {
+      if (state.searchOpen) {
+        const { closeSearch } = await import('../components/search.js');
+        closeSearch();
+        return;
+      }
+      const overlay = document.querySelector('.overlay');
+      if (overlay) {
+        overlay.remove();
+        return;
+      }
+      const { hideContextMenu } = await import('../components/contextMenu.js');
+      hideContextMenu();
+      const replyPreview = document.getElementById('reply-preview');
+      if (replyPreview) {
+        const area = document.getElementById('composer-area');
+        if (area) {
+          delete area.dataset.replyTo;
+          if (state.currentChatId != null) {
+            const { renderComposer } = await import('../chat/composer.js');
+            renderComposer(state.currentChatId, () => {});
+          }
+        }
+        return;
+      }
+      if (state.rightDrawerOpen) {
+        state.rightDrawerOpen = false;
+        renderRightDrawer();
+        return;
+      }
+    }
+  });
+
+  // 请求通知权限
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+
+  // 初始 Dock 角标
+  void updateBadge();
+}
+
+async function handleIncomingMsg(e: { [key: string]: unknown }): Promise<void> {
+  const chatId = e.chat_id as number;
+  const text = (e.text as string) || '';
+
+  // [CARD] 消息同步:解析卡片消息并同步本地卡片数据库
+  if (text.startsWith(CARD_PREFIX)) {
+    try {
+      const cardJson = text.slice(CARD_PREFIX.length);
+      await call('upsert_card_from_msg', { msgId: e.msg_id, cardJson });
+      // 若当前在 Work 页协作视图且是这个频道,刷新看板
+      if (
+        state.currentPage === 'work' &&
+        state.currentChatId === chatId &&
+        state.currentView === 'kanban'
+      ) {
+        const { renderKanban } = await import('../work/kanban.js');
+        await renderKanban(chatId);
+      }
+      return; // [CARD] 消息不作为普通消息处理
+    } catch {}
+  }
+
+  // [PEYT_INVITE] 消息: PEYT Studio 创始人在 master 群发送的频道邀请,
+  // 新成员加入 master 群后自动 securejoin 闲聊/工作群并关联到 workspace。
+  if (text.startsWith(PEYT_INVITE_PREFIX)) {
+    try {
+      const json = JSON.parse(text.slice(PEYT_INVITE_PREFIX.length)) as {
+        general_qr?: string;
+        work_qr?: string;
+      };
+      const ws = state.workspaces.find((w) => w.master_chat_id === chatId);
+      if (ws) {
+        if (json.general_qr) {
+          await call('join_peyt_channel', {
+            workspaceId: ws.id,
+            qr: json.general_qr,
+            name: '闲聊',
+            category: 'General',
+            spaceType: null,
+          });
+        }
+        if (json.work_qr) {
+          await call('join_peyt_channel', {
+            workspaceId: ws.id,
+            qr: json.work_qr,
+            name: '工作',
+            category: 'General',
+            spaceType: 'card',
+          });
+        }
+        // 刷新频道列表 + 重新渲染 nav panel(替代 channelTree.renderChannelTree)
+        await refreshChannels();
+        await renderNavPanel();
+      }
+    } catch (err) {
+      console.warn('[peyt] invite parse failed', err);
+    }
+    // PEYT_INVITE 不作为普通消息展示,直接 return
+    return;
+  }
+
+  if (state.currentChatId === chatId) {
+    await refreshCurrentChat();
+  } else {
+    try {
+      const info = await call<ChatInfo>('get_chat_info', { chatId });
+      const name = info.name || '新消息';
+      const preview = (text || '').slice(0, 50);
+      if ('Notification' in window && Notification.permission === 'granted') {
+        const notif = new Notification(name, { body: preview });
+        notif.onclick = () => {
+          state.currentChatId = chatId;
+          state.currentPage = 'messages';
+          state.currentWsId = null;
+          saveState();
+          void renderRail().then(() =>
+            renderNavPanel().then(() => renderMain())
+          );
+          window.focus();
+        };
+      }
+    } catch {}
+  }
+  void refreshSidebar();
+  void updateBadge();
+}
+
+async function updateBadge(): Promise<void> {
+  try {
+    const chats = await call<ChatListItem[]>('get_chatlist');
+    const total = chats.reduce((sum, c) => sum + (c.unread || 0), 0);
+    const tauri = window as unknown as TauriWindow;
+    if (tauri.__TAURI__?.app?.setBadgeCount) {
+      await tauri.__TAURI__.app.setBadgeCount(total);
+    }
+  } catch {}
+}
+
+async function refreshCurrentChat(): Promise<void> {
+  if (state.currentChatId != null) {
+    // Task 9: 增量追加新消息,而非全量重渲染(保留 scroll 位置和已加载的历史)
+    await appendNewMessages(state.currentChatId);
+    saveState();
+  }
+}
+
+async function refreshSidebar(): Promise<void> {
+  await refreshWorkspaces();
+  await refreshChannels();
+  await renderRail();
+  await renderNavPanel();
+  saveState();
+}
+
+// Task 8 helpers: 消息状态/删除/反应实时更新
+function updateMsgState(msgId: number, newState: MsgState): void {
+  const msg = state.messages.find((m) => m.msg_id === msgId);
+  if (msg) {
+    msg.state = newState;
+    const el = document.querySelector(`[data-msg="${msgId}"]`);
+    if (el) {
+      const stateEl = el.querySelector('.msg-state');
+      if (stateEl) stateEl.textContent = stateLabel(newState);
+      el.classList.remove('state-pending', 'state-delivered', 'state-failed', 'state-read');
+      el.classList.add('state-' + newState);
+    }
+  }
+}
+
+function removeMsg(msgId: number): void {
+  state.messages = state.messages.filter((m) => m.msg_id !== msgId);
+  const el = document.querySelector(`[data-msg="${msgId}"]`);
+  if (el) el.remove();
+}
+
+async function refreshMsgReactions(msgId: number): Promise<void> {
+  try {
+    const reactions = await call<Reaction[]>('get_reactions', { msgId });
+    // 修复:同步更新 message.js 的 reactions 缓存,虚拟化重渲染时直接命中缓存
+    updateReactionsCache(msgId, reactions);
+    const msgEl = document.querySelector(`[data-msg="${msgId}"]`);
+    if (!msgEl) return;
+    let el = msgEl.querySelector<HTMLElement>('.msg-reactions');
+    const html = renderReactionsHtml(reactions, msgId);
+    if (el) {
+      el.innerHTML = html;
+    } else if (html) {
+      // 之前没有 reactions 节点,新建一个插入到 reaction picker 之前
+      el = document.createElement('div');
+      el.className = 'msg-reactions';
+      el.innerHTML = html;
+      const picker = msgEl.querySelector('.msg-reaction-picker');
+      if (picker) msgEl.insertBefore(el, picker);
+      else msgEl.appendChild(el);
+    }
+    // 重新绑定 reaction toggle(新 capsules 没有 listener)
+    if (el) {
+      el.querySelectorAll<HTMLElement>('.msg-reaction').forEach((r) => {
+        r.addEventListener('click', async () => {
+          const emoji = r.dataset.emoji || '';
+          try {
+            await call('send_reaction', { chatId: state.currentChatId, msgId, emoji });
+          } catch (e) {
+            showToast(e instanceof Error ? e.message : String(e));
+          }
+        });
+      });
+    }
+  } catch {}
+}

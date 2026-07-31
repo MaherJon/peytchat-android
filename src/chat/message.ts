@@ -1,0 +1,584 @@
+import { call, transformBlobURL } from '../api.js';
+import { state } from '../state.js';
+import { showToast } from '../toast.js';
+import { showDropdown, type DropdownItem } from '../components/dropdown.js';
+import { showInlineConfirm } from '../components/inlineConfirm.js';
+import { iconSvg } from '../components/icon.js';
+import hljs from 'highlight.js/lib/core';
+import rust from 'highlight.js/lib/languages/rust';
+import javascript from 'highlight.js/lib/languages/javascript';
+import typescript from 'highlight.js/lib/languages/typescript';
+import python from 'highlight.js/lib/languages/python';
+import go from 'highlight.js/lib/languages/go';
+import bash from 'highlight.js/lib/languages/bash';
+import sql from 'highlight.js/lib/languages/sql';
+import json from 'highlight.js/lib/languages/json';
+import type { MsgDto, MsgState } from '../types.js';
+
+hljs.registerLanguage('rust', rust);
+hljs.registerLanguage('javascript', javascript);
+hljs.registerLanguage('js', javascript);
+hljs.registerLanguage('typescript', typescript);
+hljs.registerLanguage('ts', typescript);
+hljs.registerLanguage('python', python);
+hljs.registerLanguage('py', python);
+hljs.registerLanguage('go', go);
+hljs.registerLanguage('bash', bash);
+hljs.registerLanguage('sh', bash);
+hljs.registerLanguage('sql', sql);
+hljs.registerLanguage('json', json);
+
+// RenderableMsg extends MsgDto with optimistic-message fields (is_out/_state/file_bytes/pinned)
+// used by composer.ts temporary messages and context menu state. These fields don't exist on
+// real backend MsgDto but are present at runtime via `as unknown as MsgDto` cast in composer.ts.
+interface RenderableMsg extends MsgDto {
+  is_out?: boolean;
+  _state?: string;
+  file_bytes?: number | null;
+  pinned?: boolean;
+}
+
+interface Reaction {
+  emoji: string;
+  count: number;
+}
+
+// Reaction symbols (non-emoji per design constraint: ↑/+/★/!)
+const reactionSymbols: readonly string[] = ['↑', '+', '★', '!'];
+
+// Module-level reactions cache: avoids repeated get_reactions IPC on virtualization re-render.
+// key = msgId, value = reactions array. Updated by shell.js refreshMsgReactions,
+// cleared on channel switch by clearReactionsCache().
+const reactionsCache = new Map<number, Reaction[]>();
+
+export function updateReactionsCache(msgId: number, reactions: Reaction[]): void {
+  reactionsCache.set(msgId, reactions);
+}
+
+export function clearReactionsCache(): void {
+  reactionsCache.clear();
+}
+
+// Task 8: message send state label (symbols, not emoji).
+// Consumed by shell.js updateMsgState to update .msg-state text content.
+export function stateLabel(s: MsgState): string {
+  switch (s) {
+    case 'pending': return '··';
+    case 'delivered': return '✓';
+    case 'read': return '✓✓';
+    case 'failed': return '!';
+  }
+}
+
+function formatBytes(bytes: number | null | undefined): string {
+  if (!bytes) return '';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+// Contact::get_color() returns u32; convert to #rrggbb. null/undefined → default.
+function colorHex(c: number | null | undefined): string {
+  if (c == null) return 'var(--border-strong)';
+  return '#' + (c & 0xffffff).toString(16).padStart(6, '0');
+}
+
+function getRoleName(contactId: number): string {
+  // SP2 simplified: state.roles has workspace-level role definitions, no contact→role mapping.
+  // Fallback "member"; core marker: self or from_id === 1 shows "core".
+  if (contactId === 1 || (state.self && contactId === state.self.id)) return 'core';
+  return 'member';
+}
+
+export async function renderMessage(m: MsgDto): Promise<string> {
+  const msg = m as RenderableMsg;
+  const isOut = msg.is_out ?? false;
+  const stateClass = msg._state ? ` ${msg._state}` : '';
+  const roleName = !isOut && msg.from_id ? getRoleName(msg.from_id) : '';
+  const roleTag = roleName ? `<span class="msg-role">${escapeHtml(roleName)}</span>` : '';
+  // Reply mark: ↩ replaced with reply SVG icon per Task 14 brief step 1.6
+  const replyIcon = iconSvg('reply', { width: 12, height: 12 });
+  const replyMark = msg.quote_from
+    ? `<span class="msg-reply-mark">${replyIcon} reply to ${escapeHtml(msg.quote_from)}</span>`
+    : '';
+  const quoteBlock = msg.quote_text
+    ? `<div class="msg-quote">${escapeHtml(msg.quote_from || '')}: ${escapeHtml(msg.quote_text.slice(0, 80))}</div>`
+    : '';
+  const textHtml = renderText(msg.text);
+  // Task 13: sender avatar — lookup member by from_id in state.currentMembers.
+  // Fallback: first letter + default background var(--border-strong).
+  const member = state.currentMembers?.find((mm) => mm.contact_id === msg.from_id);
+  const avatarUrl = member?.avatar ? await transformBlobURL(member.avatar) : null;
+  const bg = colorHex(member?.color);
+  const letter = (msg.from_name || '?').charAt(0).toUpperCase() || '?';
+  const avatarHtml = avatarUrl
+    ? `<img src="${escapeHtml(avatarUrl)}" class="msg-avatar" alt="" />`
+    : `<div class="msg-avatar" style="background:${bg}">${escapeHtml(letter)}</div>`;
+  // Attachment rendering (view_type != Text)
+  // Uses transformBlobURL (with module-level cache) to avoid repeated IPC on virtualization re-render.
+  let attachmentHtml = '';
+  if (msg.view_type && msg.view_type !== 'Text' && msg.file) {
+    let assetUrl = '';
+    try {
+      assetUrl = await transformBlobURL(msg.file);
+    } catch {
+      assetUrl = '';
+    }
+    if (!assetUrl) {
+      attachmentHtml = `<div class="msg-attachment file">
+          <div class="file-icon">□</div>
+          <div class="file-info">
+            <div class="file-name">${escapeHtml(msg.file_name || 'file')}</div>
+            <div class="file-meta">附件加载失败</div>
+          </div>
+        </div>`;
+    } else {
+      switch (msg.view_type) {
+        case 'Image':
+        case 'Gif':
+        case 'Sticker':
+          attachmentHtml = `<div class="msg-attachment img" data-asset="${escapeAttr(assetUrl)}">
+          <img src="${escapeAttr(assetUrl)}" alt="${escapeAttr(msg.file_name || 'image')}" style="max-width:240px;max-height:180px;border-radius:4px;cursor:pointer" data-full="${escapeAttr(assetUrl)}" />
+        </div>`;
+          break;
+        case 'File':
+          attachmentHtml = `<div class="msg-attachment file" data-download="${escapeAttr(assetUrl)}">
+          <div class="file-icon">□</div>
+          <div class="file-info">
+            <div class="file-name">${escapeHtml(msg.file_name || 'file')}</div>
+            <div class="file-meta">${formatBytes(msg.file_bytes)} · 点击下载</div>
+          </div>
+        </div>`;
+          break;
+        case 'Audio':
+        case 'Voice':
+          attachmentHtml = `<div class="msg-attachment audio">
+          <audio controls src="${escapeAttr(assetUrl)}" style="max-width:280px"></audio>
+        </div>`;
+          break;
+        case 'Video':
+          attachmentHtml = `<div class="msg-attachment video">
+          <video controls src="${escapeAttr(assetUrl)}" style="max-width:280px;max-height:200px;border-radius:4px"></video>
+        </div>`;
+          break;
+      }
+    }
+  }
+  const reactionsHtml = await renderReactions(msg.msg_id);
+  // Task 14: hover action bar (replaces old text buttons pin/reply/react/del/card).
+  // Shown on message hover via CSS opacity transition. Buttons: react/reply/pin/more.
+  const hoverActionsHtml = `
+    <div class="msg-hover-actions">
+      <button class="msg-action-btn" data-action="react" data-msg="${msg.msg_id}" title="反应">${iconSvg('smile', { width: 16, height: 16 })}</button>
+      <button class="msg-action-btn" data-action="reply" data-msg="${msg.msg_id}" title="回复">${iconSvg('reply', { width: 16, height: 16 })}</button>
+      <button class="msg-action-btn" data-action="pin" data-msg="${msg.msg_id}" title="置顶">${iconSvg('pin', { width: 16, height: 16 })}</button>
+      <button class="msg-action-btn" data-action="more" data-msg="${msg.msg_id}" title="更多">${iconSvg('more-horizontal', { width: 16, height: 16 })}</button>
+    </div>
+  `;
+  // Reaction picker (embedded, toggled by react button). Symbols: ↑/+/★/!
+  const pickerHtml = reactionSymbols.map((sym) =>
+    `<span class="msg-reaction-pick" data-emoji="${sym}">${sym}</span>`
+  ).join('');
+  // Task 8: outgoing messages show send state; failed messages show resend button.
+  const stateHtml = isOut
+    ? `<span class="msg-state state-${msg.state || 'pending'}" data-msg-state="${msg.msg_id}">${stateLabel(msg.state)}</span>`
+    : '';
+  const resendBtn = isOut && msg.state === 'failed'
+    ? `<span class="msg-resend" data-msg-id="${msg.msg_id}">重发</span>`
+    : '';
+  const isOutAttr = isOut ? ' data-is-out="1"' : '';
+  return `
+    <div class="msg${stateClass}" data-msg="${msg.msg_id}"${isOutAttr} style="position:relative">
+      ${hoverActionsHtml}
+      <div class="msg-row">
+        ${avatarHtml}
+        <div class="msg-body">
+          <div class="msg-meta">
+            <span class="msg-name">${escapeHtml(msg.from_name)}</span>
+            <span class="msg-time">${formatTs(msg.ts)}</span>
+            ${roleTag}${replyMark}
+            ${stateHtml} ${resendBtn}
+          </div>
+          ${quoteBlock}
+          <div class="msg-text">${textHtml}</div>
+          ${attachmentHtml}
+          ${reactionsHtml}
+          <div class="msg-reaction-picker" id="rp-${msg.msg_id}">
+            ${pickerHtml}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Render message text with code block highlighting (hljs) and @mention highlighting.
+// Code blocks: ```lang\ncode``` → <div class="msg-code">highlighted</div>
+// Mentions: @self or @roleName → highlighted span
+function renderText(text: string): string {
+  const parts: string[] = [];
+  const regex = /```(\w*)\n([\s\S]*?)```/g;
+  let last = 0;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > last) parts.push(highlightMentions(escapeHtml(text.slice(last, match.index))));
+    const lang = match[1];
+    const code = match[2];
+    let highlighted: string;
+    try {
+      highlighted = lang && hljs.getLanguage(lang) ? hljs.highlight(code, { language: lang }).value : escapeHtml(code);
+    } catch {
+      highlighted = escapeHtml(code);
+    }
+    parts.push(`<div class="msg-code">${highlighted}</div>`);
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) parts.push(highlightMentions(escapeHtml(text.slice(last))));
+  return parts.join('');
+}
+
+// Highlight @mentions of self name or role names with active background.
+function highlightMentions(html: string): string {
+  const myName = state.self?.name || '';
+  const roleNames = (state.roles || []).map((r) => r.name).filter(Boolean);
+  const targets = [myName, ...roleNames].filter(Boolean).map(escapeRegex);
+  if (targets.length === 0) return html;
+  const re = new RegExp(`@(${targets.join('|')})`, 'g');
+  return html.replace(re, '<span style="background:var(--active);color:var(--text);padding:0 4px;border-radius:3px">@$1</span>');
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// renderReactions: check module-level cache first, fetch via IPC on miss and backfill cache.
+// Virtualization re-render can trigger 30+ messages, cache avoids per-message IPC.
+async function renderReactions(msgId: number): Promise<string> {
+  if (reactionsCache.has(msgId)) {
+    const reactions = reactionsCache.get(msgId)!;
+    const html = renderReactionsHtml(reactions, msgId);
+    return html ? `<div class="msg-reactions">${html}</div>` : '';
+  }
+  try {
+    const reactions = await call<Reaction[]>('get_reactions', { msgId });
+    reactionsCache.set(msgId, reactions);
+    const html = renderReactionsHtml(reactions, msgId);
+    return html ? `<div class="msg-reactions">${html}</div>` : '';
+  } catch {
+    return '';
+  }
+}
+
+// Task 8: pure function extracted for shell.js refreshMsgReactions to reuse
+// (avoids full message re-render on reaction change).
+// Input: get_reactions return array. Output: inner capsules HTML (without .msg-reactions wrapper).
+export function renderReactionsHtml(reactions: Reaction[] | null, msgId: number): string {
+  if (!reactions || reactions.length === 0) return '';
+  const mapEmoji = (emoji: string): string => {
+    const e = emoji.trim();
+    // Unicode escapes avoid literal emoji in source (Task 17 cleanup).
+    // U+1F44D = thumbs up, U+2795 = heavy plus sign.
+    if (e === '\u{1F44D}' || e === '+1' || e === 'thumbsup') return '↑';
+    if (e === '\u2795' || e === 'plus') return '+';
+    return e;
+  };
+  return reactions.map((r) => {
+    const symbol = mapEmoji(r.emoji);
+    return `<span class="msg-reaction" data-msg="${msgId}" data-emoji="${escapeAttr(r.emoji)}">${escapeHtml(symbol)} ${r.count}</span>`;
+  }).join('');
+}
+
+// Module-level flag: bind document-wide click-to-close-picker handler once.
+let pickerCloseBound = false;
+
+export function bindMessageActions(container: HTMLElement): void {
+  // Reaction toggle (click existing reaction capsule)
+  container.querySelectorAll<HTMLElement>('.msg-reaction').forEach((el) => {
+    el.addEventListener('click', async () => {
+      const msgId = Number(el.dataset.msg);
+      const emoji = el.dataset.emoji;
+      if (!emoji) return;
+      try {
+        await call('send_reaction', { chatId: state.currentChatId, msgId, emoji });
+      } catch (e) {
+        showToast(e instanceof Error ? e.message : String(e));
+      }
+    });
+  });
+
+  // Task 14: hover action buttons — react/reply/pin/more
+  container.querySelectorAll<HTMLElement>('.msg-action-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const action = btn.dataset.action;
+      const msgIdStr = btn.dataset.msg;
+      if (!msgIdStr) return;
+      if (action === 'react') {
+        toggleReactionPicker(msgIdStr);
+      } else if (action === 'reply') {
+        dispatchReply(Number(msgIdStr));
+      } else if (action === 'pin') {
+        void togglePin(Number(msgIdStr));
+      } else if (action === 'more') {
+        const isOut = btn.closest<HTMLElement>('.msg')?.dataset.isOut === '1';
+        showMoreMenu(btn, msgIdStr, isOut);
+      }
+    });
+  });
+
+  // Reaction picker options (↑/+/★/!)
+  container.querySelectorAll<HTMLElement>('.msg-reaction-pick').forEach((s) => {
+    s.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      const emoji = s.dataset.emoji;
+      if (!emoji) return;
+      const picker = s.parentElement;
+      if (!picker) return;
+      const msgIdStr = picker.id.replace('rp-', '');
+      picker.classList.remove('show');
+      try {
+        await call('send_reaction', { chatId: state.currentChatId, msgId: Number(msgIdStr), emoji });
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : String(err));
+      }
+    });
+  });
+
+  // Task 8: resend failed message (is_out + state=failed only)
+  container.querySelectorAll<HTMLElement>('.msg-resend').forEach((el) => {
+    el.addEventListener('click', async () => {
+      const msgId = Number(el.dataset.msgId);
+      const msg = state.messages.find((mm) => mm.msg_id === msgId);
+      if (msg) {
+        try {
+          await call('send_text', { chatId: state.currentChatId, text: msg.text });
+          // Remove old failed message row + clear from state.messages
+          const msgEl = document.querySelector(`[data-msg="${msgId}"]`);
+          if (msgEl) msgEl.remove();
+          state.messages = state.messages.filter((mm) => mm.msg_id !== msgId);
+        } catch (err) {
+          showToast('重发失败: ' + (err instanceof Error ? err.message : String(err)));
+        }
+      }
+    });
+  });
+
+  // Image click to fullscreen (overlay)
+  container.querySelectorAll<HTMLElement>('.msg-attachment img[data-full]').forEach((img) => {
+    img.addEventListener('click', () => {
+      const overlay = document.createElement('div');
+      overlay.className = 'overlay img-fullscreen-overlay';
+      overlay.style.display = 'flex';
+      const full = img.dataset.full || '';
+      overlay.innerHTML = `<img src="${escapeAttr(full)}" style="max-width:90%;max-height:90%" />`;
+      overlay.addEventListener('click', () => overlay.remove());
+      document.body.appendChild(overlay);
+    });
+  });
+
+  // File download (create <a download> trigger)
+  container.querySelectorAll<HTMLElement>('.msg-attachment.file[data-download]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const a = document.createElement('a');
+      a.href = el.dataset.download || '';
+      a.download = '';
+      a.click();
+    });
+  });
+
+  // Task 14: right-click context menu using showDropdown.
+  // Items: copy/reply/pin/convert card/forward/delete(is_out only).
+  container.querySelectorAll<HTMLElement>('.msg').forEach((el) => {
+    el.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      const msgIdStr = el.dataset.msg || '';
+      const msgId = Number(msgIdStr);
+      const msg = state.messages.find((mm) => String(mm.msg_id) === msgIdStr) as RenderableMsg | undefined;
+      const isOut = el.dataset.isOut === '1';
+      showContextMenuAt(e.clientX, e.clientY, msgIdStr, msgId, msg, isOut);
+    });
+  });
+
+  // Click outside to close all pickers (bind once globally)
+  if (!pickerCloseBound) {
+    pickerCloseBound = true;
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.msg-reaction-picker.show').forEach((p) => p.classList.remove('show'));
+    });
+  }
+}
+
+// Toggle reaction picker visibility for a message (close others first)
+function toggleReactionPicker(msgIdStr: string): void {
+  const picker = document.getElementById(`rp-${msgIdStr}`);
+  if (!picker) return;
+  document.querySelectorAll('.msg-reaction-picker.show').forEach((p) => {
+    if (p !== picker) p.classList.remove('show');
+  });
+  picker.classList.toggle('show');
+}
+
+// Dispatch composer:set-reply event for chatView to render reply preview
+function dispatchReply(msgId: number): void {
+  const main = document.getElementById('chat-main');
+  if (main) {
+    main.dispatchEvent(new CustomEvent('composer:set-reply', { detail: { msgId } }));
+  }
+}
+
+// Toggle message pin via backend
+async function togglePin(msgId: number): Promise<void> {
+  try {
+    await call('toggle_pin', { workspaceId: state.currentWsId, chatId: state.currentChatId, msgId });
+    showToast('已切换置顶');
+  } catch (e) {
+    showToast(e instanceof Error ? e.message : String(e));
+  }
+}
+
+// "More" dropdown menu (opened from hover "more" button): convert card / forward / delete
+function showMoreMenu(btn: HTMLElement, msgIdStr: string, isOut: boolean): void {
+  const msgId = Number(msgIdStr);
+  const items: DropdownItem[] = [
+    {
+      label: '转 Card',
+      icon: 'layout-grid',
+      action: () => void convertToCard(msgId),
+    },
+    {
+      label: '转发',
+      icon: 'forward',
+      action: () => showToast('转发(开发中)'),
+    },
+  ];
+  if (isOut) {
+    items.push({
+      label: '删除',
+      icon: 'trash',
+      danger: true,
+      action: () => inlineDeleteMsg(msgIdStr),
+    });
+  }
+  showDropdown(btn, items, { position: 'bottom-right' });
+}
+
+// Right-click context menu at (x, y). Uses showDropdown with a temporary anchor element
+// positioned at the click coordinates.
+function showContextMenuAt(
+  x: number,
+  y: number,
+  msgIdStr: string,
+  msgId: number,
+  msg: RenderableMsg | undefined,
+  isOut: boolean,
+): void {
+  // Temporary 1x1 anchor at click position for showDropdown positioning
+  const anchor = document.createElement('div');
+  anchor.style.position = 'fixed';
+  anchor.style.left = `${x}px`;
+  anchor.style.top = `${y}px`;
+  anchor.style.width = '1px';
+  anchor.style.height = '1px';
+  anchor.style.pointerEvents = 'none';
+  document.body.appendChild(anchor);
+
+  const items: DropdownItem[] = [];
+  if (msg?.text) {
+    items.push({
+      label: '复制文本',
+      icon: 'copy',
+      action: () => {
+        try {
+          void navigator.clipboard?.writeText(msg.text);
+          showToast('已复制');
+        } catch {
+          showToast('复制失败');
+        }
+      },
+    });
+  }
+  items.push({
+    label: '回复',
+    icon: 'reply',
+    action: () => dispatchReply(msgId),
+  });
+  items.push({
+    label: msg?.pinned ? '取消置顶' : '置顶',
+    icon: 'pin',
+    action: () => void togglePin(msgId),
+  });
+  items.push({
+    label: '转 Card',
+    icon: 'layout-grid',
+    action: () => void convertToCard(msgId),
+  });
+  items.push({
+    label: '转发',
+    icon: 'forward',
+    action: () => showToast('转发(开发中)'),
+  });
+  if (isOut) {
+    items.push({
+      label: '删除',
+      icon: 'trash',
+      danger: true,
+      action: () => inlineDeleteMsg(msgIdStr),
+    });
+  }
+  showDropdown(anchor, items, { position: 'bottom-left', onClose: () => anchor.remove() });
+}
+
+// Convert message to card via backend. Title passed as null (uses message text per backend).
+// 零弹窗 constraint: no prompt() for custom title.
+async function convertToCard(msgId: number): Promise<void> {
+  try {
+    await call('message_to_card', {
+      msgId,
+      workspaceId: state.currentWsId,
+      chatId: state.currentChatId,
+      type_: 'task',
+      title: null,
+    });
+    showToast('已转为 Card');
+  } catch (e) {
+    showToast('转换失败: ' + (e instanceof Error ? e.message : String(e)));
+  }
+}
+
+// Task 14: inline delete confirmation (replaces confirm() popup).
+// Uses showInlineConfirm for zero-popup UX. Removes element immediately on confirm
+// to avoid flash after innerHTML restore; backend deletion runs async.
+function inlineDeleteMsg(msgIdStr: string): void {
+  const el = document.querySelector(`[data-msg="${msgIdStr}"]`);
+  if (!el) return;
+  const msgId = Number(msgIdStr);
+  showInlineConfirm(el as HTMLElement, {
+    message: '确认删除此消息?',
+    confirmLabel: '删除',
+    onConfirm: async () => {
+      // Remove element immediately (showInlineConfirm already restored innerHTML before onConfirm)
+      el.remove();
+      state.messages = state.messages.filter((mm) => String(mm.msg_id) !== msgIdStr);
+      try {
+        await call('delete_msg', { msgId });
+      } catch (e) {
+        showToast(e instanceof Error ? e.message : String(e));
+      }
+    },
+    onUndo: async () => {
+      showToast('撤销删除(开发中)');
+    },
+  });
+}
+
+function formatTs(ts: number): string {
+  const d = new Date(ts * 1000);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function escapeHtml(s: unknown): string {
+  return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+}
+function escapeAttr(s: unknown): string {
+  return escapeHtml(s);
+}
