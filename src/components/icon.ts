@@ -4,9 +4,7 @@ import {
   Check, Send, Search, LogOut, Upload, Shield, Volume2, VolumeX, BookMarked,
   MoreHorizontal, Forward, FileText, Image as ImageIcon, Paperclip, Edit3,
   ArrowUp, Star, AlertCircle, Package, Download,
-  ArrowUp, Star, AlertCircle, Package,
-  Calendar, List, Clock, Inbox,
-  Columns3, GitCommitHorizontal,
+  Calendar, List, Clock, Inbox, Columns3, GitCommitHorizontal,
 } from 'lucide';
 import type { IconNode, SVGProps } from 'lucide';
 
@@ -19,11 +17,9 @@ export type IconName =
   | 'search' | 'log-out' | 'upload' | 'shield'
   | 'volume-2' | 'volume-x' | 'bookmark' | 'more-horizontal'
   | 'forward' | 'file-text' | 'image' | 'paperclip' | 'edit'
-  | 'arrow-up' | 'star' | 'alert-circle' | 'package' | 'download';
-  | 'arrow-up' | 'star' | 'alert-circle' | 'package'
-  | 'calendar' | 'list' | 'clock' | 'inbox'
+  | 'arrow-up' | 'star' | 'alert-circle' | 'package' | 'download'
   // SP7: ViewToggle 视图切换图标 (kanban / timeline)
-  | 'columns' | 'timeline';
+  | 'calendar' | 'list' | 'clock' | 'inbox' | 'columns' | 'timeline';
 
 export interface IconOpts {
   width?: number;
