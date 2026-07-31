@@ -208,6 +208,17 @@ html { background: var(--bg); }
 .dialog-actions button { padding: 8px 16px; border: 1px solid var(--border-strong); border-radius: 4px; background: var(--bg); color: var(--text); cursor: pointer; font-size: 11px; }
 .dialog-actions button.primary { background: var(--text); color: var(--bg); }
 .error { color: var(--text); background: var(--capsule); padding: 8px; border-radius: 4px; font-size: 11px; border: 1px solid var(--border-strong); }
+.hint { font-size: 11px; color: var(--text-mute); line-height: 1.5; margin: 0; }
+
+/* PEYT Studio 邀请/加入对话框 */
+.peyt-invite, .peyt-join { width: 420px; }
+.peyt-qr-wrap { display: flex; justify-content: center; padding: 12px 0; }
+.peyt-qr-box { background: #fff; padding: 12px; border-radius: 8px; display: flex; align-items: center; justify-content: center; min-height: 200px; }
+.peyt-qr-box canvas { display: block; }
+.peyt-link-row { display: flex; gap: 8px; align-items: center; }
+.peyt-link { flex: 1; padding: 8px 12px; background: var(--bg); border: 1px solid var(--border-strong); border-radius: 4px; color: var(--text); font-size: 11px; font-family: var(--font); }
+.peyt-copy { padding: 8px 14px; background: var(--bg); border: 1px solid var(--border-strong); border-radius: 4px; color: var(--text); cursor: pointer; font-size: 11px; white-space: nowrap; }
+.peyt-copy:hover { background: var(--hover); }
 
 /* toast */
 .toast {

@@ -2,6 +2,7 @@ import { call, clearError } from "../api.js";
 import { state } from "../state.js";
 import { refreshWorkspaces, renderAppRail } from "../shell/appRail.js";
 import { refreshChannels, renderChannelTree } from "../shell/channelTree.js";
+import { showJoinPeytStudio } from "./peytInvite.js";
 
 export function openWsWizard(onDone) {
   const overlay = document.createElement("div");
@@ -10,8 +11,9 @@ export function openWsWizard(onDone) {
     <div class="dialog">
       <h2>workspace</h2>
       <div class="rd-tabs" style="padding:0 0 8px;border-bottom:1px solid var(--border)">
-        <span class="rd-tab active" data-tab="create">create</span>
-        <span class="rd-tab" data-tab="join">join</span>
+        <span class="rd-tab active" data-tab="create">创建</span>
+        <span class="rd-tab" data-tab="join">加入</span>
+        <span class="rd-tab" data-tab="peyt">加入 PEYT</span>
       </div>
       <div id="ws-create-panel">
         <input id="ws-name" placeholder="workspace 名称（如 前端组）" />
@@ -27,6 +29,13 @@ export function openWsWizard(onDone) {
           <button id="ws-join-btn" class="primary">加入</button>
         </div>
       </div>
+      <div id="ws-peyt-panel" style="display:none">
+        <p class="hint">加入团队默认的 PEYT Studio 协作空间。</p>
+        <div class="dialog-actions">
+          <button id="ws-cancel3">取消</button>
+          <button id="ws-peyt-btn" class="primary">加入 PEYT Studio</button>
+        </div>
+      </div>
       <div id="ws-error" class="error" style="display:none"></div>
     </div>
   `;
@@ -36,13 +45,15 @@ export function openWsWizard(onDone) {
     t.addEventListener("click", () => {
       overlay.querySelectorAll(".rd-tab").forEach((x) => x.classList.remove("active"));
       t.classList.add("active");
-      const isCreate = t.dataset.tab === "create";
-      overlay.querySelector("#ws-create-panel").style.display = isCreate ? "" : "none";
-      overlay.querySelector("#ws-join-panel").style.display = isCreate ? "none" : "";
+      const tab = t.dataset.tab;
+      overlay.querySelector("#ws-create-panel").style.display = tab === "create" ? "" : "none";
+      overlay.querySelector("#ws-join-panel").style.display = tab === "join" ? "" : "none";
+      overlay.querySelector("#ws-peyt-panel").style.display = tab === "peyt" ? "" : "none";
     });
   });
   overlay.querySelector("#ws-cancel").addEventListener("click", close);
   overlay.querySelector("#ws-cancel2").addEventListener("click", close);
+  overlay.querySelector("#ws-cancel3").addEventListener("click", close);
   overlay.querySelector("#ws-create-btn").addEventListener("click", async () => {
     const name = overlay.querySelector("#ws-name").value.trim();
     if (!name) return;
@@ -80,5 +91,9 @@ export function openWsWizard(onDone) {
       err.textContent = e.message || String(e);
       err.style.display = "block";
     }
+  });
+  overlay.querySelector("#ws-peyt-btn").addEventListener("click", () => {
+    close();
+    showJoinPeytStudio();
   });
 }

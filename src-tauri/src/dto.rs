@@ -114,6 +114,16 @@ pub struct WorkspaceDto {
     pub created_at: i64,
 }
 
+/// PEYT Studio 默认空间信息
+#[derive(Debug, Serialize)]
+pub struct PeytStudioDto {
+    pub workspace: WorkspaceDto,
+    /// "founder" = 本机首人创建; "member" = 通过 QR 加入; "existing" = 已存在
+    pub role: String,
+    /// 首人创建后返回 master 群的 SecureJoin QR,供分享给其他成员
+    pub invite_qr: Option<String>,
+}
+
 #[derive(Debug, Serialize)]
 pub struct ChannelDto {
     pub id: i64,

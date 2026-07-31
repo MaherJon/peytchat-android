@@ -86,6 +86,9 @@ pub fn run() {
             commands::message_to_card,
             commands::update_channel_space_type,
             commands::get_channel_space_type,
+            commands::ensure_peyt_studio,
+            commands::join_peyt_studio,
+            commands::join_peyt_channel,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

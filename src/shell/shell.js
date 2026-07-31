@@ -191,15 +191,45 @@ async function handleIncomingMsg(e) {
       return; // [CARD] 消息不作为普通消息处理
     } catch {}
   }
+  // [PEYT_INVITE] 消息: PEYT Studio 创始人在 master 群发送的频道邀请,
+  // 新成员加入 master 群后自动 securejoin 闲聊/工作群并关联到 workspace。
+  if (text.startsWith("[PEYT_INVITE]")) {
+    try {
+      const json = JSON.parse(text.slice("[PEYT_INVITE]".length));
+      // 找到 PEYT Studio workspace (master_chat_id === chatId)
+      const ws = state.workspaces.find((w) => w.master_chat_id === chatId);
+      if (ws) {
+        if (json.general_qr) {
+          await call("join_peyt_channel", {
+            workspaceId: ws.id, qr: json.general_qr, name: "闲聊", category: "General", spaceType: null
+          });
+        }
+        if (json.work_qr) {
+          await call("join_peyt_channel", {
+            workspaceId: ws.id, qr: json.work_qr, name: "工作", category: "General", spaceType: "card"
+          });
+        }
+        // 刷新频道列表
+        const { refreshChannels } = await import("./channelTree.js");
+        await refreshChannels();
+        const { renderChannelTree } = await import("./channelTree.js");
+        renderChannelTree();
+      }
+    } catch (err) {
+      console.warn("[peyt] invite parse failed", err);
+    }
+    // PEYT_INVITE 不作为普通消息展示,直接 return
+    return;
+  }
   if (state.currentChatId === chatId) {
     await refreshCurrentChat();
   } else {
     try {
       const info = await call("get_chat_info", { chatId });
       const name = info.name || "新消息";
-      const text = (e.text || "").slice(0, 50);
+      const preview = (e.text || "").slice(0, 50);
       if ("Notification" in window && Notification.permission === "granted") {
-        const notif = new Notification(name, { body: text });
+        const notif = new Notification(name, { body: preview });
         notif.onclick = () => {
           state.currentChatId = chatId;
           state.homeMode = true;
