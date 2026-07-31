@@ -61,9 +61,11 @@ export async function renderNavPanel(): Promise<void> {
         await renderWorkPage(panel);
         break;
       }
-      case 'settings':
-        // @ts-expect-error Task 12 创建 settingsPage.ts,届时删除本指令
-        { const { renderSettingsNav } = await import('../pages/settingsPage.js'); await renderSettingsNav(panel); break; }
+      case 'settings': {
+        const { renderSettingsNav } = await import('../pages/settingsPage.js');
+        await renderSettingsNav(panel);
+        break;
+      }
     }
   } catch {
     panel.innerHTML = `<div class="empty">页面加载失败</div>`;
@@ -76,7 +78,6 @@ export async function renderMain(): Promise<void> {
 
   if (state.currentPage === 'settings') {
     try {
-      // @ts-expect-error Task 12 创建 settingsPage.ts,届时删除本指令
       const { renderSettingsMain } = await import('../pages/settingsPage.js');
       await renderSettingsMain(main);
     } catch {
