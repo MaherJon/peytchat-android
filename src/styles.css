@@ -1199,7 +1199,7 @@ body {
 .p-toggle { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-mute); cursor: pointer; }
 .p-toggle input { accent-color: var(--text); }
 .plugin-empty { color: var(--text-weak); text-align: center; padding: 40px 0; font-size: 12px; }
-.plugin-installed-head { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
+.plugin-installed-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 24px; }
 .plugin-installed-head h2 { margin: 0; font-size: 18px; font-weight: 600; color: var(--text); }
 .plugin-zip-btn {
   width: 28px; height: 28px;
