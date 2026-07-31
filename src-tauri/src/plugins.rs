@@ -50,9 +50,13 @@ impl PluginManager {
     pub fn new(app_data_dir: PathBuf) -> Self {
         Self {
             base_dir: app_data_dir.join("plugins"),
+            // GitHub Pages 在国内访问比 raw.githubusercontent.com 稳定。
             registry_url:
-                "https://raw.githubusercontent.com/peytchat/plugins/main/registry.json".into(),
-            raw_base: "https://raw.githubusercontent.com/peytchat/plugins/main/plugins".into(),
+                "https://ieshishinjin.github.io/PleaseEnterYourTextCommunityPluginsMarket/registry.json"
+                    .into(),
+            raw_base:
+                "https://ieshishinjin.github.io/PleaseEnterYourTextCommunityPluginsMarket/plugins"
+                    .into(),
         }
     }
 
@@ -72,9 +76,11 @@ impl PluginManager {
         Ok(registry.plugins)
     }
 
-    /// Install a plugin by name from the GitHub registry.
+    /// Install a plugin by name from the registry.
+    /// Plugin files live at plugins/<author>/<name>/<entry>.
     pub async fn install_plugin(&self, name: &str) -> AppResult<RegistryPlugin> {
-        let manifest_url = format!("{}/{}/plugin.json", self.raw_base, name);
+        let author = self.find_author(name).await?;
+        let manifest_url = format!("{}/{}/{}/plugin.json", self.raw_base, author, name);
         let resp = reqwest::get(&manifest_url)
             .await
             .map_err(|e| AppError::Plugin(format!("无法获取插件 {name}: {e}")))?;
@@ -91,7 +97,7 @@ impl PluginManager {
             .await
             .map_err(|e| AppError::Io(e.to_string()))?;
 
-        let entry_url = format!("{}/{}/{}", self.raw_base, name, plugin.entry);
+        let entry_url = format!("{}/{}/{}/{}", self.raw_base, author, name, plugin.entry);
         let js_resp = reqwest::get(&entry_url)
             .await
             .map_err(|e| AppError::Plugin(format!("无法下载插件脚本 {name}: {e}")))?;
@@ -119,6 +125,25 @@ impl PluginManager {
         // Default: enabled
         let _ = tokio::fs::write(dir.join("enabled"), b"1").await;
         Ok(plugin)
+    }
+
+    /// Resolve a plugin's author (GitHub username / namespace dir) from the
+    /// cached registry, falling back to a fresh fetch.
+    async fn find_author(&self, name: &str) -> AppResult<String> {
+        let cached = self.base_dir.join("registry_cache.json");
+        if let Ok(content) = std::fs::read_to_string(&cached) {
+            if let Ok(reg) = serde_json::from_str::<Registry>(&content) {
+                if let Some(p) = reg.plugins.iter().find(|p| p.name == name) {
+                    return Ok(p.author.clone());
+                }
+            }
+        }
+        let plugins = self.fetch_registry().await?;
+        plugins
+            .iter()
+            .find(|p| p.name == name)
+            .map(|p| p.author.clone())
+            .ok_or_else(|| AppError::Plugin(format!("插件 {name} 不存在于仓库中")))
     }
 
     /// Install a plugin from a base64-encoded ZIP file picked locally.

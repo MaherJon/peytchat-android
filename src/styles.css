@@ -1175,6 +1175,9 @@ body {
 .swatch-goldenhour { background: linear-gradient(135deg, #2e1a0d, #d4a043); }
 .settings-invite-row { display: flex; gap: 8px; }
 .settings-invite-row input { flex: 1; }
+.settings-btn { display: flex; align-items: center; gap: 6px; background: var(--control-bg); color: var(--text); border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; font-family: inherit; }
+.settings-btn:disabled { opacity: 0.4; cursor: default; }
+.settings-btn:hover { background: var(--control-bg-hover); }
 .settings-btn { display: flex; align-items: center; gap: 6px; background: var(--border-strong); color: var(--text); border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; font-family: inherit; }
 .settings-btn:hover { background: var(--border-hover); }
 .settings-btn-danger { background: var(--danger-bg); color: var(--danger); }
@@ -1207,11 +1210,16 @@ body {
 .plugin-empty { color: var(--text-weak); text-align: center; padding: 40px 0; font-size: 12px; }
 .plugin-installed-view { padding: 24px 0 0; }
 .plugin-installed-head { display: flex; align-items: center; gap: 10px; padding: 0 16px 0 32px; margin-bottom: 24px; }
-.plugin-installed-head .plugin-zip-btn { margin-left: auto; }
+.plugin-installed-head .plugin-zip-btn,
+.plugin-installed-head .plugin-icon-btn { margin-left: auto; }
 .plugin-installed-head h2 { margin: 0; font-size: 18px; font-weight: 600; color: var(--text); }
-#plugin-installed-list { padding: 0 0 24px; }
-#plugin-installed-list .plugin-row { padding: 10px 16px 10px 32px; }
-#plugin-installed-list .plugin-empty { padding-left: 32px; padding-right: 16px; text-align: left; }
+#plugin-installed-list, #plugin-market-list { padding: 0 0 24px; }
+#plugin-installed-list .plugin-row,
+#plugin-market-list .plugin-row { padding: 10px 16px 10px 32px; }
+#plugin-installed-list .plugin-empty,
+#plugin-market-list .plugin-empty { padding-left: 32px; padding-right: 16px; text-align: left; }
+#plugin-market-list .plugin-row .p-name { margin-right: 0; }
+#plugin-market-list .plugin-row .plugin-desc { margin-right: auto; }
 .plugin-zip-btn {
   width: 28px; height: 28px;
   background: var(--capsule);
@@ -1315,6 +1323,36 @@ body {
 .plugin-setting select option { background: var(--surface); color: var(--text); }
 .plugin-setting-help { font-size: 10px; color: var(--text-faint); }
 .plugin-settings-save { align-self: flex-end; margin-top: 4px; }
+/* 市场「安装(⬇)/已安装(✓)」图标按钮 — GNOME 风格 */
+#plugin-market-list .plugin-icon-btn.plugin-install:not(:disabled):hover {
+  color: var(--success);
+  border-color: var(--success);
+}
+#plugin-market-list .plugin-icon-btn.plugin-install:disabled {
+  color: var(--success);
+  border-color: var(--success);
+  cursor: default;
+}
+/* 安装进行中的不确定进度条 — 扁平细条 */
+.plugin-progress {
+  width: 90px; height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+  background: var(--capsule);
+}
+.plugin-progress::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  width: 40%;
+  background: var(--success);
+  animation: plugin-progress-slide 1.1s ease-in-out infinite;
+}
+@keyframes plugin-progress-slide {
+  0%   { transform: translateX(-110%); }
+  100% { transform: translateX(360%); }
+}
 
 /* === Message hover actions === */
 .msg-item { position: relative; }
