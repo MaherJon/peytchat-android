@@ -1200,12 +1200,12 @@ body {
 .p-toggle input { accent-color: var(--text); }
 .plugin-empty { color: var(--text-weak); text-align: center; padding: 40px 0; font-size: 12px; }
 .plugin-installed-view { padding: 24px 0 0; }
-.plugin-installed-head { display: flex; align-items: center; gap: 10px; padding-left: 32px; margin-bottom: 24px; }
+.plugin-installed-head { display: flex; align-items: center; gap: 10px; padding: 0 16px 0 32px; margin-bottom: 24px; }
 .plugin-installed-head .plugin-zip-btn { margin-left: auto; }
 .plugin-installed-head h2 { margin: 0; font-size: 18px; font-weight: 600; color: var(--text); }
 #plugin-installed-list { padding: 0 0 24px; }
-#plugin-installed-list .plugin-row { padding: 10px 0 10px 32px; }
-#plugin-installed-list .plugin-empty { padding-left: 32px; padding-right: 0; text-align: left; }
+#plugin-installed-list .plugin-row { padding: 10px 16px 10px 32px; }
+#plugin-installed-list .plugin-empty { padding-left: 32px; padding-right: 16px; text-align: left; }
 .plugin-zip-btn {
   width: 28px; height: 28px;
   background: var(--capsule);
