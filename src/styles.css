@@ -1315,18 +1315,27 @@ body {
 .plugin-setting select option { background: var(--surface); color: var(--text); }
 .plugin-setting-help { font-size: 10px; color: var(--text-faint); }
 .plugin-settings-save { align-self: flex-end; margin-top: 4px; }
-/* 市场「安装」主操作按钮（填充式），与置灰的「已安装」区分 */
-#plugin-market-list .plugin-install:not(:disabled) {
-  background: var(--text); color: var(--panel);
-  border: none; padding: 6px 14px; border-radius: 4px;
-  font-size: 12px; font-weight: 500; cursor: pointer;
+/* 市场「安装/已安装」按钮 — GNOME 风格（胶囊底 + 细边框 + 圆角） */
+#plugin-market-list .plugin-install {
+  background: var(--capsule);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 5px 14px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.1s, border-color 0.1s, background 0.1s;
 }
-#plugin-market-list .plugin-install:not(:disabled):hover { opacity: 0.85; }
-/* 已安装：绿色描边按钮，不再置灰 */
+#plugin-market-list .plugin-install:not(:disabled):hover {
+  color: var(--text);
+  border-color: var(--text-mute);
+  background: var(--active);
+}
+/* 已安装：同 GNOME 风格，但绿色文字 + 绿色描边 */
 #plugin-market-list .plugin-install:disabled {
-  background: transparent;
   color: var(--success);
-  border: 1px solid var(--success);
+  border-color: var(--success);
   opacity: 1;
   cursor: default;
 }
