@@ -71,6 +71,12 @@ export async function renderNavPanel(): Promise<void> {
         await renderPluginsNav(panel);
         break;
       }
+      case 'terminal': {
+        const { renderTerminalPage } = await import('../pages/terminalPage.js');
+        const main = document.getElementById('chat-main');
+        if (main) await renderTerminalPage(panel, main);
+        break;
+      }
       case 'settings': {
         const { renderSettingsNav } = await import('../pages/settingsPage.js');
         await renderSettingsNav(panel);
@@ -85,6 +91,17 @@ export async function renderNavPanel(): Promise<void> {
 export async function renderMain(): Promise<void> {
   const main = document.getElementById('chat-main');
   if (!main) return;
+
+  // 离开终端页时关闭会话,避免 PTY 泄漏
+  if (state.currentPage !== 'terminal') {
+    void import('../pages/terminalPage.js')
+      .then((m) => m.cleanupTerminalPage())
+      .catch(() => {});
+  }
+
+  if (state.currentPage === 'terminal') {
+    return;
+  }
 
   if (state.currentPage === 'plugins') {
     try {

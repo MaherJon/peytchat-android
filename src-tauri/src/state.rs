@@ -10,12 +10,14 @@ use deltachat::context::Context;
 use crate::db::Db;
 use crate::error::AppResult;
 use crate::plugins::PluginManager;
+use crate::terminal::TerminalSessions;
 
 pub struct AppState {
     pub accounts: Arc<Mutex<Accounts>>,
     pub current_id: StdMutex<Option<u32>>,
     pub db: Arc<Db>,
     pub plugins: PluginManager,
+    pub terminals: TerminalSessions,
 }
 
 impl AppState {
@@ -36,6 +38,7 @@ impl AppState {
             current_id: StdMutex::new(current_id),
             db: Arc::new(db),
             plugins: PluginManager::new(app_data_dir),
+            terminals: TerminalSessions::default(),
         })
     }
 

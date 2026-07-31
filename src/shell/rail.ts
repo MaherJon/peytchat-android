@@ -42,6 +42,11 @@ export async function renderRail(): Promise<void> {
     ${iconSvg('package', { width: 24, height: 24, strokeWidth: 1.5 })}
   </div>`;
 
+  // 终端入口 — 位于插件按钮下方
+  const terminalIconHtml = `<div class="rail-icon ${state.currentPage === 'terminal' ? 'active' : ''}" data-page="terminal" title="终端">
+    ${iconSvg('terminal', { width: 24, height: 24, strokeWidth: 1.5 })}
+  </div>`;
+
   const settingsIconHtml = `<div class="rail-icon ${state.currentPage === 'settings' ? 'active' : ''}" data-page="settings" title="设置">
     ${iconSvg('settings', { width: 24, height: 24, strokeWidth: 1.5 })}
   </div>`;
@@ -51,6 +56,7 @@ export async function renderRail(): Promise<void> {
   rail.innerHTML = `
     ${pageIconsHtml}
     ${pluginIconHtml}
+    ${terminalIconHtml}
     <div class="rail-separator"></div>
     <div class="rail-flex"></div>
     ${settingsIconHtml}

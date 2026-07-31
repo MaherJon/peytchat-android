@@ -5,6 +5,7 @@ mod error;
 mod events;
 mod plugins;
 mod state;
+mod terminal;
 
 use tauri::Manager;
 
@@ -104,6 +105,11 @@ pub fn run() {
             commands::list_plugins,
             commands::toggle_plugin,
             commands::get_plugin_js,
+            // Terminal
+            terminal::open_terminal,
+            terminal::write_terminal,
+            terminal::resize_terminal,
+            terminal::close_terminal,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
