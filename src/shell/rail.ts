@@ -33,7 +33,7 @@ export async function renderRail(): Promise<void> {
   }).join('');
 
   // 插件入口 — 位于协作按钮下方
-  const pluginIconHtml = `<div class="rail-icon" id="rail-plugins" title="插件">
+  const pluginIconHtml = `<div class="rail-icon ${state.currentPage === 'plugins' ? 'active' : ''}" id="rail-plugins" title="插件">
     ${iconSvg('package', { width: 24, height: 24, strokeWidth: 1.5 })}
   </div>`;
 
