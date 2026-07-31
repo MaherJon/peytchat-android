@@ -1,6 +1,6 @@
 const blobCache = new Map<string, string>();
 
-interface DcEvent {
+export interface DcEvent {
   typ: string;
   [key: string]: unknown;
 }

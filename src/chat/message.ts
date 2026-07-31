@@ -276,8 +276,10 @@ export function renderReactionsHtml(reactions: Reaction[] | null, msgId: number)
   if (!reactions || reactions.length === 0) return '';
   const mapEmoji = (emoji: string): string => {
     const e = emoji.trim();
-    if (e === '👍' || e === '+1' || e === 'thumbsup') return '↑';
-    if (e === '➕' || e === 'plus') return '+';
+    // Unicode escapes avoid literal emoji in source (Task 17 cleanup).
+    // U+1F44D = thumbs up, U+2795 = heavy plus sign.
+    if (e === '\u{1F44D}' || e === '+1' || e === 'thumbsup') return '↑';
+    if (e === '\u2795' || e === 'plus') return '+';
     return e;
   };
   return reactions.map((r) => {

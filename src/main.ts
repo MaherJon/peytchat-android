@@ -20,7 +20,6 @@ async function boot(): Promise<void> {
     // 已配置账号: 静默确保 PEYT Studio 存在 (existing/founder)
     await ensurePeytStudio();
   } else {
-    // @ts-expect-error login.js 待迁移为 .ts,届时删除本指令
     const { renderLogin } = await import('./views/login.js');
     renderLogin(async () => {
       await renderShell();

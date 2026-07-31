@@ -178,8 +178,7 @@ async function renderMembers(body: HTMLElement): Promise<void> {
     body.querySelectorAll<HTMLElement>('.rd-member[data-cid]').forEach((el) => {
       el.addEventListener('click', async () => {
         const cid = Number(el.dataset.cid);
-        // @ts-expect-error memberDetail.js 待迁移为 .ts,届时删除本指令
-        const { renderMemberDetail } = await import('../dialogs/memberDetail.js');
+        const { renderMemberDetail } = await import('../components/memberDetail.js');
         await renderMemberDetail(body, cid);
       });
     });

@@ -51,7 +51,7 @@ export function createNavBanner(opts: NavBannerOpts): HTMLElement {
 
 export function showNavBanner(opts: NavBannerOpts): HTMLElement {
   const banner = createNavBanner(opts);
-  const nav = document.querySelector<HTMLElement>('.nav-tree') ?? document.querySelector<HTMLElement>('.channel-tree');
+  const nav = document.querySelector<HTMLElement>('.nav-panel');
   if (nav) {
     nav.insertBefore(banner, nav.firstChild);
   } else {

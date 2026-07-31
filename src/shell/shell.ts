@@ -152,8 +152,7 @@ export async function renderShell(): Promise<void> {
     // Cmd+K / Ctrl+K 搜索
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
       e.preventDefault();
-      // @ts-expect-error search.js 待迁移为 .ts,届时删除本指令
-      const { openSearch, closeSearch } = await import('../dialogs/search.js');
+      const { openSearch, closeSearch } = await import('../components/search.js');
       if (state.searchOpen) closeSearch();
       else openSearch();
       return;
@@ -161,8 +160,7 @@ export async function renderShell(): Promise<void> {
     // ESC 逐级关闭
     if (e.key === 'Escape') {
       if (state.searchOpen) {
-        // @ts-expect-error search.js 待迁移为 .ts,届时删除本指令
-        const { closeSearch } = await import('../dialogs/search.js');
+        const { closeSearch } = await import('../components/search.js');
         closeSearch();
         return;
       }
@@ -171,8 +169,7 @@ export async function renderShell(): Promise<void> {
         overlay.remove();
         return;
       }
-      // @ts-expect-error contextMenu.js 待迁移为 .ts,届时删除本指令
-      const { hideContextMenu } = await import('../dialogs/contextMenu.js');
+      const { hideContextMenu } = await import('../components/contextMenu.js');
       hideContextMenu();
       const replyPreview = document.getElementById('reply-preview');
       if (replyPreview) {
