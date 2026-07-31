@@ -1235,7 +1235,7 @@ body {
 .plugin-badge { font-size: 10px; color: var(--success); }
 .plugin-tree-dot {
   width: 7px; height: 7px; border-radius: 50%;
-  background: var(--text-faint); flex-shrink: 0;
+  background: var(--danger); flex-shrink: 0;
 }
 .plugin-tree-dot.on { background: var(--success); }
 
