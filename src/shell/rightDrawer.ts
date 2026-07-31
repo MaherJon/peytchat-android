@@ -229,7 +229,6 @@ async function renderPins(body: HTMLElement): Promise<void> {
       const chatId = Number(el.dataset.chat);
       const msgId = Number(el.dataset.msg);
       state.currentChatId = chatId;
-      // @ts-expect-error chatView.js 待迁移为 .ts,届时删除本指令
       const { renderChatView } = await import('../chat/chatView.js');
       await renderChatView(chatId);
       setTimeout(() => {

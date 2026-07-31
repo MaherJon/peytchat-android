@@ -117,7 +117,6 @@ export async function renderMain(): Promise<void> {
     return;
   }
   try {
-    // @ts-expect-error chatView.js 待迁移为 .ts,届时删除本指令
     const { renderChatView } = await import('../chat/chatView.js');
     await renderChatView(state.currentChatId);
   } catch {

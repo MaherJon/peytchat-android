@@ -280,6 +280,31 @@ html { background: var(--bg); }
 }
 .composer textarea:focus { border-color: var(--text-mute); }
 
+/* chat-header actions (Task 13: members/pin 按钮触发 detail panel) */
+.chat-header-actions { display: flex; gap: 4px; }
+.chat-header-btn {
+  background: none; border: 1px solid transparent; border-radius: 4px;
+  padding: 4px 6px; cursor: pointer; color: var(--text-mute);
+  display: flex; align-items: center; justify-content: center;
+}
+.chat-header-btn:hover { background: var(--active); color: var(--text); }
+.chat-header-btn.active { background: var(--active); color: var(--text); border-color: var(--border-strong); }
+
+/* mention/channel suggestion list (Task 13: @提及/#频道引用) */
+.mention-list {
+  background: var(--panel); border: 1px solid var(--border-strong); border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4); max-height: 168px; overflow-y: auto;
+  min-width: 160px; font-size: 11px;
+}
+.mention-item {
+  padding: 5px 10px; cursor: pointer; display: flex; align-items: center; gap: 6px;
+  color: var(--text-body);
+}
+.mention-item:hover, .mention-item.selected { background: var(--active); color: var(--text); }
+.mention-prefix { color: var(--text-weak); font-weight: 600; width: 12px; }
+.mention-item.selected .mention-prefix { color: var(--text); }
+.mention-name { color: inherit; }
+
 /* reply preview */
 .reply-preview {
   display: flex;
