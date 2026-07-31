@@ -1230,6 +1230,7 @@ body {
 .plugin-icon-btn.danger:hover { color: var(--danger); border-color: var(--danger); }
 .plugin-enable-wrap { display: flex; align-items: center; gap: 6px; }
 .plugin-enable-label { font-size: 11px; color: var(--text-mute); }
+.plugin-row .plugin-enable-wrap { margin-left: auto; }
 .plugin-desc { font-size: 11px; color: var(--text-weak); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .plugin-badge { font-size: 10px; color: var(--success); }
 .plugin-tree-dot {
