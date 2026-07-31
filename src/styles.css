@@ -1170,6 +1170,7 @@ body {
 .settings-invite-row { display: flex; gap: 8px; }
 .settings-invite-row input { flex: 1; }
 .settings-btn { display: flex; align-items: center; gap: 6px; background: var(--control-bg); color: var(--text); border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; font-family: inherit; }
+.settings-btn:disabled { opacity: 0.4; cursor: default; }
 .settings-btn:hover { background: var(--control-bg-hover); }
 .settings-btn-danger { background: var(--danger-bg); color: var(--danger); }
 .settings-btn-danger:hover { background: var(--danger-bg-hover); }
