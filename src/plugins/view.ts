@@ -180,7 +180,7 @@ async function renderInstalled(main: HTMLElement): Promise<void> {
         binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
       }
       const plugin = await call<RegistryPlugin>('install_plugin_from_zip', {
-        data_base64: btoa(binary),
+        dataBase64: btoa(binary),
       });
       await loadPlugin(plugin.name, plugin.title);
       showToast(`已安装 ${plugin.title}`);
