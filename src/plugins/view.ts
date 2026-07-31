@@ -156,7 +156,7 @@ async function renderMarket(main: HTMLElement): Promise<void> {
 
 async function renderInstalled(main: HTMLElement): Promise<void> {
   main.innerHTML = `
-    <div class="settings-section">
+    <div class="plugin-installed-view">
       <div class="plugin-installed-head">
         <h2>已安装插件</h2>
         <button class="plugin-zip-btn" id="plugin-zip-btn" title="从磁盘安装 .zip 插件">+</button>
