@@ -1,6 +1,5 @@
 import { call } from '../api.js';
 import { state } from '../state.js';
-// @ts-expect-error message.js 待迁移为 .ts,届时删除本指令
 import { renderMessage, bindMessageActions, clearReactionsCache } from './message.js';
 import { renderComposer } from './composer.js';
 import { renderRightDrawer } from '../shell/rightDrawer.js';
