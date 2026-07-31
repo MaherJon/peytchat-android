@@ -1285,6 +1285,15 @@ body {
 .plugin-perm input { accent-color: var(--text); }
 .plugin-perm-label { min-width: 72px; font-weight: 500; }
 .plugin-perm-desc { font-size: 10px; color: var(--text-faint); }
+.plugin-settings-config { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.plugin-setting { display: flex; flex-direction: column; gap: 4px; }
+.plugin-setting-label { font-size: 11px; color: var(--text-mute); text-transform: uppercase; }
+.plugin-setting input, .plugin-setting select {
+  background: var(--capsule); border: 1px solid var(--border-strong); border-radius: 4px;
+  padding: 6px 10px; color: var(--text); font-size: 12px; font-family: inherit;
+}
+.plugin-setting input:focus, .plugin-setting select:focus { outline: none; border-color: var(--text-weak); }
+.plugin-setting-help { font-size: 10px; color: var(--text-faint); }
 
 /* === Message hover actions === */
 .msg-item { position: relative; }

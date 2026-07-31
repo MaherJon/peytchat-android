@@ -4,6 +4,7 @@ import { iconSvg } from '../components/icon.js';
 import { showPluginConfirm } from './confirm.js';
 import { loadPlugin, unloadPlugin } from './manager.js';
 import { PERMISSION_LABELS, getPluginPermissions, setPluginPermissions } from './permissions.js';
+import { getPluginSetting, setPluginSetting } from './storage.js';
 import type { PluginStatus } from './types.js';
 
 /**
@@ -27,8 +28,41 @@ export async function renderPluginSettings(main: HTMLElement): Promise<void> {
   }
 
   listEl.innerHTML = installed
-    .map(
-      (p) => `
+    .map((p) => {
+      // 插件声明的自定义配置项（如 API Key）
+      const settings = (window.__peytchat_settings || []).filter((s) => s.plugin === p.name);
+      const configHtml = settings.length
+        ? `<div class="plugin-settings-config">
+            ${settings
+              .map((s) => {
+                const val = getPluginSetting<string>(p.name, s.config.key);
+                const input =
+                  s.config.type === 'select'
+                    ? `<select class="ps-setting" data-plugin="${p.name}" data-key="${s.config.key}">
+                        ${(s.config.options || [])
+                          .map(
+                            (o) =>
+                              `<option value="${esc(o.value)}" ${val === o.value ? 'selected' : ''}>${esc(o.label)}</option>`,
+                          )
+                          .join('')}
+                      </select>`
+                    : `<input type="${s.config.type === 'password' ? 'password' : 'text'}"
+                        class="ps-setting"
+                        data-plugin="${p.name}"
+                        data-key="${s.config.key}"
+                        placeholder="${esc(s.config.placeholder || '')}"
+                        value="${esc(val || '')}" />`;
+                return `
+                  <label class="plugin-setting">
+                    <span class="plugin-setting-label">${esc(s.config.label)}</span>
+                    ${input}
+                    ${s.config.help ? `<span class="plugin-setting-help">${esc(s.config.help)}</span>` : ''}
+                  </label>`;
+              })
+              .join('')}
+          </div>`
+        : '';
+      return `
         <div class="plugin-settings-card" data-name="${p.name}">
           <div class="plugin-settings-head">
             <span class="p-name">${esc(p.title)}</span>
@@ -51,8 +85,9 @@ export async function renderPluginSettings(main: HTMLElement): Promise<void> {
                 </label>`;
             }).join('')}
           </div>
-        </div>`,
-    )
+          ${configHtml}
+        </div>`;
+    })
     .join('');
 
   // Enable / disable plugin
@@ -81,6 +116,18 @@ export async function renderPluginSettings(main: HTMLElement): Promise<void> {
       setPluginPermissions(plugin, next);
       showToast(cb.checked ? `已授权 ${perm}` : `已撤销 ${perm}`);
     });
+  });
+
+  // 自定义配置项 — 输入框失焦保存；select 变更即保存
+  listEl.querySelectorAll<HTMLInputElement | HTMLSelectElement>('.ps-setting').forEach((el) => {
+    const save = (): void => {
+      setPluginSetting(el.dataset.plugin!, el.dataset.key!, el.value);
+    };
+    if (el instanceof HTMLSelectElement) {
+      el.addEventListener('change', save);
+    } else {
+      el.addEventListener('blur', save);
+    }
   });
 
   // Uninstall

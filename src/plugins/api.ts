@@ -1,6 +1,7 @@
 import { call, onEvent } from '../api.js';
 import { hasPermission } from './permissions.js';
-import type { PluginApi, PluginThemeConfig } from './types.js';
+import { getPluginSetting, setPluginSetting, deletePluginSetting } from './storage.js';
+import type { PluginApi, PluginSettingConfig, PluginThemeConfig } from './types.js';
 
 function deny(pluginName: string, perm: string): never {
   throw new Error(`[${pluginName}] 缺少权限: ${perm}（可在 设置 → 插件 中开启）`);
@@ -12,8 +13,6 @@ function deny(pluginName: string, perm: string): never {
  * cleaned up via the unload callbacks.
  */
 export function createPluginApi(pluginName: string, unloadCallbacks: Array<() => void>): PluginApi {
-  // Plugin-scoped localStorage
-  const storeKey = (key: string): string => `plugin:${pluginName}:${key}`;
 
   return {
     sendText(chatId, text) {
@@ -101,19 +100,19 @@ export function createPluginApi(pluginName: string, unloadCallbacks: Array<() =>
     },
 
     store: {
-      get<T = unknown>(key: string): T | null {
-        try {
-          return JSON.parse(localStorage.getItem(storeKey(key)) || 'null') as T;
-        } catch {
-          return null;
-        }
-      },
-      set(key: string, val: unknown) {
-        localStorage.setItem(storeKey(key), JSON.stringify(val));
-      },
-      delete(key: string) {
-        localStorage.removeItem(storeKey(key));
-      },
+      get: <T = unknown>(key: string): T | null => getPluginSetting<T>(pluginName, key),
+      set: (key: string, val: unknown): void => setPluginSetting(pluginName, key, val),
+      delete: (key: string): void => deletePluginSetting(pluginName, key),
+    },
+
+    registerSetting(config: PluginSettingConfig) {
+      if (!window.__peytchat_settings) window.__peytchat_settings = [];
+      window.__peytchat_settings.push({ plugin: pluginName, config });
+      unloadCallbacks.push(() => {
+        window.__peytchat_settings = (window.__peytchat_settings || []).filter(
+          (s) => !(s.plugin === pluginName && s.config.key === config.key),
+        );
+      });
     },
 
     log: {

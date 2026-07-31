@@ -38,6 +38,22 @@ export interface RegisteredPluginTheme {
   swatch: string;
 }
 
+/** A custom setting field a plugin declares, rendered in 设置 → 插件. */
+export interface PluginSettingConfig {
+  key: string;
+  label: string;
+  type?: 'text' | 'password' | 'select';
+  placeholder?: string;
+  help?: string;
+  options?: Array<{ value: string; label: string }>;
+}
+
+/** A registered setting, keyed by plugin name. */
+export interface RegisteredPluginSetting {
+  plugin: string;
+  config: PluginSettingConfig;
+}
+
 /** The API object passed to each plugin. */
 export interface PluginApi {
   sendText(chatId: number, text: string): Promise<unknown>;
@@ -46,6 +62,7 @@ export interface PluginApi {
   registerTheme(config: PluginThemeConfig): void;
   onCommand(name: string, cb: (args: string, chatId: number) => unknown): void;
   registerLLM(name: string, config: Record<string, unknown>): void;
+  registerSetting(config: PluginSettingConfig): void;
   http: {
     get<T = unknown>(url: string): Promise<T>;
     post<T = unknown>(url: string, body: unknown): Promise<T>;
@@ -67,5 +84,6 @@ declare global {
     __peytchat_themes?: Array<{ id: string; name: string; swatch: string }>;
     __peytchat_commands?: Record<string, (args: string, chatId: number) => unknown>;
     __peytchat_llms?: Record<string, Record<string, unknown>>;
+    __peytchat_settings?: RegisteredPluginSetting[];
   }
 }
