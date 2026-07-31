@@ -1215,6 +1215,11 @@ body {
 .plugin-zip-btn:hover { color: var(--text); border-color: var(--text-mute); }
 .plugin-desc { font-size: 11px; color: var(--text-weak); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .plugin-badge { font-size: 10px; color: var(--success); }
+.plugin-tree-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--text-faint); flex-shrink: 0;
+}
+.plugin-tree-dot.on { background: var(--success); }
 
 /* 插件设置卡片（权限） */
 .plugin-settings-card {

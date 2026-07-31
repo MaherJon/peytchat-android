@@ -24,6 +24,7 @@ export async function renderPluginsNav(panel: HTMLElement): Promise<void> {
         )
         .join('')}
     </div>
+    <div id="plugin-tree" class="nav-list"></div>
   `;
   panel.querySelectorAll<HTMLElement>('.nav-chat-item[data-tab]').forEach((el) => {
     el.addEventListener('click', async () => {
@@ -32,8 +33,50 @@ export async function renderPluginsNav(panel: HTMLElement): Promise<void> {
       el.classList.add('active');
       const { renderMain } = await import('../shell/navPanel.js');
       await renderMain();
+      await renderPluginTree(panel);
     });
   });
+  // 已安装 tab 激活时，在导航栏下方渲染所有插件的树（Steam 库风格）
+  if (state.pluginsTab === 'installed') {
+    await renderPluginTree(panel);
+  }
+}
+
+/** 树状列出所有已安装插件，按类型分组，类似 Steam 库。 */
+async function renderPluginTree(panel: HTMLElement): Promise<void> {
+  const treeEl = document.getElementById('plugin-tree');
+  if (!treeEl) return;
+  const installed = await call<PluginStatus[]>('list_plugins').catch(() => []);
+  if (installed.length === 0) {
+    treeEl.innerHTML = `<div class="nav-empty">无已安装插件</div>`;
+    return;
+  }
+  const typeLabels: Record<string, string> = {
+    theme: '主题',
+    chatbot: '机器人',
+    llm: 'LLM',
+    general: '工具',
+  };
+  const groups: Record<string, PluginStatus[]> = {};
+  for (const p of installed) {
+    const label = typeLabels[p.plugin_type] || '其他';
+    (groups[label] ||= []).push(p);
+  }
+  treeEl.innerHTML = Object.entries(groups)
+    .map(
+      ([cat, plugins]) => `
+        <div class="nav-category">${cat}</div>
+        ${plugins
+          .map(
+            (p) => `
+          <div class="nav-channel" data-plugin="${p.name}">
+            <span class="plugin-tree-dot ${p.enabled ? 'on' : ''}"></span>
+            <span class="nav-channel-name">${esc(p.title)}</span>
+          </div>`,
+          )
+          .join('')}`,
+    )
+    .join('');
 }
 
 export async function renderPluginsMain(main: HTMLElement): Promise<void> {
