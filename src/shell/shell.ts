@@ -1,5 +1,6 @@
 import { call, onEvent } from '../api.js';
 import { state } from '../state.js';
+import { loadPlugins } from '../plugins/manager.js';
 import { renderRail, refreshWorkspaces } from './rail.js';
 import { renderNavPanel, renderMain, refreshChannels } from './navPanel.js';
 import { renderRightDrawer } from './rightDrawer.js';
@@ -73,6 +74,9 @@ export async function renderShell(): Promise<void> {
   await renderNavPanel();
   await renderMain();
   renderRightDrawer();
+
+  // 加载已启用的插件
+  void loadPlugins();
 
   // 注册全局事件刷新(保留 shell.js 全部 19 个 handler,仅更新模块引用)
   onEvent('MsgsChanged', () => {

@@ -3,6 +3,7 @@ import type { AppState } from './types.js';
 export const state: AppState = {
   currentPage: 'messages',
   currentSettingsSection: 'account',
+  pluginsTab: 'market',
   currentWsId: null,
   currentChatId: null,
   workspaces: [],

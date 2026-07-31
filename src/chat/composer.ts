@@ -269,6 +269,27 @@ function closeMentionList(): void {
 async function send(chatId: number, input: HTMLTextAreaElement, area: HTMLElement, onSent: () => void): Promise<void> {
   const text = input.value.trim();
   if (!text) return;
+
+  // Slash 命令分发 — 由插件通过 api.onCommand 注册，如 /ai、/setkey
+  if (text.startsWith('/')) {
+    const sp = text.indexOf(' ');
+    const cmd = sp === -1 ? text.slice(1) : text.slice(1, sp);
+    const args = sp === -1 ? '' : text.slice(sp + 1).trim();
+    const handler = window.__peytchat_commands?.[cmd];
+    if (handler) {
+      input.value = '';
+      input.style.height = 'auto';
+      closeMentionList();
+      try {
+        await handler(args, chatId);
+      } catch (e) {
+        showToast(e instanceof Error ? e.message : String(e));
+      }
+      if (onSent) await onSent();
+      return;
+    }
+  }
+
   const replyTo = area.dataset.replyTo;
   // 乐观更新:插入临时消息
   const tmpId = `tmp_${Date.now()}`;

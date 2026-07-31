@@ -3,7 +3,7 @@ import {
   Plus, X, Hash, Reply, Pin, Copy, Trash, Smile, ChevronDown, ChevronLeft, ChevronRight,
   Check, Send, Search, LogOut, Upload, Shield, Volume2, VolumeX, BookMarked,
   MoreHorizontal, Forward, FileText, Image as ImageIcon, Paperclip, Edit3,
-  ArrowUp, Star, AlertCircle,
+  ArrowUp, Star, AlertCircle, Package,
   Calendar, List, Clock, Inbox,
   Columns3, GitCommitHorizontal,
 } from 'lucide';
@@ -18,7 +18,7 @@ export type IconName =
   | 'search' | 'log-out' | 'upload' | 'shield'
   | 'volume-2' | 'volume-x' | 'bookmark' | 'more-horizontal'
   | 'forward' | 'file-text' | 'image' | 'paperclip' | 'edit'
-  | 'arrow-up' | 'star' | 'alert-circle'
+  | 'arrow-up' | 'star' | 'alert-circle' | 'package'
   | 'calendar' | 'list' | 'clock' | 'inbox'
   // SP7: ViewToggle 视图切换图标 (kanban / timeline)
   | 'columns' | 'timeline';
@@ -69,6 +69,7 @@ const iconMap: Record<IconName, IconNode> = {
   'arrow-up': ArrowUp,
   'star': Star,
   'alert-circle': AlertCircle,
+  'package': Package,
   'calendar': Calendar,
   'list': List,
   'clock': Clock,

@@ -37,6 +37,11 @@ export async function renderRail(): Promise<void> {
     </div>`;
   }).join('');
 
+  // 插件入口 — 位于协作按钮下方
+  const pluginIconHtml = `<div class="rail-icon ${state.currentPage === 'plugins' ? 'active' : ''}" id="rail-plugins" title="插件">
+    ${iconSvg('package', { width: 24, height: 24, strokeWidth: 1.5 })}
+  </div>`;
+
   const settingsIconHtml = `<div class="rail-icon ${state.currentPage === 'settings' ? 'active' : ''}" data-page="settings" title="设置">
     ${iconSvg('settings', { width: 24, height: 24, strokeWidth: 1.5 })}
   </div>`;
@@ -45,6 +50,7 @@ export async function renderRail(): Promise<void> {
 
   rail.innerHTML = `
     ${pageIconsHtml}
+    ${pluginIconHtml}
     <div class="rail-separator"></div>
     <div class="rail-flex"></div>
     ${settingsIconHtml}
@@ -52,7 +58,23 @@ export async function renderRail(): Promise<void> {
   `;
 
   bindPageIcons();
+  bindPluginsIcon();
   bindAvatar();
+}
+
+function bindPluginsIcon(): void {
+  const el = document.getElementById('rail-plugins');
+  if (!el) return;
+  el.addEventListener('click', () => {
+    state.currentPage = 'plugins';
+    saveState();
+    void renderRail().then(() => {
+      void import('./navPanel.js').then(({ renderNavPanel, renderMain }) => {
+        void renderNavPanel();
+        void renderMain();
+      });
+    });
+  });
 }
 
 async function navigateToPage(page: Page): Promise<void> {
