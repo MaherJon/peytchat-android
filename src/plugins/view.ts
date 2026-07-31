@@ -133,18 +133,20 @@ async function renderMarket(main: HTMLElement): Promise<void> {
 
   pane.querySelectorAll<HTMLButtonElement>('.plugin-install').forEach((btn) => {
     btn.addEventListener('click', async () => {
+      const name = btn.dataset.name!;
       btn.disabled = true;
-      btn.textContent = '安装中…';
+      // 进度条插到按钮左边，按钮保留
+      const bar = document.createElement('div');
+      bar.className = 'plugin-progress';
+      btn.parentElement!.insertBefore(bar, btn);
       try {
-        const plugin = await call<RegistryPlugin>('install_plugin', { name: btn.dataset.name });
+        const plugin = await call<RegistryPlugin>('install_plugin', { name });
         await loadPlugin(plugin.name, plugin.title);
         showToast(`已安装 ${plugin.title}`);
-        await renderMarket(main);
       } catch (e) {
-        btn.disabled = false;
-        btn.textContent = '安装';
         showToast(e instanceof Error ? e.message : String(e));
       }
+      await renderMarket(main);
     });
   });
 
