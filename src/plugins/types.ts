@@ -44,7 +44,7 @@ export interface PluginApi {
   onMessage(cb: (payload: Record<string, unknown>) => void): Promise<() => void>;
   addCSS(css: string): () => void;
   registerTheme(config: PluginThemeConfig): void;
-  onCommand(name: string, cb: (args: string) => unknown): void;
+  onCommand(name: string, cb: (args: string, chatId: number) => unknown): void;
   registerLLM(name: string, config: Record<string, unknown>): void;
   http: {
     get<T = unknown>(url: string): Promise<T>;
@@ -65,7 +65,7 @@ export interface PluginApi {
 declare global {
   interface Window {
     __peytchat_themes?: Array<{ id: string; name: string; swatch: string }>;
-    __peytchat_commands?: Record<string, (args: string) => unknown>;
+    __peytchat_commands?: Record<string, (args: string, chatId: number) => unknown>;
     __peytchat_llms?: Record<string, Record<string, unknown>>;
   }
 }
