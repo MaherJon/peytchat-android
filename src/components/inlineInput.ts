@@ -33,16 +33,18 @@ export function createInlineInput(opts: InlineInputOpts): HTMLElement {
     confirmBtn.disabled = true;
     try {
       await opts.onConfirm(val);
-    } catch (e) {
+    } catch {
       confirmBtn.disabled = false;
       input.classList.add('error');
-      throw e;
     }
   }
 
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); void doConfirm(); }
     else if (e.key === 'Escape') { opts.onCancel?.(); }
+  });
+  input.addEventListener('input', () => {
+    input.classList.remove('error');
   });
   confirmBtn.addEventListener('click', () => void doConfirm());
   cancelBtn.addEventListener('click', () => opts.onCancel?.());
