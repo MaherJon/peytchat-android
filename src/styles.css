@@ -1199,10 +1199,13 @@ body {
 .p-toggle { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-mute); cursor: pointer; }
 .p-toggle input { accent-color: var(--text); }
 .plugin-empty { color: var(--text-weak); text-align: center; padding: 40px 0; font-size: 12px; }
-.plugin-installed-view { padding: 24px 32px; }
-.plugin-installed-head { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
+.plugin-installed-view { padding: 24px 0 0; }
+.plugin-installed-head { display: flex; align-items: center; gap: 10px; padding-left: 32px; margin-bottom: 24px; }
 .plugin-installed-head .plugin-zip-btn { margin-left: auto; }
 .plugin-installed-head h2 { margin: 0; font-size: 18px; font-weight: 600; color: var(--text); }
+#plugin-installed-list { padding: 0 0 24px; }
+#plugin-installed-list .plugin-row { padding: 10px 0 10px 32px; }
+#plugin-installed-list .plugin-empty { padding-left: 32px; padding-right: 0; text-align: left; }
 .plugin-zip-btn {
   width: 28px; height: 28px;
   background: var(--capsule);
@@ -1231,6 +1234,30 @@ body {
 .plugin-enable-wrap { display: flex; align-items: center; gap: 6px; }
 .plugin-enable-label { font-size: 11px; color: var(--text-mute); }
 .plugin-row .plugin-enable-wrap { margin-left: auto; }
+
+/* 浮动确认卡片（删除/卸载） */
+.plugin-confirm {
+  position: fixed; z-index: 1000;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 10px 12px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  display: flex; flex-direction: column; gap: 8px;
+  max-width: 260px;
+}
+.plugin-confirm-msg { font-size: 12px; color: var(--text); }
+.plugin-confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.plugin-confirm-yes {
+  background: var(--danger); color: var(--hover-bright);
+  border: none; padding: 4px 12px; border-radius: 4px; font-size: 11px; cursor: pointer;
+}
+.plugin-confirm-yes:hover { filter: brightness(1.1); }
+.plugin-confirm-no {
+  background: none; color: var(--text-mute); border: 1px solid var(--border-strong);
+  padding: 4px 12px; border-radius: 4px; font-size: 11px; cursor: pointer;
+}
+.plugin-confirm-no:hover { color: var(--text); border-color: var(--text-mute); }
 .plugin-desc { font-size: 11px; color: var(--text-weak); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .plugin-badge { font-size: 10px; color: var(--success); }
 .plugin-tree-dot {

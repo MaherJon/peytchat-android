@@ -1,6 +1,7 @@
 import { call } from '../api.js';
 import { showToast } from '../toast.js';
 import { iconSvg } from '../components/icon.js';
+import { showPluginConfirm } from './confirm.js';
 import { loadPlugin, unloadPlugin } from './manager.js';
 import { PERMISSION_LABELS, getPluginPermissions, setPluginPermissions } from './permissions.js';
 import type { PluginStatus } from './types.js';
@@ -84,16 +85,14 @@ export async function renderPluginSettings(main: HTMLElement): Promise<void> {
 
   // Uninstall
   listEl.querySelectorAll<HTMLButtonElement>('.ps-uninstall').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      if (!confirm(`卸载插件 "${btn.dataset.name}"？`)) return;
-      try {
-        unloadPlugin(btn.dataset.name!);
-        await call('uninstall_plugin', { name: btn.dataset.name });
+    btn.addEventListener('click', () => {
+      const name = btn.dataset.name!;
+      showPluginConfirm(btn, `卸载插件 "${name}"？`, async () => {
+        unloadPlugin(name);
+        await call('uninstall_plugin', { name });
         showToast('已卸载');
         await renderPluginSettings(main);
-      } catch (e) {
-        showToast(e instanceof Error ? e.message : String(e));
-      }
+      });
     });
   });
 }

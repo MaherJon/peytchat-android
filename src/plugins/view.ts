@@ -2,6 +2,7 @@ import { call } from '../api.js';
 import { state } from '../state.js';
 import { showToast } from '../toast.js';
 import { iconSvg } from '../components/icon.js';
+import { showPluginConfirm } from './confirm.js';
 import { loadPlugin, unloadPlugin } from './manager.js';
 import type { PluginStatus, RegistryPlugin } from './types.js';
 
@@ -142,15 +143,13 @@ async function renderMarket(main: HTMLElement): Promise<void> {
   });
 
   pane.querySelectorAll<HTMLButtonElement>('.plugin-uninstall').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      if (!confirm(`删除插件 "${btn.dataset.name}"？`)) return;
-      try {
-        unloadPlugin(btn.dataset.name!);
-        await call('uninstall_plugin', { name: btn.dataset.name });
+    btn.addEventListener('click', () => {
+      const name = btn.dataset.name!;
+      showPluginConfirm(btn, `删除插件 "${name}"？`, async () => {
+        unloadPlugin(name);
+        await call('uninstall_plugin', { name });
         await renderMarket(main);
-      } catch (e) {
-        showToast(e instanceof Error ? e.message : String(e));
-      }
+      });
     });
   });
 }
@@ -231,16 +230,14 @@ async function renderInstalled(main: HTMLElement): Promise<void> {
   });
 
   listEl.querySelectorAll<HTMLButtonElement>('.plugin-uninstall').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      if (!confirm(`删除插件 "${btn.dataset.name}"？`)) return;
-      try {
-        unloadPlugin(btn.dataset.name!);
-        await call('uninstall_plugin', { name: btn.dataset.name });
+    btn.addEventListener('click', () => {
+      const name = btn.dataset.name!;
+      showPluginConfirm(btn, `删除插件 "${name}"？`, async () => {
+        unloadPlugin(name);
+        await call('uninstall_plugin', { name });
         await renderInstalled(main);
         await refreshPluginTree();
-      } catch (e) {
-        showToast(e instanceof Error ? e.message : String(e));
-      }
+      });
     });
   });
 }
