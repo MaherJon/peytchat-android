@@ -690,6 +690,11 @@ html { background: var(--bg); }
   flex-shrink: 0; overflow: hidden;
 }
 .msg-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+/* 会话式盖楼:折叠消息的头像占位(保持列对齐),名字隐藏,间距收紧 */
+.msg-avatar-placeholder { width: 28px; flex-shrink: 0; }
+.msg.collapsed .msg-meta { margin-bottom: 1px; }
+.msg.collapsed + .msg.collapsed .msg-row { margin-top: -8px; }
+.msg.collapsed .msg-hover-actions { top: -4px; }
 .msg-row { display: flex; gap: 10px; align-items: flex-start; }
 .msg-row .msg-body { flex: 1; min-width: 0; }
 .member-detail-avatar {

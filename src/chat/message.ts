@@ -104,10 +104,12 @@ function getRoleName(contactId: number): string {
   return 'member';
 }
 
-export async function renderMessage(m: MsgDto): Promise<string> {
+export async function renderMessage(m: MsgDto, collapsed?: boolean): Promise<string> {
   const msg = m as RenderableMsg;
   const isOut = msg.is_out ?? false;
   const stateClass = msg._state ? ` ${msg._state}` : '';
+  // 会话式盖楼:同一人连续消息折叠头像与名字,只留时间,视觉收紧
+  const collapsedCls = collapsed ? ' collapsed' : '';
   const roleName = !isOut && msg.from_id ? getRoleName(msg.from_id) : '';
   const roleTag = roleName ? `<span class="msg-role">${escapeHtml(roleName)}</span>` : '';
   // Reply mark: ↩ replaced with reply SVG icon per Task 14 brief step 1.6
@@ -201,15 +203,20 @@ export async function renderMessage(m: MsgDto): Promise<string> {
     ? `<span class="msg-resend" data-msg-id="${msg.msg_id}">重发</span>`
     : '';
   const isOutAttr = isOut ? ' data-is-out="1"' : '';
+  // 折叠时:头像占位(保持列对齐),名字隐藏,时间移到 meta 行
+  const avatarDisplay = collapsed ? '<span class="msg-avatar-placeholder"></span>' : avatarHtml;
+  const nameDisplay = collapsed
+    ? `<span class="msg-time">${formatTs(msg.ts)}</span>`
+    : `<span class="msg-name">${escapeHtml(msg.from_name)}</span>
+       <span class="msg-time">${formatTs(msg.ts)}</span>`;
   return `
-    <div class="msg${stateClass}" data-msg="${msg.msg_id}"${isOutAttr} style="position:relative">
+    <div class="msg${collapsedCls}${stateClass}" data-msg="${msg.msg_id}"${isOutAttr} style="position:relative">
       ${hoverActionsHtml}
       <div class="msg-row">
-        ${avatarHtml}
+        ${avatarDisplay}
         <div class="msg-body">
           <div class="msg-meta">
-            <span class="msg-name">${escapeHtml(msg.from_name)}</span>
-            <span class="msg-time">${formatTs(msg.ts)}</span>
+            ${nameDisplay}
             ${roleTag}${replyMark}
             ${stateHtml} ${resendBtn}
           </div>
