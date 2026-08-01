@@ -268,7 +268,7 @@ html { background: var(--bg); }
 .chat-header .ch-topic { font-size: var(--font-scale-secondary); color: var(--text-weak); margin-left: 8px; }
 .chat-header .ch-actions { color: var(--text-action); font-size: 11px; display: flex; gap: 14px; }
 .chat-header .ch-actions span { cursor: pointer; }
-.messages { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 6px; }
+.messages { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
 
 /* 全站滚动条:苹果式细条 — 6px 宽、透明轨道、thumb 用边框色,不喧宾夺主 */
 * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
@@ -740,9 +740,9 @@ html { background: var(--bg); }
 
 /* 会话式折叠:同人连续消息紧凑,头像/名字隐藏,间距收紧 */
 .msg-avatar-placeholder { width: 0; }
-.msg.collapsed .msg-row { margin-top: -2px; }
+.msg.collapsed .msg-row { margin-top: 0; }
 .msg.collapsed .msg-bubble { border-radius: 16px; }
-.msg.collapsed + .msg.collapsed .msg-row { margin-top: -6px; }
+.msg.collapsed + .msg.collapsed .msg-row { margin-top: -2px; }
 .msg.collapsed .msg-meta { margin-bottom: 0; }
 .msg.collapsed .msg-hover-actions { top: -4px; }
 .msg.collapsed .msg-avatar-placeholder { display: none; }
