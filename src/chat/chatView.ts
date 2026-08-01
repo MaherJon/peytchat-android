@@ -108,10 +108,16 @@ export async function renderChatView(chatId: number): Promise<void> {
         </button>
       </div>
     `;
+    // 成员数标签:state.currentMembers 来自上面 get_chat_info,失败为空则隐藏
+    const memberCount = state.currentMembers?.length || 0;
+    const membersTag = memberCount > 0
+      ? `<span class="ch-members">${memberCount} 成员</span>`
+      : '';
     main.innerHTML = `
       <div class="chat-header">
         <div>
           <span class="ch-title">${escapeHtml(channelName(chatId))}</span>
+          ${membersTag}
           <span class="ch-topic">${escapeHtml(topic)}</span>
         </div>
         ${headerActions}
