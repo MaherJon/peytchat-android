@@ -90,7 +90,7 @@ function applyTheme(term: Terminal): void {
 
 function promptReject(raw: string): void {
   if (!term) return;
-  term.write(`\r\n\x1b[31m⛔ 命令不在白名单中:\x1b[0m ${raw}\r\n\x1b[90m(可在工具栏开启专家模式执行任意命令)\x1b[0m\r\n`);
+  term.write(`\r\n\x1b[31m✗ 命令不在白名单中:\x1b[0m ${raw}\r\n\x1b[90m(可在工具栏开启专家模式执行任意命令)\x1b[0m\r\n`);
 }
 
 function sendLine(raw: string, force = false): void {

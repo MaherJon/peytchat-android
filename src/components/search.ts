@@ -123,7 +123,10 @@ export function openSearch(): void {
 
 export function closeSearch(): void {
   const overlay = document.getElementById('search-overlay');
-  if (overlay) overlay.remove();
+  if (overlay) {
+    overlay.classList.add('closing');
+    setTimeout(() => overlay.remove(), 150);
+  }
   state.searchOpen = false;
 }
 

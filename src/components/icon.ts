@@ -6,6 +6,7 @@ import {
   ArrowUp, Star, AlertCircle, ThumbsUp, Package, Terminal, Download,
   Calendar, List, Clock, Inbox,
   Columns3, GitCommitHorizontal,
+  RefreshCw, Ban,
 } from 'lucide';
 import type { IconNode, SVGProps } from 'lucide';
 
@@ -21,7 +22,9 @@ export type IconName =
   | 'arrow-up' | 'star' | 'alert-circle' | 'thumbs-up' | 'package' | 'terminal' | 'download'
   | 'calendar' | 'list' | 'clock' | 'inbox'
   // SP7: ViewToggle 视图切换图标 (kanban / timeline)
-  | 'calendar' | 'list' | 'clock' | 'inbox' | 'columns' | 'timeline';
+  | 'calendar' | 'list' | 'clock' | 'inbox' | 'columns' | 'timeline'
+  // 图标收口: 刷新 / 禁止 (替代 ↻ / ⛔)
+  | 'refresh-cw' | 'ban';
 
 export interface IconOpts {
   width?: number;
@@ -80,6 +83,8 @@ const iconMap: Record<IconName, IconNode> = {
   'inbox': Inbox,
   'columns': Columns3,
   'timeline': GitCommitHorizontal,
+  'refresh-cw': RefreshCw,
+  'ban': Ban,
 };
 
 const defaultAttributes: SVGProps = {
