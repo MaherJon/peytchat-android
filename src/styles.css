@@ -1,35 +1,35 @@
 :root {
-  /* nowint 默认主题:苹果分层深灰(层级靠明度渐变,非纯黑) */
-  --bg: #1c1c1e;
-  --panel: #242426;
-  --border: #38383a;
-  --border-strong: #48484a;
-  --active: #2e2e30;
+  /* nowint 默认主题:纯黑打底 + 分层明度递进(面板/表面逐层提亮,层级靠明度差) */
+  --bg: #000000;
+  --panel: #141416;
+  --border: #262628;
+  --border-strong: #343437;
+  --active: #222225;
   --capsule: #1a1a1c;
   --text: #e5e5e5;
   --text-body: #d8d8da;
   --text-mute: #888;
   --text-weak: #5e5e62;
   --text-faint: #48484a;
-  --border-dashed: #48484a;
+  --border-dashed: #333336;
   --text-action: #666;
   --hover-bright: #fff;
   --danger: #ff5555;
   --danger-bg: rgba(255,85,85,0.1);
   --danger-bg-strong: rgba(255,85,85,0.2);
-  --border-hover: #3a3a3c;
+  --border-hover: #2e2e30;
   --theme-gradient: none;
   --theme-mask: none;
   /* 语义化颜色 token — 供按钮/菜单/输入框/危险操作等复用，各主题覆盖 */
-  --surface: #2c2c2e;            /* 下拉菜单 / banner / context menu 表面 */
-  --surface-hover: #3a3a3c;      /* 菜单项 hover */
-  --control-bg: #3a3a3c;         /* 次级按钮背景 */
-  --control-bg-hover: #48484a;   /* 次级按钮 hover */
+  --surface: #1c1c1e;            /* 下拉菜单 / banner / context menu 表面 */
+  --surface-hover: #2a2a2c;      /* 菜单项 hover */
+  --control-bg: #262628;         /* 次级按钮背景 */
+  --control-bg-hover: #343437;   /* 次级按钮 hover */
   --danger: #ff5555;             /* 危险色 */
   --danger-bg: rgba(255,85,85,0.1);      /* 危险操作底色 */
   --danger-bg-hover: rgba(255,85,85,0.2); /* 危险操作 hover 底色 */
   --success: #4caf50;            /* 成功反馈 */
-  --on-accent: #1c1c1e;          /* 强调背景（--text）上的文字色，各主题覆盖 */
+  --on-accent: #000000;          /* 强调背景（--text）上的文字色，各主题覆盖 */
 
   /* 字体尺度 token — 苹果式层级:大标题负 tracking,正文 0,小字正 tracking */
   --font-scale-display: 36px;   /* 登录品牌标题 */
