@@ -1172,10 +1172,10 @@ body {
 /* === Task 14: message hover actions === */
 /* hover 操作栏:悬浮在气泡外侧上方(不覆盖内容),材料化浮层。
    入场用 scale+opacity(可中断,材料浮现而非单纯 fade);transform-origin 锚定气泡侧。 */
+/* hover 操作栏:贴气泡侧下方。消息在左 → 贴右下侧;消息在右 → 贴左下侧。 */
 .msg-hover-actions {
   position: absolute;
-  right: 8px;
-  bottom: calc(100% + 6px);
+  bottom: 0;
   display: flex;
   gap: 2px;
   background: var(--surface); /* color-mix 回退 */
@@ -1188,10 +1188,19 @@ body {
   padding: 3px;
   opacity: 0;
   transform: translateY(4px) scale(0.95);
-  transform-origin: bottom right;
   transition: opacity 140ms ease-out, transform 140ms ease-out;
   z-index: 10;
   pointer-events: none;
+}
+/* 消息在左(别人):弹窗贴气泡右下侧 */
+.msg:not([data-is-out="1"]) .msg-hover-actions {
+  left: calc(100% + 6px);
+  transform-origin: top left;
+}
+/* 消息在右(自己):弹窗贴气泡左下侧 */
+.msg[data-is-out="1"] .msg-hover-actions {
+  right: calc(100% + 6px);
+  transform-origin: top right;
 }
 .msg:hover .msg-hover-actions,
 .msg-hover-actions:hover { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
@@ -1213,12 +1222,6 @@ body {
   color: var(--text);
 }
 .msg-action-btn:active { transform: scale(0.9); }
-/* 自己的消息 hover 栏靠左(气泡在右侧) */
-.msg[data-is-out="1"] .msg-hover-actions {
-  right: auto;
-  left: 8px;
-  transform-origin: bottom left;
-}
 
 /* === Task 14: inline confirm (zero-popup delete) === */
 .inline-confirm-active {

@@ -220,6 +220,7 @@ export async function renderMessage(m: MsgDto, groupRole: GroupRole = 'solo'): P
        <span class="msg-time">${formatTs(msg.ts)}</span>`;
   const bubble = `
     <div class="msg-bubble">
+      ${hoverActionsHtml}
       <div class="msg-meta">
         ${nameDisplay}
         ${roleTag}${replyMark}
@@ -233,7 +234,6 @@ export async function renderMessage(m: MsgDto, groupRole: GroupRole = 'solo'): P
   `;
   return `
     <div class="msg${collapsedCls}${groupCls}${stateClass}" data-msg="${msg.msg_id}"${isOutAttr} style="position:relative">
-      ${hoverActionsHtml}
       <div class="msg-row">
         ${avatarDisplay}
         ${bubble}
