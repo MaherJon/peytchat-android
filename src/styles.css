@@ -746,6 +746,8 @@ html { background: var(--bg); }
 .msg.collapsed .msg-meta { margin-bottom: 0; }
 .msg.collapsed .msg-hover-actions { top: -4px; }
 .msg.collapsed .msg-avatar-placeholder { display: none; }
+/* 折叠的别人消息:头像移除后补左缩进,与展开时气泡对齐 (28px 头像 + 10px gap) */
+.msg.collapsed:not([data-is-out="1"]) .msg-row { padding-left: 38px; }
 .msg-row .msg-body { flex: 1; min-width: 0; }
 .member-detail-avatar {
   width: 80px; height: 80px; background: var(--border-strong); border-radius: 50%;
