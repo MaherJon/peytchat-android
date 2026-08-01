@@ -30,6 +30,9 @@
   --danger-bg-hover: rgba(255,85,85,0.2); /* 危险操作 hover 底色 */
   --success: #4caf50;            /* 成功反馈 */
   --on-accent: #000000;          /* 强调背景（--text）上的文字色，各主题覆盖 */
+  /* 自己的消息气泡:各主题独立预设 */
+  --bubble-self: #1e5c4b;        /* WhatsApp 式深绿,融入纯黑 */
+  --bubble-self-text: #e5e5e5;
 
   /* 字体尺度 token — 苹果式层级:大标题负 tracking,正文 0,小字正 tracking */
   --font-scale-display: 36px;   /* 登录品牌标题 */
@@ -265,7 +268,7 @@ html { background: var(--bg); }
 .chat-header .ch-topic { font-size: var(--font-scale-secondary); color: var(--text-weak); margin-left: 8px; }
 .chat-header .ch-actions { color: var(--text-action); font-size: 11px; display: flex; gap: 14px; }
 .chat-header .ch-actions span { cursor: pointer; }
-.messages { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+.messages { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 6px; }
 
 /* 全站滚动条:苹果式细条 — 6px 宽、透明轨道、thumb 用边框色,不喧宾夺主 */
 * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
@@ -691,11 +694,58 @@ html { background: var(--bg); }
 }
 .msg-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 /* 会话式盖楼:折叠消息的头像占位(保持列对齐),名字隐藏,间距收紧 */
-.msg-avatar-placeholder { width: 28px; flex-shrink: 0; }
-.msg.collapsed .msg-meta { margin-bottom: 1px; }
-.msg.collapsed + .msg.collapsed .msg-row { margin-top: -8px; }
-.msg.collapsed .msg-hover-actions { top: -4px; }
+/* WhatsApp 式气泡:别人的左对齐中性,自己的右对齐强调色 */
+.msg { display: flex; flex-direction: column; }
 .msg-row { display: flex; gap: 10px; align-items: flex-start; }
+.msg:not([data-is-out="1"]) .msg-row { flex-direction: row; }
+.msg[data-is-out="1"] .msg-row { flex-direction: row-reverse; }
+/* 别人消息:左侧头像保持显示 */
+.msg:not([data-is-out="1"]) .msg-avatar { display: flex; }
+/* 自己的消息:隐藏头像(气泡直接靠右) */
+.msg[data-is-out="1"] .msg-avatar { display: none; }
+.msg-avatar-placeholder { width: 28px; flex-shrink: 0; }
+
+.msg-bubble {
+  max-width: 70%;
+  padding: 6px 12px 8px;
+  border-radius: 16px;
+  position: relative;
+}
+/* 别人:中性面板色 + 左上小圆角(tail) */
+.msg:not([data-is-out="1"]) .msg-bubble {
+  background: var(--capsule);
+  border: 1px solid var(--border);
+  border-top-left-radius: 4px;
+  color: var(--text-body);
+}
+/* 自己:强调色 + 右上小圆角(tail),文字用独立浅色 token */
+.msg[data-is-out="1"] .msg-bubble {
+  background: var(--bubble-self);
+  border-top-right-radius: 4px;
+  color: var(--bubble-self-text);
+}
+.msg[data-is-out="1"] .msg-bubble .msg-text,
+.msg[data-is-out="1"] .msg-bubble .msg-name,
+.msg[data-is-out="1"] .msg-bubble .msg-meta,
+.msg[data-is-out="1"] .msg-bubble .msg-quote { color: var(--bubble-self-text); }
+.msg[data-is-out="1"] .msg-bubble .msg-time,
+.msg[data-is-out="1"] .msg-bubble .msg-state { color: rgba(229,229,229,0.7); }
+.msg[data-is-out="1"] .msg-bubble .msg-quote { border-left-color: rgba(229,229,229,0.4); }
+
+/* 气泡内文字排版:名字在上,正文在下 */
+.msg-bubble .msg-meta { font-size: var(--font-scale-secondary); margin-bottom: 1px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.msg-bubble .msg-name { font-weight: 600; }
+.msg-bubble .msg-time { font-size: var(--font-scale-micro); color: var(--text-weak); }
+.msg-bubble .msg-text { font-size: var(--font-scale-body); line-height: 1.5; overflow-wrap: anywhere; word-break: break-word; }
+
+/* 会话式折叠:同人连续消息紧凑,头像/名字隐藏,间距收紧 */
+.msg-avatar-placeholder { width: 0; }
+.msg.collapsed .msg-row { margin-top: -2px; }
+.msg.collapsed .msg-bubble { border-radius: 16px; }
+.msg.collapsed + .msg.collapsed .msg-row { margin-top: -6px; }
+.msg.collapsed .msg-meta { margin-bottom: 0; }
+.msg.collapsed .msg-hover-actions { top: -4px; }
+.msg.collapsed .msg-avatar-placeholder { display: none; }
 .msg-row .msg-body { flex: 1; min-width: 0; }
 .member-detail-avatar {
   width: 80px; height: 80px; background: var(--border-strong); border-radius: 50%;
@@ -834,6 +884,8 @@ body {
   --danger-bg-hover: rgba(255,107,138,0.2);
   --success: #4cd6a8;
   --on-accent: #201a33;          /* --text 为亮紫白，强调背景上用深色文字 */
+  --bubble-self: #46318f;        /* 自己的消息气泡:紫调,贴近渐变主题 */
+  --bubble-self-text: #f5f0ff;
 }
 
 /* GoldenHour 主题 */
@@ -864,6 +916,8 @@ body {
   --danger-bg-hover: rgba(217,70,74,0.18);
   --success: #2e9e5b;
   --on-accent: #fff8f0;          /* --text 为深棕，强调背景上用浅色文字 */
+  --bubble-self: #c0572c;        /* 自己的消息气泡:暖橙,贴近渐变主题 */
+  --bubble-self-text: #fff8f0;
 }
 
 /* === 主题切换 UI === */

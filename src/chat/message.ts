@@ -106,7 +106,8 @@ function getRoleName(contactId: number): string {
 
 export async function renderMessage(m: MsgDto, collapsed?: boolean): Promise<string> {
   const msg = m as RenderableMsg;
-  const isOut = msg.is_out ?? false;
+  // 自己发的消息:乐观消息用 is_out 字段,真实消息按 from_id 等于自我推断
+  const isOut = msg.is_out ?? (state.self ? msg.from_id === state.self.id : false);
   const stateClass = msg._state ? ` ${msg._state}` : '';
   // 会话式盖楼:同一人连续消息折叠头像与名字,只留时间,视觉收紧
   const collapsedCls = collapsed ? ' collapsed' : '';
@@ -203,30 +204,33 @@ export async function renderMessage(m: MsgDto, collapsed?: boolean): Promise<str
     ? `<span class="msg-resend" data-msg-id="${msg.msg_id}">重发</span>`
     : '';
   const isOutAttr = isOut ? ' data-is-out="1"' : '';
-  // 折叠时:头像占位(保持列对齐),名字隐藏,时间移到 meta 行
-  const avatarDisplay = collapsed ? '<span class="msg-avatar-placeholder"></span>' : avatarHtml;
+  // 折叠时:头像隐藏(气泡式紧凑流),名字隐藏;名字/时间都放进气泡 meta 行
+  const avatarDisplay = collapsed ? '' : avatarHtml;
   const nameDisplay = collapsed
     ? `<span class="msg-time">${formatTs(msg.ts)}</span>`
     : `<span class="msg-name">${escapeHtml(msg.from_name)}</span>
        <span class="msg-time">${formatTs(msg.ts)}</span>`;
+  const bubble = `
+    <div class="msg-bubble">
+      <div class="msg-meta">
+        ${nameDisplay}
+        ${roleTag}${replyMark}
+      </div>
+      ${quoteBlock}
+      <div class="msg-text">${textHtml}</div>
+      ${attachmentHtml}
+      ${reactionsHtml}
+      ${stateHtml} ${resendBtn}
+    </div>
+  `;
   return `
     <div class="msg${collapsedCls}${stateClass}" data-msg="${msg.msg_id}"${isOutAttr} style="position:relative">
       ${hoverActionsHtml}
       <div class="msg-row">
         ${avatarDisplay}
-        <div class="msg-body">
-          <div class="msg-meta">
-            ${nameDisplay}
-            ${roleTag}${replyMark}
-            ${stateHtml} ${resendBtn}
-          </div>
-          ${quoteBlock}
-          <div class="msg-text">${textHtml}</div>
-          ${attachmentHtml}
-          ${reactionsHtml}
-          <div class="msg-reaction-picker" id="rp-${msg.msg_id}">
-            ${pickerHtml}
-          </div>
+        ${bubble}
+        <div class="msg-reaction-picker" id="rp-${msg.msg_id}">
+          ${pickerHtml}
         </div>
       </div>
     </div>
