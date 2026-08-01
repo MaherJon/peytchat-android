@@ -230,6 +230,9 @@ export async function renderMessage(m: MsgDto, groupRole: GroupRole = 'solo'): P
       ${attachmentHtml}
       ${reactionsHtml}
       ${stateHtml} ${resendBtn}
+      <div class="msg-reaction-picker" id="rp-${msg.msg_id}">
+        ${pickerHtml}
+      </div>
     </div>
   `;
   return `
@@ -237,9 +240,6 @@ export async function renderMessage(m: MsgDto, groupRole: GroupRole = 'solo'): P
       <div class="msg-row">
         ${avatarDisplay}
         ${bubble}
-        <div class="msg-reaction-picker" id="rp-${msg.msg_id}">
-          ${pickerHtml}
-        </div>
       </div>
     </div>
   `;

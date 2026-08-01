@@ -510,19 +510,30 @@ html { background: var(--bg); }
 .msg:hover .msg-react-btn,
 .msg:hover .msg-card-btn { display: inline; }
 
-/* reaction picker */
+/* reaction picker:相对气泡定位,出现在 hover 操作栏正上方。
+   左消息靠左对齐,右消息靠右对齐。 */
 .msg-reaction-picker {
   position: absolute;
   display: none;
-  background: var(--panel);
+  background: var(--surface);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   padding: 4px;
   gap: 6px;
   z-index: 10;
 }
 .msg-reaction-picker.show { display: flex; }
+/* 左消息:靠 hover 栏右对齐(hover 栏贴气泡右下侧,picker 在其正上方) */
+.msg:not([data-is-out="1"]) .msg-reaction-picker {
+  left: calc(100% + 6px);
+  bottom: calc(26px + 8px);
+}
+/* 右消息:镜像靠左 */
+.msg[data-is-out="1"] .msg-reaction-picker {
+  right: calc(100% + 6px);
+  bottom: calc(26px + 8px);
+}
 .msg-reaction-picker span {
   cursor: pointer;
   padding: 2px 6px;
