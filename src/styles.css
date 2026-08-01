@@ -246,7 +246,11 @@ html { background: var(--bg); }
 .msg .msg-code { background: var(--panel); border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px; font-family: var(--font-mono); font-size: 10px; line-height: 1.6; margin-top: 6px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
 .msg .msg-reactions { margin-top: 6px; display: flex; gap: 8px; }
 .msg .msg-reaction { background: var(--capsule); border: 1px solid var(--border-strong); border-radius: 10px; padding: 1px 8px; font-size: 10px; color: var(--text-weak); cursor: pointer; }
-.composer { padding: 14px 20px; border-top: 1px solid var(--border); }
+/* 输入区:胶囊输入条 + 圆形发送按钮 (iMessage 式) */
+.composer {
+  display: flex; align-items: flex-end; gap: 10px;
+  padding: 14px 20px; border-top: 1px solid var(--border);
+}
 .composer input { width: 100%; padding: 8px 12px; background: var(--panel); border: 1px solid var(--border-strong); border-radius: 4px; color: var(--text); font-size: 11px; font-family: var(--font); }
 
 .right-drawer { width: var(--drawer-w, 300px); background: var(--bg); border-left: 1px solid var(--border); display: flex; flex-direction: column; }
@@ -352,9 +356,9 @@ html { background: var(--bg); }
 /* composer textarea */
 .composer textarea {
   flex: 1;
-  background: var(--panel);
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
+  background: var(--capsule);
+  border: 1px solid var(--border);
+  border-radius: 12px;
   padding: 9px 14px;
   font-size: 13px;
   color: var(--text);
@@ -364,9 +368,32 @@ html { background: var(--bg); }
   min-height: 38px;
   max-height: 120px;
   line-height: 1.5;
-  transition: border-color 120ms;
+  transition: border-color 120ms, background 120ms;
 }
-.composer textarea:focus { border-color: var(--text-mute); }
+.composer textarea:hover { border-color: var(--border-strong); }
+.composer textarea:focus {
+  border-color: var(--text-mute);
+  background: var(--panel);
+  box-shadow: 0 0 0 3px var(--capsule);
+}
+
+/* 圆形发送按钮:空输入禁用,有内容点亮 (--text 底 + --on-accent 箭头) */
+.composer-send {
+  flex-shrink: 0;
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 50%;
+  cursor: pointer;
+  background: var(--text); color: var(--on-accent);
+  transition: transform 100ms ease-out, opacity 120ms, box-shadow 150ms;
+}
+.composer-send svg { display: block; }
+.composer-send:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.35); }
+.composer-send:active { transform: scale(0.9); }
+.composer-send:disabled {
+  background: var(--border-strong); color: var(--text-weak);
+  cursor: default; box-shadow: none;
+}
 
 /* chat-header actions (Task 13: members/pin 按钮触发 detail panel) */
 .chat-header-actions { display: flex; gap: 4px; }
