@@ -65,10 +65,12 @@ export function renderComposer(chatId: number, onSent: () => void): void {
     }
   }
   area.innerHTML = `
-    ${replyPreview}
     <div class="composer">
-      <textarea id="composer-input" placeholder="发消息到频道... (@提及 / #频道)" rows="1"></textarea>
-      <button type="button" class="composer-send" id="composer-send" title="发送" disabled>${iconSvg('arrow-up', { width: 18, height: 18, strokeWidth: 2.2 })}</button>
+      ${replyPreview}
+      <div class="composer-row">
+        <textarea id="composer-input" placeholder="发消息到频道... (@提及 / #频道)" rows="1"></textarea>
+        <button type="button" class="composer-send" id="composer-send" title="发送" disabled>${iconSvg('arrow-up', { width: 18, height: 18, strokeWidth: 2.2 })}</button>
+      </div>
     </div>
   `;
   const input = document.getElementById('composer-input') as HTMLTextAreaElement | null;

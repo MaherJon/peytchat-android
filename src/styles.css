@@ -313,9 +313,13 @@ html { background: var(--bg); }
 .msg .msg-reactions { margin-top: 6px; display: flex; gap: 8px; }
 .msg .msg-reaction { background: var(--capsule); border: 1px solid var(--border-strong); border-radius: var(--radius-md); padding: 1px 8px; font-size: var(--font-scale-secondary); color: var(--text-weak); cursor: pointer; }
 /* 输入区:胶囊输入条 + 圆形发送按钮 (iMessage 式) */
+/* 输入区:回复条在卡片内顶部,textarea+发送按钮在下方一行 */
 .composer {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 12px 16px 14px; border-top: 1px solid var(--border);
+}
+.composer-row {
   display: flex; align-items: flex-end; gap: 10px;
-  padding: 14px 20px; border-top: 1px solid var(--border);
 }
 .composer input { width: 100%; padding: 8px 12px; background: var(--panel); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); color: var(--text); font-size: var(--font-scale-body); font-family: var(--font); }
 
@@ -510,7 +514,6 @@ html { background: var(--bg); }
   border-radius: var(--radius-md);
   font-size: var(--font-scale-secondary);
   color: var(--text-mute);
-  margin-bottom: 8px;
   animation: reply-preview-in 160ms ease-out;
 }
 @keyframes reply-preview-in {
