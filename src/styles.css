@@ -746,10 +746,15 @@ html { background: var(--bg); }
 .msg[data-is-out="1"] .msg-bubble .msg-quote { border-left-color: rgba(229,229,229,0.4); }
 
 /* 气泡内文字排版:名字在上,正文在下 */
-.msg-bubble .msg-meta { font-size: var(--font-scale-secondary); margin-bottom: 1px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.msg-bubble .msg-meta { font-size: var(--font-scale-secondary); margin-bottom: 1px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; line-height: 1.3; }
 .msg-bubble .msg-name { font-weight: 600; }
-.msg-bubble .msg-time { font-size: var(--font-scale-micro); color: var(--text-weak); }
+.msg-bubble .msg-time { font-size: var(--font-scale-micro); color: var(--text-weak); flex-shrink: 0; }
 .msg-bubble .msg-text { font-size: var(--font-scale-body); line-height: 1.5; overflow-wrap: anywhere; word-break: break-word; }
+/* 折叠消息:meta 只剩时间,收紧行距避免顶部空隙 */
+.msg-group-middle .msg-bubble .msg-meta,
+.msg-group-last .msg-bubble .msg-meta { margin-bottom: 0; line-height: 1; }
+.msg-group-middle .msg-bubble .msg-time,
+.msg-group-last .msg-bubble .msg-time { font-size: var(--font-scale-micro); opacity: 0.75; }
 
 /* 会话式分组:组内(中/尾)紧凑,组间(gap)拉开。
    中/尾折叠头像/名字;首条/solo 展开;折叠的别人消息补左缩进对齐头像列 */
@@ -760,8 +765,6 @@ html { background: var(--bg); }
 .msg-group-last .msg-bubble { border-radius: 16px; }
 .msg-group-middle .msg-meta,
 .msg-group-last .msg-meta { margin-bottom: 0; }
-.msg-group-middle .msg-hover-actions,
-.msg-group-last .msg-hover-actions { top: -4px; }
 .msg-group-middle .msg-avatar-placeholder,
 .msg-group-last .msg-avatar-placeholder { display: none; }
 .msg-group-middle:not([data-is-out="1"]) .msg-row,
@@ -1167,37 +1170,54 @@ body {
 .col-status.done { color: var(--text); font-weight: 600; }
 
 /* === Task 14: message hover actions === */
+/* hover 操作栏:悬浮在气泡外侧上方(不覆盖内容),材料化浮层。
+   入场用 scale+opacity(可中断,材料浮现而非单纯 fade);transform-origin 锚定气泡侧。 */
 .msg-hover-actions {
   position: absolute;
-  top: 2px;
-  right: 2px;
+  right: 8px;
+  bottom: calc(100% + 6px);
   display: flex;
-  gap: 1px;
-  background: var(--panel);
+  gap: 2px;
+  background: var(--surface); /* color-mix 回退 */
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  backdrop-filter: blur(12px) saturate(160%);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-sm);
-  padding: 2px;
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  padding: 3px;
   opacity: 0;
-  transition: opacity 0.15s;
-  z-index: 5;
+  transform: translateY(4px) scale(0.95);
+  transform-origin: bottom right;
+  transition: opacity 140ms ease-out, transform 140ms ease-out;
+  z-index: 10;
+  pointer-events: none;
 }
-.msg:hover .msg-hover-actions { opacity: 1; }
+.msg:hover .msg-hover-actions,
+.msg-hover-actions:hover { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
 .msg-action-btn {
   background: none;
   border: none;
-  color: var(--text-weak);
+  color: var(--text-mute);
   cursor: pointer;
-  padding: 3px;
+  padding: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 3px;
+  border-radius: 6px;
   font-family: inherit;
+  transition: background 100ms, color 100ms;
 }
 .msg-action-btn:hover {
-  background: var(--active);
+  background: var(--surface-hover);
   color: var(--text);
+}
+.msg-action-btn:active { transform: scale(0.9); }
+/* 自己的消息 hover 栏靠左(气泡在右侧) */
+.msg[data-is-out="1"] .msg-hover-actions {
+  right: auto;
+  left: 8px;
+  transform-origin: bottom left;
 }
 
 /* === Task 14: inline confirm (zero-popup delete) === */
