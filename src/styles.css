@@ -721,16 +721,17 @@ html { background: var(--bg); }
   background: var(--bubble-self);
   color: var(--bubble-self-text);
 }
-/* 分组圆角:头像侧小圆角只出现在组首(别人=左上,自己=右上)。
-   组中/组尾头像侧转大圆角,组尾还圆掉同侧的下角(视觉收尾)。 */
+/* 分组圆角(基准 .msg-bubble 全 16px,这里只覆盖头像侧)。
+   左侧别人:首条/中间 左上+左下都小(平直贴边),尾条 左下转大收尾;
+   solo 独立气泡只留左上小(tail)。右侧自己镜像。 */
 .msg-group-solo:not([data-is-out="1"]) .msg-bubble { border-top-left-radius: 4px; }
-.msg-group-first:not([data-is-out="1"]) .msg-bubble { border-top-left-radius: 4px; border-bottom-left-radius: 16px; }
-.msg-group-middle:not([data-is-out="1"]) .msg-bubble { border-top-left-radius: 16px; border-bottom-left-radius: 16px; }
-.msg-group-last:not([data-is-out="1"]) .msg-bubble { border-top-left-radius: 16px; border-bottom-left-radius: 16px; }
+.msg-group-first:not([data-is-out="1"]) .msg-bubble { border-top-left-radius: 4px; border-bottom-left-radius: 4px; }
+.msg-group-middle:not([data-is-out="1"]) .msg-bubble { border-top-left-radius: 4px; border-bottom-left-radius: 4px; }
+.msg-group-last:not([data-is-out="1"]) .msg-bubble { border-top-left-radius: 4px; border-bottom-left-radius: 16px; }
 .msg-group-solo[data-is-out="1"] .msg-bubble { border-top-right-radius: 4px; }
-.msg-group-first[data-is-out="1"] .msg-bubble { border-top-right-radius: 4px; border-bottom-right-radius: 16px; }
-.msg-group-middle[data-is-out="1"] .msg-bubble { border-top-right-radius: 16px; border-bottom-right-radius: 16px; }
-.msg-group-last[data-is-out="1"] .msg-bubble { border-top-right-radius: 16px; border-bottom-right-radius: 16px; }
+.msg-group-first[data-is-out="1"] .msg-bubble { border-top-right-radius: 4px; border-bottom-right-radius: 4px; }
+.msg-group-middle[data-is-out="1"] .msg-bubble { border-top-right-radius: 4px; border-bottom-right-radius: 4px; }
+.msg-group-last[data-is-out="1"] .msg-bubble { border-top-right-radius: 4px; border-bottom-right-radius: 16px; }
 .msg[data-is-out="1"] .msg-bubble .msg-text,
 .msg[data-is-out="1"] .msg-bubble .msg-name,
 .msg[data-is-out="1"] .msg-bubble .msg-meta,
