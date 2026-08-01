@@ -268,7 +268,7 @@ html { background: var(--bg); }
 .chat-header .ch-topic { font-size: var(--font-scale-secondary); color: var(--text-weak); margin-left: 8px; }
 .chat-header .ch-actions { color: var(--text-action); font-size: 11px; display: flex; gap: 14px; }
 .chat-header .ch-actions span { cursor: pointer; }
-.messages { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+.messages { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
 
 /* 全站滚动条:苹果式细条 — 6px 宽、透明轨道、thumb 用边框色,不喧宾夺主 */
 * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
@@ -711,19 +711,26 @@ html { background: var(--bg); }
   border-radius: 16px;
   position: relative;
 }
-/* 别人:中性面板色 + 左上小圆角(tail) */
+/* 别人(左侧):中性面板色;自己的(右侧):强调色 + 独立文字 token */
 .msg:not([data-is-out="1"]) .msg-bubble {
   background: var(--capsule);
   border: 1px solid var(--border);
-  border-top-left-radius: 4px;
   color: var(--text-body);
 }
-/* 自己:强调色 + 右上小圆角(tail),文字用独立浅色 token */
 .msg[data-is-out="1"] .msg-bubble {
   background: var(--bubble-self);
-  border-top-right-radius: 4px;
   color: var(--bubble-self-text);
 }
+/* 分组圆角:头像侧小圆角只出现在组首(别人=左上,自己=右上)。
+   组中/组尾头像侧转大圆角,组尾还圆掉同侧的下角(视觉收尾)。 */
+.msg-group-solo:not([data-is-out="1"]) .msg-bubble { border-top-left-radius: 4px; }
+.msg-group-first:not([data-is-out="1"]) .msg-bubble { border-top-left-radius: 4px; border-bottom-left-radius: 16px; }
+.msg-group-middle:not([data-is-out="1"]) .msg-bubble { border-top-left-radius: 16px; border-bottom-left-radius: 16px; }
+.msg-group-last:not([data-is-out="1"]) .msg-bubble { border-top-left-radius: 16px; border-bottom-left-radius: 16px; }
+.msg-group-solo[data-is-out="1"] .msg-bubble { border-top-right-radius: 4px; }
+.msg-group-first[data-is-out="1"] .msg-bubble { border-top-right-radius: 4px; border-bottom-right-radius: 16px; }
+.msg-group-middle[data-is-out="1"] .msg-bubble { border-top-right-radius: 16px; border-bottom-right-radius: 16px; }
+.msg-group-last[data-is-out="1"] .msg-bubble { border-top-right-radius: 16px; border-bottom-right-radius: 16px; }
 .msg[data-is-out="1"] .msg-bubble .msg-text,
 .msg[data-is-out="1"] .msg-bubble .msg-name,
 .msg[data-is-out="1"] .msg-bubble .msg-meta,
@@ -738,16 +745,21 @@ html { background: var(--bg); }
 .msg-bubble .msg-time { font-size: var(--font-scale-micro); color: var(--text-weak); }
 .msg-bubble .msg-text { font-size: var(--font-scale-body); line-height: 1.5; overflow-wrap: anywhere; word-break: break-word; }
 
-/* 会话式折叠:同人连续消息紧凑,头像/名字隐藏,间距收紧 */
+/* 会话式分组:组内(中/尾)紧凑,组间(gap)拉开。
+   中/尾折叠头像/名字;首条/solo 展开;折叠的别人消息补左缩进对齐头像列 */
 .msg-avatar-placeholder { width: 0; }
-.msg.collapsed .msg-row { margin-top: 0; }
-.msg.collapsed .msg-bubble { border-radius: 16px; }
-.msg.collapsed + .msg.collapsed .msg-row { margin-top: -2px; }
-.msg.collapsed .msg-meta { margin-bottom: 0; }
-.msg.collapsed .msg-hover-actions { top: -4px; }
-.msg.collapsed .msg-avatar-placeholder { display: none; }
-/* 折叠的别人消息:头像移除后补左缩进,与展开时气泡对齐 (28px 头像 + 10px gap) */
-.msg.collapsed:not([data-is-out="1"]) .msg-row { padding-left: 38px; }
+.msg-group-middle .msg-row { margin-top: -4px; }
+.msg-group-last .msg-row { margin-top: -4px; }
+.msg-group-middle .msg-bubble { border-radius: 16px; }
+.msg-group-last .msg-bubble { border-radius: 16px; }
+.msg-group-middle .msg-meta,
+.msg-group-last .msg-meta { margin-bottom: 0; }
+.msg-group-middle .msg-hover-actions,
+.msg-group-last .msg-hover-actions { top: -4px; }
+.msg-group-middle .msg-avatar-placeholder,
+.msg-group-last .msg-avatar-placeholder { display: none; }
+.msg-group-middle:not([data-is-out="1"]) .msg-row,
+.msg-group-last:not([data-is-out="1"]) .msg-row { padding-left: 38px; }
 .msg-row .msg-body { flex: 1; min-width: 0; }
 .member-detail-avatar {
   width: 80px; height: 80px; background: var(--border-strong); border-radius: 50%;

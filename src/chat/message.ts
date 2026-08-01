@@ -104,13 +104,19 @@ function getRoleName(contactId: number): string {
   return 'member';
 }
 
-export async function renderMessage(m: MsgDto, collapsed?: boolean): Promise<string> {
+// 会话组位置:solo 单条 / first 组首 / middle 组中 / last 组尾。
+// 决定气泡头像侧的小圆角位置与折叠间距。
+export type GroupRole = 'solo' | 'first' | 'middle' | 'last';
+
+export async function renderMessage(m: MsgDto, groupRole: GroupRole = 'solo'): Promise<string> {
   const msg = m as RenderableMsg;
   // 自己发的消息:乐观消息用 is_out 字段,真实消息按 from_id 等于自我推断
   const isOut = msg.is_out ?? (state.self ? msg.from_id === state.self.id : false);
   const stateClass = msg._state ? ` ${msg._state}` : '';
-  // 会话式盖楼:同一人连续消息折叠头像与名字,只留时间,视觉收紧
+  // 组中/组尾 = 同人连续 → 折叠紧凑;组首/solo 展开显示名字
+  const collapsed = groupRole === 'middle' || groupRole === 'last';
   const collapsedCls = collapsed ? ' collapsed' : '';
+  const groupCls = ` msg-group-${groupRole}`;
   const roleName = !isOut && msg.from_id ? getRoleName(msg.from_id) : '';
   const roleTag = roleName ? `<span class="msg-role">${escapeHtml(roleName)}</span>` : '';
   // Reply mark: ↩ replaced with reply SVG icon per Task 14 brief step 1.6
@@ -224,7 +230,7 @@ export async function renderMessage(m: MsgDto, collapsed?: boolean): Promise<str
     </div>
   `;
   return `
-    <div class="msg${collapsedCls}${stateClass}" data-msg="${msg.msg_id}"${isOutAttr} style="position:relative">
+    <div class="msg${collapsedCls}${groupCls}${stateClass}" data-msg="${msg.msg_id}"${isOutAttr} style="position:relative">
       ${hoverActionsHtml}
       <div class="msg-row">
         ${avatarDisplay}
