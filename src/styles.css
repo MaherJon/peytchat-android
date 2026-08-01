@@ -284,7 +284,31 @@ html { background: var(--bg); }
 .msg .msg-text { color: var(--text-body); line-height: 1.6; font-size: 13px; overflow-wrap: anywhere; word-break: break-word; }
 /* 消息正文最大宽度:避免 900px 超长行,保持可读的 50–75 字符行长 */
 .msg-row .msg-body { max-width: 720px; }
-.msg .msg-quote { border-left: 2px solid var(--border-dashed); padding-left: 8px; color: var(--text-weak); font-size: var(--font-scale-secondary); margin-bottom: 3px; overflow-wrap: anywhere; }
+/* 引用回复体:气泡卡片 + 左侧 accent 色条,名字强调色 */
+.msg .msg-quote {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--capsule);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--text-mute);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  font-size: var(--font-scale-secondary);
+  color: var(--text-mute);
+  margin-bottom: 4px;
+  overflow-wrap: anywhere;
+}
+.msg-quote-name { font-weight: 600; color: var(--text); }
+.msg-quote-text { line-height: 1.4; }
+/* 自己的消息:引用卡片用强调色条 + 适配文字色 */
+.msg[data-is-out="1"] .msg-bubble .msg-quote {
+  background: rgba(229,229,229,0.12);
+  border: 1px solid rgba(229,229,229,0.16);
+  border-left: 3px solid var(--bubble-self-text);
+  color: var(--bubble-self-text);
+}
+.msg[data-is-out="1"] .msg-bubble .msg-quote-name { color: var(--bubble-self-text); }
 .msg .msg-code { background: var(--panel); border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px; font-family: var(--font-mono); font-size: 10px; line-height: 1.6; margin-top: 6px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
 .msg .msg-reactions { margin-top: 6px; display: flex; gap: 8px; }
 .msg .msg-reaction { background: var(--capsule); border: 1px solid var(--border-strong); border-radius: var(--radius-md); padding: 1px 8px; font-size: var(--font-scale-secondary); color: var(--text-weak); cursor: pointer; }
@@ -474,24 +498,54 @@ html { background: var(--bg); }
 }
 
 /* reply preview */
+/* 回复预览条:材料化胶囊 + 左侧 accent 色条 + 图标 + 取消按钮 */
 .reply-preview {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 6px 12px;
-  background: var(--panel);
+  gap: 10px;
+  padding: 7px 12px;
+  background: var(--capsule);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--text-mute);
+  border-radius: var(--radius-md);
   font-size: var(--font-scale-secondary);
   color: var(--text-mute);
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  animation: reply-preview-in 160ms ease-out;
 }
+@keyframes reply-preview-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.reply-preview-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-mute);
+  flex-shrink: 0;
+}
+.reply-preview-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.reply-preview-name { font-weight: 600; color: var(--text); }
+.reply-preview-text { line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reply-preview .rp-cancel {
   cursor: pointer;
   color: var(--text-weak);
-  padding: 0 4px;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 100ms, color 100ms;
 }
-.reply-preview .rp-cancel:hover { color: var(--text); }
+.reply-preview .rp-cancel:hover { background: var(--surface-hover); color: var(--text); }
+.reply-preview .rp-cancel:active { transform: scale(0.9); }
 
 /* msg actions (hover) */
 .msg .msg-pin-btn,

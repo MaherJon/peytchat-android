@@ -133,7 +133,10 @@ export async function renderMessage(m: MsgDto, groupRole: GroupRole = 'solo'): P
     ? `<span class="msg-reply-mark">${replyIcon} reply to ${escapeHtml(msg.quote_from)}</span>`
     : '';
   const quoteBlock = msg.quote_text
-    ? `<div class="msg-quote">${escapeHtml(msg.quote_from || '')}: ${escapeHtml(msg.quote_text.slice(0, 80))}</div>`
+    ? `<div class="msg-quote">
+        <span class="msg-quote-name">${escapeHtml(msg.quote_from || '')}</span>
+        <span class="msg-quote-text">${escapeHtml(msg.quote_text.slice(0, 80))}</span>
+      </div>`
     : '';
   const textHtml = renderText(msg.text);
   // Task 13: sender avatar — lookup member by from_id in state.currentMembers.

@@ -54,8 +54,12 @@ export function renderComposer(chatId: number, onSent: () => void): void {
     if (replyMsg) {
       replyPreview = `
         <div class="reply-preview" id="reply-preview">
-          <span>回复 ${escapeHtml(replyMsg.from_name)}: ${escapeHtml((replyMsg.text || '').slice(0, 40))}</span>
-          <span class="rp-cancel" id="rp-cancel">×</span>
+          <div class="reply-preview-icon">${iconSvg('reply', { width: 14, height: 14 })}</div>
+          <div class="reply-preview-body">
+            <div class="reply-preview-name">回复 ${escapeHtml(replyMsg.from_name)}</div>
+            <div class="reply-preview-text">${escapeHtml((replyMsg.text || '').slice(0, 40))}</div>
+          </div>
+          <span class="rp-cancel" id="rp-cancel" title="取消回复">${iconSvg('x', { width: 14, height: 14 })}</span>
         </div>
       `;
     }
