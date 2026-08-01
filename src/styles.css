@@ -591,8 +591,8 @@ html { background: var(--bg); }
   right: calc(100% + 6px);
   bottom: calc(26px + 8px);
 }
-/* hover 联动:与 hover 操作栏一起浮现 */
-.msg:hover .msg-reaction-picker {
+/* 显式调出:仅点击 react 时 .show,移出消息后关闭;不随消息 hover 自动显示 */
+.msg-reaction-picker.show {
   opacity: 1;
   transform: translateY(0) scale(1);
   pointer-events: auto;

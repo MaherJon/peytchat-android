@@ -355,8 +355,8 @@ export function bindMessageActions(container: HTMLElement): void {
       const msgIdStr = btn.dataset.msg;
       if (!msgIdStr) return;
       if (action === 'react') {
-        // 快捷反应:直接发送 👍;picker 由 hover 显示(下方 CSS 联动)
-        void sendReaction(msgIdStr, 'thumbsup');
+        // 显式调出反应弹窗(点击切换),移出消息时关闭
+        toggleReactionPicker(msgIdStr);
       } else if (action === 'reply') {
         dispatchReply(Number(msgIdStr));
       } else if (action === 'pin') {
@@ -446,6 +446,19 @@ async function sendReaction(msgIdStr: string, emoji: string): Promise<void> {
   } catch (err) {
     showToast(err instanceof Error ? err.message : String(err));
   }
+}
+
+// Toggle reaction picker visibility for a message (close others first)
+function toggleReactionPicker(msgIdStr: string): void {
+  const picker = document.getElementById(`rp-${msgIdStr}`);
+  if (!picker) return;
+  document.querySelectorAll('.msg-reaction-picker.show').forEach((p) => {
+    if (p !== picker) p.classList.remove('show');
+  });
+  picker.classList.toggle('show');
+  // 光标移出消息时关闭
+  const msgEl = picker.closest<HTMLElement>('.msg');
+  msgEl?.addEventListener('mouseleave', () => picker.classList.remove('show'), { once: true });
 }
 
 // Dispatch composer:set-reply event for chatView to render reply preview
