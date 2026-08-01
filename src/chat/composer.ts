@@ -202,6 +202,9 @@ function showMentionList(
   mentionQueryStart = queryStart;
   mentionList = document.createElement('div');
   mentionList.className = 'mention-list';
+  // 入场:轻微上浮 + 淡入(材料感),transform-origin 锚定到输入框方向
+  mentionList.style.transformOrigin = 'left bottom';
+  mentionList.style.animation = 'mention-pop 140ms ease-out';
   mentionList.innerHTML = items
     .map((item, i) => {
       const prefix = item.type === 'channel' ? '#' : '@';

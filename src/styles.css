@@ -376,6 +376,9 @@ html { background: var(--bg); }
   background: var(--panel);
   box-shadow: 0 0 0 3px var(--capsule);
 }
+/* 隐藏 textarea 右侧滚动条(保留滚动能力,视觉更干净) */
+.composer textarea { scrollbar-width: none; }
+.composer textarea::-webkit-scrollbar { display: none; }
 
 /* 圆形发送按钮:空输入禁用,有内容点亮 (--text 底 + --on-accent 箭头) */
 .composer-send {
@@ -405,20 +408,27 @@ html { background: var(--bg); }
 .chat-header-btn:hover { background: var(--active); color: var(--text); }
 .chat-header-btn.active { background: var(--active); color: var(--text); border-color: var(--border-strong); }
 
-/* mention/channel suggestion list (Task 13: @提及/#频道引用) */
+/* mention/channel suggestion list (Task 13: @提及/#频道引用) — 与输入区统一风格 */
 .mention-list {
-  background: var(--panel); border: 1px solid var(--border-strong); border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.4); max-height: 168px; overflow-y: auto;
-  min-width: 160px; font-size: 11px;
+  background: var(--capsule); border: 1px solid var(--border-strong); border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45); max-height: 180px; overflow-y: auto;
+  min-width: 180px; font-size: 13px; padding: 6px;
 }
 .mention-item {
-  padding: 5px 10px; cursor: pointer; display: flex; align-items: center; gap: 6px;
-  color: var(--text-body);
+  padding: 7px 10px; cursor: pointer; display: flex; align-items: center; gap: 8px;
+  color: var(--text-body); border-radius: 8px; transition: background 100ms, color 100ms;
 }
 .mention-item:hover, .mention-item.selected { background: var(--active); color: var(--text); }
-.mention-prefix { color: var(--text-weak); font-weight: 600; width: 12px; }
+.mention-prefix { color: var(--text-weak); font-weight: 600; width: 14px; flex-shrink: 0; }
 .mention-item.selected .mention-prefix { color: var(--text); }
 .mention-name { color: inherit; }
+@keyframes mention-pop {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mention-list { animation: none !important; }
+}
 
 /* reply preview */
 .reply-preview {
