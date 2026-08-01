@@ -44,7 +44,13 @@ interface Reaction {
 }
 
 // Reaction symbols (non-emoji per design constraint: ↑/+/★/!)
-const reactionSymbols: readonly string[] = ['↑', '+', '★', '!'];
+// Reaction 选项:展示用专业图标,data-emoji 保留后端识别的文本值
+const reactionSymbols: ReadonlyArray<{ emoji: string; icon: 'thumbs-up' | 'plus' | 'star' | 'alert-circle' }> = [
+  { emoji: 'thumbsup', icon: 'thumbs-up' },
+  { emoji: '+', icon: 'plus' },
+  { emoji: '★', icon: 'star' },
+  { emoji: '!', icon: 'alert-circle' },
+];
 
 // Module-level reactions cache: avoids repeated get_reactions IPC on virtualization re-render.
 // key = msgId, value = reactions array. Updated by shell.js refreshMsgReactions,
@@ -200,9 +206,9 @@ export async function renderMessage(m: MsgDto, groupRole: GroupRole = 'solo'): P
       <button class="msg-action-btn" data-action="more" data-msg="${msg.msg_id}" title="更多">${iconSvg('more-horizontal', { width: 16, height: 16 })}</button>
     </div>
   `;
-  // Reaction picker (embedded, toggled by react button). Symbols: ↑/+/★/!
-  const pickerHtml = reactionSymbols.map((sym) =>
-    `<span class="msg-reaction-pick" data-emoji="${sym}">${sym}</span>`
+  // Reaction picker (embedded, toggled by react button). 专业图标 + 后端 emoji 值
+  const pickerHtml = reactionSymbols.map((r) =>
+    `<span class="msg-reaction-pick" data-emoji="${r.emoji}" title="${r.emoji}">${iconSvg(r.icon, { width: 18, height: 18, strokeWidth: 1.8 })}</span>`
   ).join('');
   // Task 8: outgoing messages show send state; failed messages show resend button.
   const stateHtml = isOut
@@ -323,9 +329,6 @@ export function renderReactionsHtml(reactions: Reaction[] | null, msgId: number)
   }).join('');
 }
 
-// Module-level flag: bind document-wide click-to-close-picker handler once.
-let pickerCloseBound = false;
-
 export function bindMessageActions(container: HTMLElement): void {
   // Reaction toggle (click existing reaction capsule)
   container.querySelectorAll<HTMLElement>('.msg-reaction').forEach((el) => {
@@ -349,7 +352,8 @@ export function bindMessageActions(container: HTMLElement): void {
       const msgIdStr = btn.dataset.msg;
       if (!msgIdStr) return;
       if (action === 'react') {
-        toggleReactionPicker(msgIdStr);
+        // 快捷反应:直接发送 👍;picker 由 hover 显示(下方 CSS 联动)
+        void sendReaction(msgIdStr, 'thumbsup');
       } else if (action === 'reply') {
         dispatchReply(Number(msgIdStr));
       } else if (action === 'pin') {
@@ -361,7 +365,7 @@ export function bindMessageActions(container: HTMLElement): void {
     });
   });
 
-  // Reaction picker options (↑/+/★/!)
+  // Reaction picker options (专业图标;点击发对应反应,picker 由 hover 控制显隐)
   container.querySelectorAll<HTMLElement>('.msg-reaction-pick').forEach((s) => {
     s.addEventListener('click', async (ev) => {
       ev.stopPropagation();
@@ -370,12 +374,7 @@ export function bindMessageActions(container: HTMLElement): void {
       const picker = s.parentElement;
       if (!picker) return;
       const msgIdStr = picker.id.replace('rp-', '');
-      picker.classList.remove('show');
-      try {
-        await call('send_reaction', { chatId: state.currentChatId, msgId: Number(msgIdStr), emoji });
-      } catch (err) {
-        showToast(err instanceof Error ? err.message : String(err));
-      }
+      await sendReaction(msgIdStr, emoji);
     });
   });
 
@@ -434,23 +433,16 @@ export function bindMessageActions(container: HTMLElement): void {
     });
   });
 
-  // Click outside to close all pickers (bind once globally)
-  if (!pickerCloseBound) {
-    pickerCloseBound = true;
-    document.addEventListener('click', () => {
-      document.querySelectorAll('.msg-reaction-picker.show').forEach((p) => p.classList.remove('show'));
-    });
-  }
 }
 
 // Toggle reaction picker visibility for a message (close others first)
-function toggleReactionPicker(msgIdStr: string): void {
-  const picker = document.getElementById(`rp-${msgIdStr}`);
-  if (!picker) return;
-  document.querySelectorAll('.msg-reaction-picker.show').forEach((p) => {
-    if (p !== picker) p.classList.remove('show');
-  });
-  picker.classList.toggle('show');
+// 发送反应 (react 快捷按钮 / picker 选项共用)
+async function sendReaction(msgIdStr: string, emoji: string): Promise<void> {
+  try {
+    await call('send_reaction', { chatId: state.currentChatId, msgId: Number(msgIdStr), emoji });
+  } catch (err) {
+    showToast(err instanceof Error ? err.message : String(err));
+  }
 }
 
 // Dispatch composer:set-reply event for chatView to render reply preview

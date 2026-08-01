@@ -511,10 +511,10 @@ html { background: var(--bg); }
 .msg:hover .msg-card-btn { display: inline; }
 
 /* reaction picker:相对气泡定位,出现在 hover 操作栏正上方。
-   左消息靠左对齐,右消息靠右对齐。 */
+   随消息 hover 显示/隐藏(与 hover 栏联动),含入场动画。 */
 .msg-reaction-picker {
   position: absolute;
-  display: none;
+  display: flex;
   background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
@@ -522,8 +522,11 @@ html { background: var(--bg); }
   padding: 4px;
   gap: 6px;
   z-index: 10;
+  opacity: 0;
+  transform: translateY(4px) scale(0.95);
+  pointer-events: none;
+  transition: opacity 140ms ease-out, transform 140ms ease-out;
 }
-.msg-reaction-picker.show { display: flex; }
 /* 左消息:靠 hover 栏右对齐(hover 栏贴气泡右下侧,picker 在其正上方) */
 .msg:not([data-is-out="1"]) .msg-reaction-picker {
   left: calc(100% + 6px);
@@ -534,13 +537,27 @@ html { background: var(--bg); }
   right: calc(100% + 6px);
   bottom: calc(26px + 8px);
 }
+/* hover 联动:与 hover 操作栏一起浮现 */
+.msg:hover .msg-reaction-picker {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
 .msg-reaction-picker span {
   cursor: pointer;
-  padding: 2px 6px;
-  font-size: 12px;
+  padding: 3px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-mute);
+  transition: background 100ms, color 100ms;
 }
-.msg-reaction-picker span:hover { color: var(--text); }
+.msg-reaction-picker span:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.msg-reaction-picker span:active { transform: scale(0.9); }
 
 /* msg sending/failed state */
 .msg.sending { opacity: 0.6; }
