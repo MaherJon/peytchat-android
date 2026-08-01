@@ -73,14 +73,16 @@ export function clearPinnedCache(): void {
   pinnedMsgIds.clear();
 }
 
-// Task 8: message send state label (symbols, not emoji).
-// Consumed by shell.js updateMsgState to update .msg-state text content.
+// Task 8: message send state icon (仿 WhatsApp 单勾/双勾/时钟)。
+// 返回图标 SVG;shell.ts updateMsgState 用 innerHTML 更新。
 export function stateLabel(s: MsgState): string {
+  const ico = (name: 'check' | 'check-check' | 'clock' | 'alert-circle') =>
+    iconSvg(name, { width: 14, height: 14, strokeWidth: 2 });
   switch (s) {
-    case 'pending': return '··';
-    case 'delivered': return '✓';
-    case 'read': return '✓✓';
-    case 'failed': return '!';
+    case 'pending': return ico('clock');
+    case 'delivered': return ico('check');
+    case 'read': return ico('check-check');
+    case 'failed': return ico('alert-circle');
   }
 }
 

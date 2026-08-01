@@ -1,7 +1,7 @@
 import {
   MessageCircle, Users, LayoutGrid, Settings, User, Palette, Bell, Info,
   Plus, X, Hash, Reply, Pin, Copy, Trash, Smile, ChevronDown, ChevronLeft, ChevronRight,
-  Check, Send, Search, LogOut, Upload, Shield, Volume2, VolumeX, BookMarked,
+  Check, CheckCheck, Send, Search, LogOut, Upload, Shield, Volume2, VolumeX, BookMarked,
   MoreHorizontal, Forward, FileText, Image as ImageIcon, Paperclip, Edit3,
   ArrowUp, Star, AlertCircle, Package, Terminal, Download,
   Calendar, List, Clock, Inbox,
@@ -14,7 +14,7 @@ export type IconName =
   | 'user' | 'palette' | 'bell' | 'info'
   | 'plus' | 'x' | 'hash' | 'reply'
   | 'pin' | 'copy' | 'trash' | 'smile'
-  | 'chevron-down' | 'chevron-left' | 'chevron-right' | 'check' | 'send'
+  | 'chevron-down' | 'chevron-left' | 'chevron-right' | 'check' | 'check-check' | 'send'
   | 'search' | 'log-out' | 'upload' | 'shield'
   | 'volume-2' | 'volume-x' | 'bookmark' | 'more-horizontal'
   | 'forward' | 'file-text' | 'image' | 'paperclip' | 'edit'
@@ -52,6 +52,7 @@ const iconMap: Record<IconName, IconNode> = {
   'chevron-left': ChevronLeft,
   'chevron-right': ChevronRight,
   'check': Check,
+  'check-check': CheckCheck,
   'send': Send,
   'search': Search,
   'log-out': LogOut,

@@ -638,10 +638,15 @@ html { background: var(--bg); }
 .img-fullscreen-overlay { background: rgba(0,0,0,0.9); }
 
 /* Task 8: 消息发送状态指示 + 重发按钮 */
-.msg-state { font-size: var(--font-scale-secondary); color: var(--text-weak); margin-left: 4px; }
-.msg-state.state-delivered { color: var(--text-mute); }
-.msg-state.state-read { color: var(--text); }
-.msg-state.state-failed { color: var(--text); }
+.msg-state { display: inline-flex; align-items: center; margin-left: 4px; color: var(--text-mute); }
+.msg-state svg { display: block; }
+.msg-state.state-delivered { color: var(--text-weak); }
+.msg-state.state-read { color: var(--success); }
+.msg-state.state-failed { color: var(--danger); }
+/* 自己的气泡内状态图标:read 用强调色(绿),failed 红,优先级高于气泡文字色 */
+.msg[data-is-out="1"] .msg-bubble .msg-state { color: rgba(229,229,229,0.7); }
+.msg[data-is-out="1"] .msg-bubble .msg-state.state-read { color: var(--success); }
+.msg[data-is-out="1"] .msg-bubble .msg-state.state-failed { color: var(--danger); }
 .msg-resend {
   font-size: var(--font-scale-secondary); color: var(--text); margin-left: 6px;
   cursor: pointer; border: 1px solid var(--border-strong); padding: 0 4px; border-radius: 3px;

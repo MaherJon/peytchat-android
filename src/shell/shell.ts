@@ -340,7 +340,7 @@ function updateMsgState(msgId: number, newState: MsgState): void {
     const el = document.querySelector(`[data-msg="${msgId}"]`);
     if (el) {
       const stateEl = el.querySelector('.msg-state');
-      if (stateEl) stateEl.textContent = stateLabel(newState);
+      if (stateEl) stateEl.innerHTML = stateLabel(newState);
       el.classList.remove('state-pending', 'state-delivered', 'state-failed', 'state-read');
       el.classList.add('state-' + newState);
     }
