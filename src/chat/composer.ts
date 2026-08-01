@@ -2,6 +2,7 @@ import { call } from '../api.js';
 import { state } from '../state.js';
 import { showToast } from '../toast.js';
 import { appendOptimisticMessage } from './chatView.js';
+import { iconSvg } from '../components/icon.js';
 import type { MsgDto, MemberDto, ChannelDto } from '../types.js';
 
 // 乐观更新临时消息类型 — message.js 读取这些字段渲染发送中状态。
@@ -53,20 +54,38 @@ export function renderComposer(chatId: number, onSent: () => void): void {
     if (replyMsg) {
       replyPreview = `
         <div class="reply-preview" id="reply-preview">
-          <span>回复 ${escapeHtml(replyMsg.from_name)}: ${escapeHtml((replyMsg.text || '').slice(0, 40))}</span>
-          <span class="rp-cancel" id="rp-cancel">×</span>
+          <div class="reply-preview-icon">${iconSvg('reply', { width: 14, height: 14 })}</div>
+          <div class="reply-preview-body">
+            <div class="reply-preview-name">回复 ${escapeHtml(replyMsg.from_name)}</div>
+            <div class="reply-preview-text">${escapeHtml((replyMsg.text || '').slice(0, 40))}</div>
+          </div>
+          <span class="rp-cancel" id="rp-cancel" title="取消回复">${iconSvg('x', { width: 14, height: 14 })}</span>
         </div>
       `;
     }
   }
   area.innerHTML = `
-    ${replyPreview}
     <div class="composer">
-      <textarea id="composer-input" placeholder="发消息到频道... (@提及 / #频道)" rows="1"></textarea>
+      ${replyPreview}
+      <div class="composer-row">
+        <textarea id="composer-input" placeholder="发消息到频道... (@提及 / #频道)" rows="1"></textarea>
+        <button type="button" class="composer-send" id="composer-send" title="发送" disabled>${iconSvg('arrow-up', { width: 18, height: 18, strokeWidth: 2.2 })}</button>
+      </div>
     </div>
   `;
   const input = document.getElementById('composer-input') as HTMLTextAreaElement | null;
   if (!input) return;
+  const sendBtn = document.getElementById('composer-send') as HTMLButtonElement | null;
+  // 发送按钮:空输入禁用,有内容点亮 (iMessage 式,与 Enter 发送等价)
+  const updateSendState = () => {
+    if (sendBtn) sendBtn.disabled = !input.value.trim();
+  };
+  updateSendState();
+  sendBtn?.addEventListener('click', async () => {
+    if (!input.value.trim()) return;
+    await send(chatId, input, area, onSent);
+    updateSendState();
+  });
   // reply cancel
   const rpCancel = document.getElementById('rp-cancel');
   if (rpCancel) {
@@ -75,11 +94,12 @@ export function renderComposer(chatId: number, onSent: () => void): void {
       renderComposer(chatId, onSent);
     };
   }
-  // 自适应高度 + @提及/#频道检测
+  // 自适应高度 + @提及/#频道检测 + 发送按钮点亮
   input.oninput = () => {
     input.style.height = 'auto';
     input.style.height = Math.min(input.scrollHeight, 120) + 'px';
     handleMentionInput(input);
+    updateSendState();
   };
   // keydown — 含 @提及/#频道导航(上下/Enter/Esc)和发送逻辑
   input.onkeydown = async (e) => {
@@ -188,6 +208,9 @@ function showMentionList(
   mentionQueryStart = queryStart;
   mentionList = document.createElement('div');
   mentionList.className = 'mention-list';
+  // 入场:轻微上浮 + 淡入(材料感),transform-origin 锚定到输入框方向
+  mentionList.style.transformOrigin = 'left bottom';
+  mentionList.style.animation = 'mention-pop 140ms ease-out';
   mentionList.innerHTML = items
     .map((item, i) => {
       const prefix = item.type === 'channel' ? '#' : '@';

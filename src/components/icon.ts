@@ -1,9 +1,9 @@
 import {
   MessageCircle, Users, LayoutGrid, Settings, User, Palette, Bell, Info,
   Plus, X, Hash, Reply, Pin, Copy, Trash, Smile, ChevronDown, ChevronLeft, ChevronRight,
-  Check, Send, Search, LogOut, Upload, Shield, Volume2, VolumeX, BookMarked,
+  Check, CheckCheck, Send, Search, LogOut, Upload, Shield, Volume2, VolumeX, BookMarked,
   MoreHorizontal, Forward, FileText, Image as ImageIcon, Paperclip, Edit3,
-  ArrowUp, Star, AlertCircle, Package, Terminal, Download,
+  ArrowUp, Star, AlertCircle, ThumbsUp, Package, Terminal, Download,
   Calendar, List, Clock, Inbox,
   Columns3, GitCommitHorizontal,
 } from 'lucide';
@@ -14,11 +14,11 @@ export type IconName =
   | 'user' | 'palette' | 'bell' | 'info'
   | 'plus' | 'x' | 'hash' | 'reply'
   | 'pin' | 'copy' | 'trash' | 'smile'
-  | 'chevron-down' | 'chevron-left' | 'chevron-right' | 'check' | 'send'
+  | 'chevron-down' | 'chevron-left' | 'chevron-right' | 'check' | 'check-check' | 'send'
   | 'search' | 'log-out' | 'upload' | 'shield'
   | 'volume-2' | 'volume-x' | 'bookmark' | 'more-horizontal'
   | 'forward' | 'file-text' | 'image' | 'paperclip' | 'edit'
-  | 'arrow-up' | 'star' | 'alert-circle' | 'package' | 'terminal' | 'download'
+  | 'arrow-up' | 'star' | 'alert-circle' | 'thumbs-up' | 'package' | 'terminal' | 'download'
   | 'calendar' | 'list' | 'clock' | 'inbox'
   // SP7: ViewToggle 视图切换图标 (kanban / timeline)
   | 'calendar' | 'list' | 'clock' | 'inbox' | 'columns' | 'timeline';
@@ -52,6 +52,7 @@ const iconMap: Record<IconName, IconNode> = {
   'chevron-left': ChevronLeft,
   'chevron-right': ChevronRight,
   'check': Check,
+  'check-check': CheckCheck,
   'send': Send,
   'search': Search,
   'log-out': LogOut,
@@ -69,6 +70,7 @@ const iconMap: Record<IconName, IconNode> = {
   'arrow-up': ArrowUp,
   'star': Star,
   'alert-circle': AlertCircle,
+  'thumbs-up': ThumbsUp,
   'package': Package,
   'terminal': Terminal,
   'download': Download,

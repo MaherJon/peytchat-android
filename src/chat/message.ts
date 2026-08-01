@@ -44,7 +44,13 @@ interface Reaction {
 }
 
 // Reaction symbols (non-emoji per design constraint: ↑/+/★/!)
-const reactionSymbols: readonly string[] = ['↑', '+', '★', '!'];
+// Reaction 选项:展示用专业图标,data-emoji 保留后端识别的文本值
+const reactionSymbols: ReadonlyArray<{ emoji: string; icon: 'thumbs-up' | 'plus' | 'star' | 'alert-circle' }> = [
+  { emoji: 'thumbsup', icon: 'thumbs-up' },
+  { emoji: '+', icon: 'plus' },
+  { emoji: '★', icon: 'star' },
+  { emoji: '!', icon: 'alert-circle' },
+];
 
 // Module-level reactions cache: avoids repeated get_reactions IPC on virtualization re-render.
 // key = msgId, value = reactions array. Updated by shell.js refreshMsgReactions,
@@ -73,14 +79,16 @@ export function clearPinnedCache(): void {
   pinnedMsgIds.clear();
 }
 
-// Task 8: message send state label (symbols, not emoji).
-// Consumed by shell.js updateMsgState to update .msg-state text content.
+// Task 8: message send state icon (仿 WhatsApp 单勾/双勾/时钟)。
+// 返回图标 SVG;shell.ts updateMsgState 用 innerHTML 更新。
 export function stateLabel(s: MsgState): string {
+  const ico = (name: 'check' | 'check-check' | 'clock' | 'alert-circle') =>
+    iconSvg(name, { width: 14, height: 14, strokeWidth: 2 });
   switch (s) {
-    case 'pending': return '··';
-    case 'delivered': return '✓';
-    case 'read': return '✓✓';
-    case 'failed': return '!';
+    case 'pending': return ico('clock');
+    case 'delivered': return ico('check');
+    case 'read': return ico('check-check');
+    case 'failed': return ico('alert-circle');
   }
 }
 
@@ -104,10 +112,19 @@ function getRoleName(contactId: number): string {
   return 'member';
 }
 
-export async function renderMessage(m: MsgDto): Promise<string> {
+// 会话组位置:solo 单条 / first 组首 / middle 组中 / last 组尾。
+// 决定气泡头像侧的小圆角位置与折叠间距。
+export type GroupRole = 'solo' | 'first' | 'middle' | 'last';
+
+export async function renderMessage(m: MsgDto, groupRole: GroupRole = 'solo'): Promise<string> {
   const msg = m as RenderableMsg;
-  const isOut = msg.is_out ?? false;
+  // 自己发的消息:乐观消息用 is_out 字段,真实消息按 from_id 等于自我推断
+  const isOut = msg.is_out ?? (state.self ? msg.from_id === state.self.id : false);
   const stateClass = msg._state ? ` ${msg._state}` : '';
+  // 组中/组尾 = 同人连续 → 折叠紧凑;组首/solo 展开显示名字
+  const collapsed = groupRole === 'middle' || groupRole === 'last';
+  const collapsedCls = collapsed ? ' collapsed' : '';
+  const groupCls = ` msg-group-${groupRole}`;
   const roleName = !isOut && msg.from_id ? getRoleName(msg.from_id) : '';
   const roleTag = roleName ? `<span class="msg-role">${escapeHtml(roleName)}</span>` : '';
   // Reply mark: ↩ replaced with reply SVG icon per Task 14 brief step 1.6
@@ -116,7 +133,10 @@ export async function renderMessage(m: MsgDto): Promise<string> {
     ? `<span class="msg-reply-mark">${replyIcon} reply to ${escapeHtml(msg.quote_from)}</span>`
     : '';
   const quoteBlock = msg.quote_text
-    ? `<div class="msg-quote">${escapeHtml(msg.quote_from || '')}: ${escapeHtml(msg.quote_text.slice(0, 80))}</div>`
+    ? `<div class="msg-quote">
+        <span class="msg-quote-name">${escapeHtml(msg.quote_from || '')}</span>
+        <span class="msg-quote-text">${escapeHtml(msg.quote_text.slice(0, 80))}</span>
+      </div>`
     : '';
   const textHtml = renderText(msg.text);
   // Task 13: sender avatar — lookup member by from_id in state.currentMembers.
@@ -189,9 +209,9 @@ export async function renderMessage(m: MsgDto): Promise<string> {
       <button class="msg-action-btn" data-action="more" data-msg="${msg.msg_id}" title="更多">${iconSvg('more-horizontal', { width: 16, height: 16 })}</button>
     </div>
   `;
-  // Reaction picker (embedded, toggled by react button). Symbols: ↑/+/★/!
-  const pickerHtml = reactionSymbols.map((sym) =>
-    `<span class="msg-reaction-pick" data-emoji="${sym}">${sym}</span>`
+  // Reaction picker (embedded, toggled by react button). 专业图标 + 后端 emoji 值
+  const pickerHtml = reactionSymbols.map((r) =>
+    `<span class="msg-reaction-pick" data-emoji="${r.emoji}" title="${r.emoji}">${iconSvg(r.icon, { width: 18, height: 18, strokeWidth: 1.8 })}</span>`
   ).join('');
   // Task 8: outgoing messages show send state; failed messages show resend button.
   const stateHtml = isOut
@@ -201,26 +221,34 @@ export async function renderMessage(m: MsgDto): Promise<string> {
     ? `<span class="msg-resend" data-msg-id="${msg.msg_id}">重发</span>`
     : '';
   const isOutAttr = isOut ? ' data-is-out="1"' : '';
-  return `
-    <div class="msg${stateClass}" data-msg="${msg.msg_id}"${isOutAttr} style="position:relative">
+  // 折叠时:头像隐藏(气泡式紧凑流),名字隐藏;名字/时间都放进气泡 meta 行
+  const avatarDisplay = collapsed ? '' : avatarHtml;
+  const nameDisplay = collapsed
+    ? `<span class="msg-time">${formatTs(msg.ts)}</span>`
+    : `<span class="msg-name">${escapeHtml(msg.from_name)}</span>
+       <span class="msg-time">${formatTs(msg.ts)}</span>`;
+  const bubble = `
+    <div class="msg-bubble">
       ${hoverActionsHtml}
+      <div class="msg-meta">
+        ${nameDisplay}
+        ${roleTag}${replyMark}
+      </div>
+      ${quoteBlock}
+      <div class="msg-text">${textHtml}</div>
+      ${attachmentHtml}
+      ${reactionsHtml}
+      ${stateHtml} ${resendBtn}
+      <div class="msg-reaction-picker" id="rp-${msg.msg_id}">
+        ${pickerHtml}
+      </div>
+    </div>
+  `;
+  return `
+    <div class="msg${collapsedCls}${groupCls}${stateClass}" data-msg="${msg.msg_id}"${isOutAttr} style="position:relative">
       <div class="msg-row">
-        ${avatarHtml}
-        <div class="msg-body">
-          <div class="msg-meta">
-            <span class="msg-name">${escapeHtml(msg.from_name)}</span>
-            <span class="msg-time">${formatTs(msg.ts)}</span>
-            ${roleTag}${replyMark}
-            ${stateHtml} ${resendBtn}
-          </div>
-          ${quoteBlock}
-          <div class="msg-text">${textHtml}</div>
-          ${attachmentHtml}
-          ${reactionsHtml}
-          <div class="msg-reaction-picker" id="rp-${msg.msg_id}">
-            ${pickerHtml}
-          </div>
-        </div>
+        ${avatarDisplay}
+        ${bubble}
       </div>
     </div>
   `;
@@ -229,13 +257,15 @@ export async function renderMessage(m: MsgDto): Promise<string> {
 // Render message text with code block highlighting (hljs) and @mention highlighting.
 // Code blocks: ```lang\ncode``` → <div class="msg-code">highlighted</div>
 // Mentions: @self or @roleName → highlighted span
+// 普通文本段:escapeHtml 不转义换行,HTML 会折叠成空格 → 手动把 \n 换成 <br>,否则多行消息挤成一行。
 function renderText(text: string): string {
   const parts: string[] = [];
   const regex = /```(\w*)\n([\s\S]*?)```/g;
   let last = 0;
   let match: RegExpExecArray | null;
+  const inline = (s: string) => highlightMentions(escapeHtml(s)).replace(/\r?\n/g, '<br>');
   while ((match = regex.exec(text)) !== null) {
-    if (match.index > last) parts.push(highlightMentions(escapeHtml(text.slice(last, match.index))));
+    if (match.index > last) parts.push(inline(text.slice(last, match.index)));
     const lang = match[1];
     const code = match[2];
     let highlighted: string;
@@ -247,7 +277,7 @@ function renderText(text: string): string {
     parts.push(`<div class="msg-code">${highlighted}</div>`);
     last = match.index + match[0].length;
   }
-  if (last < text.length) parts.push(highlightMentions(escapeHtml(text.slice(last))));
+  if (last < text.length) parts.push(inline(text.slice(last)));
   return parts.join('');
 }
 
@@ -302,9 +332,6 @@ export function renderReactionsHtml(reactions: Reaction[] | null, msgId: number)
   }).join('');
 }
 
-// Module-level flag: bind document-wide click-to-close-picker handler once.
-let pickerCloseBound = false;
-
 export function bindMessageActions(container: HTMLElement): void {
   // Reaction toggle (click existing reaction capsule)
   container.querySelectorAll<HTMLElement>('.msg-reaction').forEach((el) => {
@@ -328,6 +355,7 @@ export function bindMessageActions(container: HTMLElement): void {
       const msgIdStr = btn.dataset.msg;
       if (!msgIdStr) return;
       if (action === 'react') {
+        // 显式调出反应弹窗(点击切换),移出消息时关闭
         toggleReactionPicker(msgIdStr);
       } else if (action === 'reply') {
         dispatchReply(Number(msgIdStr));
@@ -340,7 +368,7 @@ export function bindMessageActions(container: HTMLElement): void {
     });
   });
 
-  // Reaction picker options (↑/+/★/!)
+  // Reaction picker options (专业图标;点击发对应反应,picker 由 hover 控制显隐)
   container.querySelectorAll<HTMLElement>('.msg-reaction-pick').forEach((s) => {
     s.addEventListener('click', async (ev) => {
       ev.stopPropagation();
@@ -349,12 +377,7 @@ export function bindMessageActions(container: HTMLElement): void {
       const picker = s.parentElement;
       if (!picker) return;
       const msgIdStr = picker.id.replace('rp-', '');
-      picker.classList.remove('show');
-      try {
-        await call('send_reaction', { chatId: state.currentChatId, msgId: Number(msgIdStr), emoji });
-      } catch (err) {
-        showToast(err instanceof Error ? err.message : String(err));
-      }
+      await sendReaction(msgIdStr, emoji);
     });
   });
 
@@ -413,12 +436,15 @@ export function bindMessageActions(container: HTMLElement): void {
     });
   });
 
-  // Click outside to close all pickers (bind once globally)
-  if (!pickerCloseBound) {
-    pickerCloseBound = true;
-    document.addEventListener('click', () => {
-      document.querySelectorAll('.msg-reaction-picker.show').forEach((p) => p.classList.remove('show'));
-    });
+}
+
+// Toggle reaction picker visibility for a message (close others first)
+// 发送反应 (react 快捷按钮 / picker 选项共用)
+async function sendReaction(msgIdStr: string, emoji: string): Promise<void> {
+  try {
+    await call('send_reaction', { chatId: state.currentChatId, msgId: Number(msgIdStr), emoji });
+  } catch (err) {
+    showToast(err instanceof Error ? err.message : String(err));
   }
 }
 
@@ -430,6 +456,9 @@ function toggleReactionPicker(msgIdStr: string): void {
     if (p !== picker) p.classList.remove('show');
   });
   picker.classList.toggle('show');
+  // 光标移出消息时关闭
+  const msgEl = picker.closest<HTMLElement>('.msg');
+  msgEl?.addEventListener('mouseleave', () => picker.classList.remove('show'), { once: true });
 }
 
 // Dispatch composer:set-reply event for chatView to render reply preview

@@ -108,10 +108,16 @@ export async function renderChatView(chatId: number): Promise<void> {
         </button>
       </div>
     `;
+    // 成员数标签:state.currentMembers 来自上面 get_chat_info,失败为空则隐藏
+    const memberCount = state.currentMembers?.length || 0;
+    const membersTag = memberCount > 0
+      ? `<span class="ch-members">${memberCount} 成员</span>`
+      : '';
     main.innerHTML = `
       <div class="chat-header">
         <div>
           <span class="ch-title">${escapeHtml(channelName(chatId))}</span>
+          ${membersTag}
           <span class="ch-topic">${escapeHtml(topic)}</span>
         </div>
         ${headerActions}
@@ -313,6 +319,8 @@ async function renderVisibleMessages(box: HTMLElement, start: number, end: numbe
     ? state.messages.length - currentChatUnread
     : -1;
   let html = '';
+  // 会话式盖楼:按发送者把连续消息分成组,组内折叠紧凑、组间拉开距离。
+  // 用前瞻判断组角色(solo/first/middle/last),驱动气泡圆角与间距。
   for (let i = 0; i < visible.length; i++) {
     const absIdx = start + i;
     if (absIdx === dividerIndex) {
@@ -324,7 +332,22 @@ async function renderVisibleMessages(box: HTMLElement, start: number, end: numbe
       html += `<div class="msg-date-divider">${dateStr}</div>`;
       prevDate = dateStr;
     }
-    html += await renderMessage(m);
+    const isPending = m.state === 'pending' || m.state === 'failed';
+    // 组边界:发送中/失败消息单独成组;跨天/未读分隔也断开组
+    const prevIsSame = (visible[i - 1]?.from_id === m.from_id) && !isPending
+      && (visible[i - 1]?.state !== 'pending' && visible[i - 1]?.state !== 'failed')
+      && formatDate(new Date((visible[i - 1]?.ts ?? 0) * 1000)) === dateStr
+      && (start + i - 1) !== dividerIndex;
+    const nextIsSame = (visible[i + 1]?.from_id === m.from_id) && !isPending
+      && (visible[i + 1]?.state !== 'pending' && visible[i + 1]?.state !== 'failed')
+      && formatDate(new Date((visible[i + 1]?.ts ?? 0) * 1000)) === dateStr
+      && (start + i + 1) !== dividerIndex;
+    const role: 'solo' | 'first' | 'middle' | 'last' =
+      !prevIsSame && !nextIsSame ? 'solo'
+      : !prevIsSame && nextIsSame ? 'first'
+      : prevIsSame && !nextIsSame ? 'last'
+      : 'middle';
+    html += await renderMessage(m, role);
   }
 
   // 2. 在 off-DOM temp 中组装完整子节点(spacerTop + 消息 + spacerBottom)
