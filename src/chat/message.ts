@@ -229,13 +229,15 @@ export async function renderMessage(m: MsgDto): Promise<string> {
 // Render message text with code block highlighting (hljs) and @mention highlighting.
 // Code blocks: ```lang\ncode``` → <div class="msg-code">highlighted</div>
 // Mentions: @self or @roleName → highlighted span
+// 普通文本段:escapeHtml 不转义换行,HTML 会折叠成空格 → 手动把 \n 换成 <br>,否则多行消息挤成一行。
 function renderText(text: string): string {
   const parts: string[] = [];
   const regex = /```(\w*)\n([\s\S]*?)```/g;
   let last = 0;
   let match: RegExpExecArray | null;
+  const inline = (s: string) => highlightMentions(escapeHtml(s)).replace(/\r?\n/g, '<br>');
   while ((match = regex.exec(text)) !== null) {
-    if (match.index > last) parts.push(highlightMentions(escapeHtml(text.slice(last, match.index))));
+    if (match.index > last) parts.push(inline(text.slice(last, match.index)));
     const lang = match[1];
     const code = match[2];
     let highlighted: string;
@@ -247,7 +249,7 @@ function renderText(text: string): string {
     parts.push(`<div class="msg-code">${highlighted}</div>`);
     last = match.index + match[0].length;
   }
-  if (last < text.length) parts.push(highlightMentions(escapeHtml(text.slice(last))));
+  if (last < text.length) parts.push(inline(text.slice(last)));
   return parts.join('');
 }
 
