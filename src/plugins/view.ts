@@ -94,7 +94,7 @@ async function renderMarket(main: HTMLElement): Promise<void> {
     <div class="plugin-installed-view">
       <div class="plugin-installed-head">
         <h2>插件市场</h2>
-        <button class="plugin-icon-btn" id="plugin-market-refresh" title="刷新列表">↻</button>
+        <button class="plugin-icon-btn" id="plugin-market-refresh" title="刷新列表">${iconSvg('refresh-cw', { width: 14, height: 14 })}</button>
       </div>
       <div class="plugin-list" id="plugin-market-list"><div class="plugin-empty">加载插件列表…</div></div>
     </div>

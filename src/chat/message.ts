@@ -3,7 +3,7 @@ import { state } from '../state.js';
 import { showToast } from '../toast.js';
 import { showDropdown, type DropdownItem } from '../components/dropdown.js';
 import { showInlineConfirm } from '../components/inlineConfirm.js';
-import { iconSvg } from '../components/icon.js';
+import { iconSvg, type IconName } from '../components/icon.js';
 import hljs from 'highlight.js/lib/core';
 import rust from 'highlight.js/lib/languages/rust';
 import javascript from 'highlight.js/lib/languages/javascript';
@@ -160,7 +160,7 @@ export async function renderMessage(m: MsgDto, groupRole: GroupRole = 'solo'): P
     }
     if (!assetUrl) {
       attachmentHtml = `<div class="msg-attachment file">
-          <div class="file-icon">□</div>
+          <div class="file-icon">${iconSvg('file-text', { width: 16, height: 16, strokeWidth: 1.8 })}</div>
           <div class="file-info">
             <div class="file-name">${escapeHtml(msg.file_name || 'file')}</div>
             <div class="file-meta">附件加载失败</div>
@@ -172,12 +172,12 @@ export async function renderMessage(m: MsgDto, groupRole: GroupRole = 'solo'): P
         case 'Gif':
         case 'Sticker':
           attachmentHtml = `<div class="msg-attachment img" data-asset="${escapeAttr(assetUrl)}">
-          <img src="${escapeAttr(assetUrl)}" alt="${escapeAttr(msg.file_name || 'image')}" style="max-width:240px;max-height:180px;border-radius:4px;cursor:pointer" data-full="${escapeAttr(assetUrl)}" />
+          <img src="${escapeAttr(assetUrl)}" alt="${escapeAttr(msg.file_name || 'image')}" data-full="${escapeAttr(assetUrl)}" />
         </div>`;
           break;
         case 'File':
           attachmentHtml = `<div class="msg-attachment file" data-download="${escapeAttr(assetUrl)}">
-          <div class="file-icon">□</div>
+          <div class="file-icon">${iconSvg('file-text', { width: 16, height: 16, strokeWidth: 1.8 })}</div>
           <div class="file-info">
             <div class="file-name">${escapeHtml(msg.file_name || 'file')}</div>
             <div class="file-meta">${formatBytes(msg.file_bytes)} · 点击下载</div>
@@ -187,12 +187,12 @@ export async function renderMessage(m: MsgDto, groupRole: GroupRole = 'solo'): P
         case 'Audio':
         case 'Voice':
           attachmentHtml = `<div class="msg-attachment audio">
-          <audio controls src="${escapeAttr(assetUrl)}" style="max-width:280px"></audio>
+          <audio controls src="${escapeAttr(assetUrl)}"></audio>
         </div>`;
           break;
         case 'Video':
           attachmentHtml = `<div class="msg-attachment video">
-          <video controls src="${escapeAttr(assetUrl)}" style="max-width:280px;max-height:200px;border-radius:4px"></video>
+          <video controls src="${escapeAttr(assetUrl)}"></video>
         </div>`;
           break;
       }
@@ -288,7 +288,7 @@ function highlightMentions(html: string): string {
   const targets = [myName, ...roleNames].filter(Boolean).map(escapeRegex);
   if (targets.length === 0) return html;
   const re = new RegExp(`@(${targets.join('|')})`, 'g');
-  return html.replace(re, '<span style="background:var(--active);color:var(--text);padding:0 4px;border-radius:3px">@$1</span>');
+  return html.replace(re, '<span class="msg-mention">@$1</span>');
 }
 
 function escapeRegex(s: string): string {
@@ -318,17 +318,22 @@ async function renderReactions(msgId: number): Promise<string> {
 // Input: get_reactions return array. Output: inner capsules HTML (without .msg-reactions wrapper).
 export function renderReactionsHtml(reactions: Reaction[] | null, msgId: number): string {
   if (!reactions || reactions.length === 0) return '';
-  const mapEmoji = (emoji: string): string => {
+  // 反应图标化:后端 emoji 值 → lucide icon (与反应选择器同一图标集)。
+  // 未知 emoji 回退渲染原文 (仅文本)。
+  const iconFor = (emoji: string): IconName | '' => {
     const e = emoji.trim();
-    // Unicode escapes avoid literal emoji in source (Task 17 cleanup).
-    // U+1F44D = thumbs up, U+2795 = heavy plus sign.
-    if (e === '\u{1F44D}' || e === '+1' || e === 'thumbsup') return '↑';
-    if (e === '\u2795' || e === 'plus') return '+';
-    return e;
+    // U+1F44D = thumbs up, U+2795 = heavy plus sign, U+2605 = star
+    if (e === '\u{1F44D}' || e === '+1' || e === 'thumbsup') return 'thumbs-up';
+    if (e === '\u2795' || e === 'plus') return 'plus';
+    if (e === '\u2605' || e === 'star') return 'star';
+    if (e === '!') return 'alert-circle';
+    return '';
   };
   return reactions.map((r) => {
-    const symbol = mapEmoji(r.emoji);
-    return `<span class="msg-reaction" data-msg="${msgId}" data-emoji="${escapeAttr(r.emoji)}">${escapeHtml(symbol)} ${r.count}</span>`;
+    const icon = iconFor(r.emoji);
+    const glyph = icon ? iconSvg(icon, { width: 13, height: 13, strokeWidth: 2 }) : escapeHtml(r.emoji.trim());
+    const count = r.count > 1 ? `<span class="msg-reaction-count">${r.count}</span>` : '';
+    return `<span class="msg-reaction" data-msg="${msgId}" data-emoji="${escapeAttr(r.emoji)}">${glyph}${count}</span>`;
   }).join('');
 }
 
@@ -407,8 +412,11 @@ export function bindMessageActions(container: HTMLElement): void {
       overlay.className = 'overlay img-fullscreen-overlay';
       overlay.style.display = 'flex';
       const full = img.dataset.full || '';
-      overlay.innerHTML = `<img src="${escapeAttr(full)}" style="max-width:90%;max-height:90%" />`;
-      overlay.addEventListener('click', () => overlay.remove());
+      overlay.innerHTML = `<img src="${escapeAttr(full)}" class="img-fullscreen-img" />`;
+      overlay.addEventListener('click', () => {
+        overlay.classList.add('closing');
+        setTimeout(() => overlay.remove(), 160);
+      });
       document.body.appendChild(overlay);
     });
   });

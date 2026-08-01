@@ -184,8 +184,6 @@ export async function renderShell(): Promise<void> {
         overlay.remove();
         return;
       }
-      const { hideContextMenu } = await import('../components/contextMenu.js');
-      hideContextMenu();
       const replyPreview = document.getElementById('reply-preview');
       if (replyPreview) {
         const area = document.getElementById('composer-area');
