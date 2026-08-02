@@ -12,7 +12,6 @@ tauri-build = { version = "2.0", features = [] }
 
 [dependencies]
 tauri = { version = "2.0", features = ["protocol-asset"] }
-portable-pty = "0.8"
 deltachat = { path = "../core" }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
@@ -25,13 +24,18 @@ base64 = "0.22"
 env_logger = "0.11"
 log = "0.4"
 urlencoding = "2"
-# netwatch 0.5.0 (transitive via deltachat->iroh) uses socket2::Type::RAW, which
-# is gated behind socket2 0.5's `all` feature. Core's workspace enables `all`
-# transitively via hyper-util; peytchat builds deltachat standalone without that
-# unification, so enable `all` explicitly here.
 socket2 = { version = "0.5", features = ["all"] }
 rusqlite = "0.37"
 chrono = { version = "0.4", features = ["clock"] }
+
+# 只在非 Android 平台使用 portable-pty
+[target.'cfg(not(target_os = "android"))'.dependencies]
+portable-pty = "0.8"
+
+# Android 平台使用替代方案
+[target.'cfg(target_os = "android")'.dependencies]
+nix = "0.26"
+libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3"

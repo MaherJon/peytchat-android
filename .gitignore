@@ -6,3 +6,4 @@ src-tauri/target
 debug.log
 .idea
 .claude/
+src-tauri/gen/android
