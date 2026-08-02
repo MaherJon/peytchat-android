@@ -1565,7 +1565,16 @@ body {
   min-height: 0;
   overflow-y: auto;
   padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-faint) transparent;
 }
+#plugin-settings-list::-webkit-scrollbar { width: 5px; }
+#plugin-settings-list::-webkit-scrollbar-track { background: transparent; }
+#plugin-settings-list::-webkit-scrollbar-thumb {
+  background: var(--text-faint);
+  border-radius: 4px;
+}
+#plugin-settings-list::-webkit-scrollbar-thumb:hover { background: var(--text-mute); }
 
 /* 插件设置卡片（权限） */
 .plugin-settings-card {
