@@ -1244,11 +1244,11 @@ body {
   bottom: 0;
   display: flex;
   gap: 2px;
-  background: var(--surface); /* color-mix 回退 */
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  background: var(--capsule); /* color-mix 回退 */
+  background: color-mix(in srgb, var(--capsule) 82%, transparent);
   -webkit-backdrop-filter: blur(12px) saturate(160%);
   backdrop-filter: blur(12px) saturate(160%);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   padding: 3px;
