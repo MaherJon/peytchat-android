@@ -1551,6 +1551,22 @@ body {
 }
 .plugin-tree-dot.on { background: var(--success); }
 
+/* 插件设置页：占满主区高度，列表内部滚动（像聊天消息区） */
+.plugin-settings-page {
+  flex: 1;
+  min-height: 0;
+  max-width: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#plugin-settings-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 /* 插件设置卡片（权限） */
 .plugin-settings-card {
   border: 1px solid var(--border);
