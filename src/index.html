@@ -2,9 +2,73 @@
 <html lang="zh">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 移动端视口：宽度=设备宽度，初始缩放1，禁止用户缩放 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <!-- Android 状态栏/工具栏颜色 -->
+    <meta name="theme-color" content="#1e1e2f" />
     <title>PEYT Chat</title>
     <link rel="stylesheet" href="/styles.css" />
+    <!-- 内联移动端基础样式（优先加载，可被外部样式覆盖） -->
+    <style>
+      /* 全局重置与移动端基础 */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent; /* 去除点击高亮 */
+      }
+      html, body {
+        height: 100%;
+        overflow: hidden;
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        background-color: #1e1e2f;
+        color: #e0e0e0;
+        touch-action: manipulation; /* 优化触摸响应 */
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+      }
+      .theme-mask {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 9999;
+        /* 可保留原样，此处仅作占位 */
+      }
+      #app {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        position: relative;
+      }
+      /* 默认标题（登录页等）在移动端缩小 */
+      #app h1 {
+        font-size: 2rem;
+        text-align: center;
+        margin: 1rem 0;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      /* 移动端适配（屏幕宽度 ≤ 600px） */
+      @media (max-width: 600px) {
+        #app h1 {
+          font-size: 1.6rem;
+          margin: 0.8rem 0;
+        }
+        /* 所有按钮、链接等触摸区域至少 44px */
+        button, a, .clickable {
+          min-height: 44px;
+          min-width: 44px;
+        }
+        /* 导航栏、面板等内部间距调整（由组件内部实现，此处留作全局基调） */
+        body {
+          font-size: 16px; /* 防止 iOS 自动缩放 */
+        }
+      }
+      /* 可选的暗色模式兼容（若主题切换，则覆盖） */
+    </style>
   </head>
   <body>
     <div class="theme-mask"></div>

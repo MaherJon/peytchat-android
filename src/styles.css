@@ -787,7 +787,7 @@ html { background: var(--bg); }
 }
 .rd-pin-item:hover { background: var(--capsule); }
 .rd-pin-from { font-size: 10px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
-.rd-pin-text { font-size: var(--font-scale-secondary); color: var(--text-mute); line-height: 1.4; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.rd-pin-text { font-size: var(--font-scale-secondary); color: var(--text-mute); line-height: 1.4; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
 .rd-pin-time { font-size: var(--font-scale-secondary); color: var(--text-weak); margin-top: 4px; }
 
 /* Task 13: 头像样式 — 各处头像统一规则(图片用 object-fit: cover;字母用 flex 居中)。
@@ -1130,7 +1130,7 @@ body {
 .card-title {
   font-size: 12px; font-weight: 500; color: var(--text); line-height: 1.4;
   overflow: hidden; text-overflow: ellipsis; display: -webkit-box;
-  -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  line-clamp: 2; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 }
 .card-meta {
   display: flex; align-items: center; gap: 8px; margin-top: 8px;
@@ -1884,7 +1884,7 @@ body {
 .inbox-item-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .inbox-item-type { font-size: 10px; font-weight: 600; color: var(--text); text-transform: uppercase; letter-spacing: 0.3px; }
 .inbox-item-time { font-size: var(--font-scale-secondary); color: var(--text-weak); flex-shrink: 0; }
-.inbox-item-summary { font-size: 12px; color: var(--text-body); line-height: 1.4; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.inbox-item-summary { font-size: 12px; color: var(--text-body); line-height: 1.4; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; line-clamp: 2; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .inbox-item-meta { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
 .inbox-item-actor { font-size: var(--font-scale-secondary); color: var(--text-mute); }
 .inbox-item-channel { font-size: 10px; color: var(--text-weak); }
@@ -1960,3 +1960,277 @@ body {
 .term-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .term-holder { flex: 1; min-height: 0; padding: 6px 8px; }
 .term-holder .xterm { height: 100%; }
+
+/* ===== 移动端适配 (Android / 小屏设备) ===== */
+@media (max-width: 768px) {
+  body.mobile #app {
+    flex-direction: column;
+  }
+
+  /* ---- 底部导航栏 (原 Rail) ---- */
+  body.mobile .app-rail,
+  body.mobile .ws-rail {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 56px;
+    flex-direction: row;
+    justify-content: space-around;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    z-index: 100;
+    padding: 4px 0;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.3);
+  }
+  body.mobile .app-rail .app-icon,
+  body.mobile .ws-rail .ws-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 14px;
+  }
+  body.mobile .app-rail .app-separator,
+  body.mobile .ws-rail .ws-sep {
+    display: none;
+  }
+  body.mobile .app-rail .app-flex,
+  body.mobile .ws-rail .ws-spacer {
+    display: none;
+  }
+  /* 隐藏原来左侧的固定样式 */
+  body.mobile .app-rail {
+    border-right: none;
+  }
+
+  /* ---- 左侧导航面板 → 抽屉 ---- */
+  body.mobile .channel-tree,
+  body.mobile .nav-tree {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
+    max-width: 80vw;
+    height: 100%;
+    background: var(--bg);
+    border-right: 1px solid var(--border);
+    z-index: 200;
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 2px 0 12px rgba(0,0,0,0.4);
+    overflow-y: auto;
+  }
+  body.mobile .channel-tree.open,
+  body.mobile .nav-tree.open {
+    transform: translateX(0);
+  }
+
+  /* 抽屉遮罩 (由 JS 动态创建) */
+  body.mobile .drawer-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 150;
+    opacity: 0;
+    transition: opacity 0.25s;
+    pointer-events: none;
+  }
+  body.mobile .drawer-overlay.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* ---- 消息主区域 ---- */
+  body.mobile .chat-main {
+    flex: 1;
+    padding-bottom: 56px; /* 为底部导航留空间 */
+    min-height: 0;
+  }
+
+  /* 消息列表 */
+  body.mobile .messages {
+    padding: 10px 12px 12px;
+    gap: 6px;
+  }
+  body.mobile .msg-bubble {
+    max-width: 85%;
+    padding: 5px 10px 6px;
+    font-size: 14px; /* 增大可读性 */
+  }
+  body.mobile .msg-text {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  body.mobile .msg-meta {
+    font-size: 10px;
+    gap: 4px;
+  }
+  body.mobile .msg-time {
+    font-size: 9px;
+  }
+  body.mobile .msg-avatar {
+    width: 24px;
+    height: 24px;
+    font-size: 10px;
+  }
+  /* 分组缩进调整 */
+  body.mobile .msg-group-middle:not([data-is-out="1"]) .msg-row,
+  body.mobile .msg-group-last:not([data-is-out="1"]) .msg-row {
+    padding-left: calc(24px + 8px);
+  }
+
+  /* 输入区 */
+  body.mobile .composer {
+    padding: 8px 12px 10px;
+    border-top: 1px solid var(--border);
+    gap: 6px;
+  }
+  body.mobile .composer textarea {
+    font-size: 14px;
+    padding: 8px 12px;
+    min-height: 34px;
+    max-height: 80px;
+    border-radius: 10px;
+  }
+  body.mobile .composer-send {
+    width: 34px;
+    height: 34px;
+  }
+
+  /* 聊天头部 */
+  body.mobile .chat-header {
+    padding: 10px 12px;
+  }
+  body.mobile .chat-header .ch-title {
+    font-size: 15px;
+  }
+  body.mobile .chat-header .ch-members {
+    font-size: 11px;
+    margin-left: 4px;
+  }
+  body.mobile .chat-header .ch-topic {
+    font-size: 11px;
+  }
+
+  /* 汉堡菜单按钮 (由 JS 添加) */
+  body.mobile .menu-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    margin-right: 8px;
+    background: none;
+    border: none;
+    color: var(--text);
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 20px;
+    line-height: 1;
+    transition: background 0.15s;
+  }
+  body.mobile .menu-toggle:hover {
+    background: var(--capsule);
+  }
+  body.mobile .menu-toggle svg {
+    display: block;
+  }
+
+  /* 右侧抽屉在移动端隐藏或改为底部抽屉，此处暂时隐藏（可按需调整） */
+  body.mobile .right-drawer {
+    display: none;
+  }
+  body.mobile .detail-expand {
+    display: none;
+  }
+
+  /* 其他微调 */
+  body.mobile .main-header {
+    padding: 10px 12px;
+  }
+  body.mobile .main-title {
+    font-size: 15px;
+  }
+  body.mobile .view-toggle .view-btn {
+    padding: 4px 10px;
+    font-size: 10px;
+  }
+  /* ===== 登录页移动端适配 ===== */
+  body.mobile .login-wrap {
+    gap: 24px;                      /* 品牌区与表单间距减小 */
+    padding: 20px 16px 36px;
+    justify-content: flex-start;    /* 顶部对齐，避免内容被挤压 */
+  }
+
+  body.mobile .login-hero-logo {
+    width: 72px;
+    height: 72px;
+    border-radius: 20px;
+  }
+
+  body.mobile .login-hero-title {
+    font-size: 28px;                /* 品牌标题缩小 */
+  }
+
+  body.mobile .login-hero-slogan {
+    font-size: 14px;
+  }
+
+  body.mobile .login-panel {
+    width: 100%;                   /* 表单占满宽度 */
+  }
+
+  body.mobile .login-form {
+    padding: 20px 16px;
+    gap: 12px;
+  }
+
+  body.mobile .login-form .tabs {
+    padding: 3px;
+    border-radius: 8px;
+  }
+
+  body.mobile .login-form .tab {
+    padding: 8px 0;
+    font-size: 13px;
+    border-radius: 6px;
+  }
+
+  body.mobile .login-form input,
+  body.mobile .login-form select,
+  body.mobile .login-form button {
+    padding: 12px 14px;            /* 增加垂直内边距，方便手指点击 */
+    font-size: 15px;               /* 防止 iOS 自动缩放 */
+    border-radius: 8px;
+  }
+
+  body.mobile .login-form button {
+    padding: 14px;                 /* 按钮更高，点击区域更大 */
+    font-weight: 600;
+  }
+
+  body.mobile .login-form .hint {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  body.mobile .login-form .advanced {
+    padding: 12px 10px;
+    gap: 6px;
+  }
+
+  body.mobile .login-form .advanced input,
+  body.mobile .login-form .advanced select {
+    font-size: 14px;
+    padding: 10px 12px;
+  }
+
+  body.mobile .login-form .link {
+    font-size: 13px;
+    padding: 6px 0; 
+  }
+
+  body.mobile #error {
+    font-size: 13px;
+    padding: 6px 10px;
+  }
+}
