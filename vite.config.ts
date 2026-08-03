@@ -1,15 +1,23 @@
-import { defineConfig } from "vite";
+import { defineConfig } from 'vite';
+import { resolve } from 'path';
 
 export default defineConfig({
-  root: "src",
-  clearScreen: false,
   server: {
+    host: '0.0.0.0',  // 监听所有网络接口
     port: 1420,
-    strictPort: true,
   },
   build: {
-    target: "es2021",
-    outDir: "../dist",
-    emptyOutDir: true,
+    outDir: 'dist',
+    assetsDir: 'assets',
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+      },
+    },
+  },
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, 'src'),
+    },
   },
 });

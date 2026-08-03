@@ -45,6 +45,9 @@ const SPECS: Record<string, ResizerSpec> = {
 };
 
 export function bindColumnResizers(): void {
+  // 移动端不启用列宽拖拽 (无侧边栏)。
+  if (window.matchMedia('(max-width:900px)').matches) return;
+
   document.querySelectorAll<HTMLElement>('.col-resizer').forEach((handle) => {
     const spec = SPECS[handle.dataset.resizer ?? ''];
     if (!spec) return;

@@ -89,11 +89,19 @@ export async function renderNavPanel(): Promise<void> {
   } catch {
     panel.innerHTML = `<div class="empty">页面加载失败</div>`;
   }
+
+  // 移动端: 页面由 mobileShell.ts 管理, navPanel 不再控制可见性。
+  const isMobile = window.matchMedia('(max-width:900px)').matches;
+  if (isMobile) return;
 }
 
 export async function renderMain(): Promise<void> {
   const main = document.getElementById('chat-main');
   if (!main) return;
+
+  // 移动端: 页面渲染由 mobileShell.ts 管理, 此处跳过。
+  const isMobile = window.matchMedia('(max-width:900px)').matches;
+  if (isMobile) return;
 
   // 离开终端页时关闭会话,避免 PTY 泄漏
   if (state.currentPage !== 'terminal') {

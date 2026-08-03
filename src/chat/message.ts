@@ -630,6 +630,133 @@ function inlineDeleteMsg(msgIdStr: string): void {
   });
 }
 
+// ── 移动端手势:长按 + 滑动 ────────────────────────────────────────────
+// 触摸常量
+const LONG_PRESS_MS = 500;
+const SWIPE_THRESHOLD = 60; // 水平滑动超过此距离触发回复
+const SWIPE_VERTICAL_MAX = 30; // 垂直偏移超过此值视为滚动,不触发滑动
+
+interface TouchState {
+  startX: number;
+  startY: number;
+  timer: ReturnType<typeof setTimeout> | null;
+  msgEl: HTMLElement | null;
+  swiping: boolean;
+  swipeOffset: number;
+}
+
+let touchState: TouchState = {
+  startX: 0, startY: 0, timer: null, msgEl: null, swiping: false, swipeOffset: 0,
+};
+
+// 导出供 chatView.ts 在移动端调用 (与 bindMessageActions 并列)
+export function bindMobileMessageActions(container: HTMLElement): void {
+  container.querySelectorAll<HTMLElement>('.msg').forEach((el) => {
+    // ── 长按 → 上下文菜单 ──
+    el.addEventListener('touchstart', (e) => {
+      const touch = (e as TouchEvent).touches[0];
+      touchState.startX = touch.clientX;
+      touchState.startY = touch.clientY;
+      touchState.msgEl = el;
+      touchState.swiping = false;
+      touchState.swipeOffset = 0;
+      // 清除前次定时器
+      if (touchState.timer) clearTimeout(touchState.timer);
+      touchState.timer = setTimeout(() => {
+        if (!touchState.swiping) {
+          showMobileContextMenu(el);
+        }
+        touchState.timer = null;
+      }, LONG_PRESS_MS);
+    }, { passive: false });
+
+    el.addEventListener('touchmove', (e) => {
+      if (!touchState.timer && !touchState.swiping) return;
+      const touch = (e as TouchEvent).touches[0];
+      const dx = touch.clientX - touchState.startX;
+      const dy = Math.abs(touch.clientY - touchState.startY);
+      // 垂直移动较大 → 取消长按 (用户在滚动)
+      if (dy > SWIPE_VERTICAL_MAX) {
+        if (touchState.timer) { clearTimeout(touchState.timer); touchState.timer = null; }
+        resetSwipeIndicator(el);
+        return;
+      }
+      // 如果取消了长按,检查水平滑动
+      if (!touchState.timer && dx > 0) {
+        touchState.swiping = true;
+        touchState.swipeOffset = Math.min(dx, 80);
+        showSwipeIndicator(el, touchState.swipeOffset);
+      }
+    }, { passive: false });
+
+    el.addEventListener('touchend', () => {
+      if (touchState.timer) { clearTimeout(touchState.timer); touchState.timer = null; }
+      if (touchState.swiping && touchState.swipeOffset >= SWIPE_THRESHOLD) {
+        const msgIdStr = el.dataset.msg || '';
+        if (msgIdStr) {
+          dispatchReply(Number(msgIdStr));
+        }
+      }
+      resetSwipeIndicator(el);
+      touchState.swiping = false;
+      touchState.swipeOffset = 0;
+    });
+
+    el.addEventListener('touchcancel', () => {
+      if (touchState.timer) { clearTimeout(touchState.timer); touchState.timer = null; }
+      resetSwipeIndicator(el);
+      touchState.swiping = false;
+    });
+  });
+}
+
+// 移动端长按上下文菜单 — 复用 showContextMenuAt 逻辑,
+// 但定位到触摸点而非鼠标位置。
+function showMobileContextMenu(msgEl: HTMLElement): void {
+  const msgIdStr = msgEl.dataset.msg || '';
+  const msgId = Number(msgIdStr);
+  const msg = state.messages.find((mm) => String(mm.msg_id) === msgIdStr) as RenderableMsg | undefined;
+  const isOut = msgEl.dataset.isOut === '1';
+
+  // 视觉反馈:短暂高亮
+  msgEl.style.transition = 'background 0.15s';
+  const bubble = msgEl.querySelector<HTMLElement>('.msg-bubble');
+  if (bubble) bubble.style.opacity = '0.7';
+  setTimeout(() => {
+    if (bubble) bubble.style.opacity = '';
+  }, 300);
+
+  // 在触摸点位置显示菜单 (使用 startX/startY)
+  showContextMenuAt(
+    touchState.startX,
+    touchState.startY,
+    msgIdStr,
+    msgId,
+    msg,
+    isOut,
+  );
+}
+
+// 滑动视觉指示器 — 在消息左侧显示回复图标
+function showSwipeIndicator(msgEl: HTMLElement, offset: number): void {
+  let indicator = msgEl.querySelector<HTMLElement>('.swipe-indicator');
+  if (!indicator) {
+    indicator = document.createElement('div');
+    indicator.className = 'swipe-indicator';
+    indicator.innerHTML = iconSvg('reply', { width: 20, height: 20, strokeWidth: 2 });
+    msgEl.style.position = 'relative';
+    msgEl.appendChild(indicator);
+  }
+  indicator.style.opacity = String(Math.min(1, offset / SWIPE_THRESHOLD));
+  indicator.style.left = `${Math.max(0, offset - 28)}px`;
+}
+
+function resetSwipeIndicator(msgEl: HTMLElement): void {
+  const indicator = msgEl.querySelector<HTMLElement>('.swipe-indicator');
+  if (indicator) indicator.remove();
+  msgEl.style.transform = '';
+}
+
 function formatTs(ts: number): string {
   const d = new Date(ts * 1000);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;

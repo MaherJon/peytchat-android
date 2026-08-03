@@ -44,6 +44,14 @@ let mentionQueryStart = -1;
 export function renderComposer(chatId: number, onSent: () => void): void {
   const area = document.getElementById('composer-area');
   if (!area) return;
+
+  // 移动端:委托给 Android 风格发送器
+  if (window.matchMedia('(max-width:900px)').matches) {
+    import('./mobileComposer.js').then(({ renderMobileComposer }) => {
+      renderMobileComposer(chatId, onSent);
+    });
+    return;
+  }
   // F5:切换 chat 时清理可能残留的 @提及/#频道建议面板 (模块级 mentionList),
   // 避免上一个聊天的建议列表残留在新聊天界面。
   closeMentionList();

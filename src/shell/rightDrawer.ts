@@ -18,7 +18,11 @@ interface ChannelPin {
 
 // Task 8: 4 页不同处理 — settings 隐藏 / work 卡片详情 / messages·groups 成员·置顶。
 // renderRightDrawer 为同步函数 (rail.ts 未 await),内部异步渲染通过 void 触发。
+// 移动端:右侧抽屉完全隐藏 (后续里程碑 M-A2 将改为 BottomSheet)。
 export function renderRightDrawer(): void {
+  // 移动端不渲染右侧抽屉
+  if (window.matchMedia('(max-width:900px)').matches) return;
+
   const drawer = document.getElementById('right-drawer');
   if (!drawer) return;
 
