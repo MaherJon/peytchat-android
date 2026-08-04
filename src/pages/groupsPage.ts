@@ -9,24 +9,28 @@ import { renderAvatarHtml } from '../components/avatar.js';
 import { getSpaceType, refreshChannels } from '../shell/navPanel.js';
 import type { ChannelDto } from '../types.js';
 
-export async function renderGroupsPage(panel: HTMLElement): Promise<void> {
+export async function renderGroupsPage(container: HTMLElement): Promise<void> {
   const ws = state.workspaces.find((w) => w.id === state.currentWsId);
   const multiWs = state.workspaces.length > 1;
   const headerClickable = multiWs ? 'clickable' : '';
+  const isMobile = window.matchMedia('(max-width:900px)').matches;
   const avatarHtml = state.self ? await renderAvatarHtml(state.self) : '';
 
-  panel.innerHTML = `
-    <div class="nav-header ${headerClickable}" id="groups-header">
-      <div class="nav-title">${escapeHtml(ws?.name || '未选择团队')}</div>
-      <div class="nav-subtitle">${state.wsMembers[state.currentWsId || 0] || 0} members</div>
-    </div>
-    <div class="nav-list" id="groups-list"></div>
-    <div class="nav-user">
-      ${avatarHtml}
-      <div class="nav-user-info">
-        <div class="nav-user-name">${escapeHtml(state.self?.name || 'me')}</div>
-        <div class="nav-user-role">core</div>
+  container.innerHTML = `
+    <div class="mobile-page-content">
+      <div class="nav-header ${headerClickable}" id="groups-header">
+        <div class="nav-title">${escapeHtml(ws?.name || 'Groups')}</div>
+        <div class="nav-subtitle">${state.wsMembers[state.currentWsId || 0] || 0} members</div>
       </div>
+      <div class="nav-list" id="groups-list"></div>
+      ${!isMobile ? `
+      <div class="nav-user">
+        ${avatarHtml}
+        <div class="nav-user-info">
+          <div class="nav-user-name">${escapeHtml(state.self?.name || 'me')}</div>
+          <div class="nav-user-role">core</div>
+        </div>
+      </div>` : ''}
     </div>
   `;
 
@@ -90,9 +94,15 @@ function bindChannelClicks(): void {
       const id = Number(el.dataset.id);
       state.currentChatId = id;
       saveState();
-      const { renderNavPanel, renderMain } = await import('../shell/navPanel.js');
-      await renderNavPanel();
-      await renderMain();
+      const isMobile = window.matchMedia('(max-width:900px)').matches;
+      if (isMobile) {
+        const { enterMobileChat } = await import('../shell/mobileShell.js');
+        await enterMobileChat(id);
+      } else {
+        const { renderNavPanel, renderMain } = await import('../shell/navPanel.js');
+        await renderNavPanel();
+        await renderMain();
+      }
     });
   });
 }

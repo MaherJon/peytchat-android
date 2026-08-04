@@ -319,3 +319,306 @@ function escapeHtml(s: string): string {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 }
 function escapeAttr(s: string): string { return escapeHtml(s); }
+
+// ── 移动端 Me 页面 (WeChat 风格分组卡片) ──────────────────────────────
+
+export async function renderMePage(container: HTMLElement): Promise<void> {
+  const avatarHtml = state.self ? await renderAvatarHtml(state.self) : '';
+  const displayName = escapeHtml(state.self?.name || '未登录');
+  const email = escapeHtml(state.self?.addr || '');
+
+  container.innerHTML = `
+    <div class="me-page">
+      <!-- 用户资料卡片 -->
+      <div class="me-card" id="me-profile-card">
+        <div class="me-card-row" style="padding: 16px;">
+          <div class="me-avatar-lg">${avatarHtml}</div>
+          <div class="me-profile-info">
+            <div class="me-profile-name">${displayName}</div>
+            ${email ? `<div class="me-profile-email">${email}</div>` : ''}
+          </div>
+          <div class="me-arrow">${iconSvg('chevron-right', { width: 18, height: 18, strokeWidth: 1.5 })}</div>
+        </div>
+      </div>
+
+      <!-- 设置分组 -->
+      <div class="me-section-label">Settings</div>
+      <div class="me-card">
+        ${renderMeRow('bell', 'Notifications', 'me-notifications')}
+        ${renderMeRow('palette', 'Appearance', 'me-appearance')}
+        ${renderMeRow('message-circle', 'Chats', 'me-chats')}
+        ${renderMeRow('package', 'Plugins', 'me-plugins')}
+      </div>
+
+      <!-- 关于分组 -->
+      <div class="me-section-label">About</div>
+      <div class="me-card">
+        ${renderMeRow('info', 'About', 'me-about')}
+        <div class="me-card-row me-row-danger" id="me-logout">
+          <span class="me-row-icon">${iconSvg('log-out', { width: 20, height: 20, strokeWidth: 1.5 })}</span>
+          <span class="me-row-label">Logout</span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  bindMePageEvents(container);
+}
+
+function renderMeRow(icon: string, label: string, id: string): string {
+  return `
+    <div class="me-card-row" id="${id}">
+      <span class="me-row-icon">${iconSvg(icon as import('../components/icon.js').IconName, { width: 20, height: 20, strokeWidth: 1.5 })}</span>
+      <span class="me-row-label">${escapeHtml(label)}</span>
+      <span class="me-arrow">${iconSvg('chevron-right', { width: 16, height: 16, strokeWidth: 1.5 })}</span>
+    </div>
+  `;
+}
+
+function bindMePageEvents(container: HTMLElement): void {
+  // Profile card → account settings
+  container.querySelector('#me-profile-card')?.addEventListener('click', () => {
+    showMeSubPage(container, 'account');
+  });
+
+  // Notifications
+  container.querySelector('#me-notifications')?.addEventListener('click', () => {
+    showMeSubPage(container, 'notifications');
+  });
+
+  // Appearance (theme switcher)
+  container.querySelector('#me-appearance')?.addEventListener('click', () => {
+    showMeSubPage(container, 'appearance');
+  });
+
+  // Chats settings
+  container.querySelector('#me-chats')?.addEventListener('click', () => {
+    showMeSubPage(container, 'chats');
+  });
+
+  // Plugins
+  container.querySelector('#me-plugins')?.addEventListener('click', async () => {
+    const { renderPluginSettings } = await import('../plugins/settings.js');
+    const page = container.querySelector<HTMLElement>('.me-page');
+    if (page) {
+      page.innerHTML = '<div class="me-sub-page" id="me-sub-content"></div>';
+      const sub = document.getElementById('me-sub-content');
+      if (sub) {
+        // Add back button
+        const backBtn = document.createElement('button');
+        backBtn.className = 'me-back-btn';
+        backBtn.innerHTML = `${iconSvg('arrow-left', { width: 20, height: 20, strokeWidth: 1.5 })} Back`;
+        backBtn.addEventListener('click', () => { void renderMePage(container); });
+        sub.appendChild(backBtn);
+        await renderPluginSettings(sub);
+      }
+    }
+  });
+
+  // About
+  container.querySelector('#me-about')?.addEventListener('click', () => {
+    showMeSubPage(container, 'about');
+  });
+
+  // Logout
+  container.querySelector('#me-logout')?.addEventListener('click', () => {
+    const el = container.querySelector('#me-logout') as HTMLElement;
+    if (!el) return;
+    showInlineConfirm(el, {
+      message: '确定登出当前账号?',
+      confirmLabel: 'Logout',
+      onConfirm: async () => {
+        await call('logout');
+        location.reload();
+      },
+    });
+  });
+}
+
+async function showMeSubPage(container: HTMLElement, section: string): Promise<void> {
+  const page = container.querySelector<HTMLElement>('.me-page');
+  if (!page) return;
+
+  // 创建子页面
+  page.innerHTML = '<div class="me-sub-page" id="me-sub-content"></div>';
+  const sub = document.getElementById('me-sub-content');
+  if (!sub) return;
+
+  // 返回按钮
+  const backBtn = document.createElement('button');
+  backBtn.className = 'me-back-btn';
+  backBtn.innerHTML = `${iconSvg('arrow-left', { width: 20, height: 20, strokeWidth: 1.5 })} Back`;
+  backBtn.addEventListener('click', () => { void renderMePage(container); });
+  sub.appendChild(backBtn);
+
+  const content = document.createElement('div');
+  content.className = 'me-sub-content';
+
+  switch (section) {
+    case 'account':
+      await renderAccountContent(content);
+      break;
+    case 'notifications':
+      renderNotificationsContent(content);
+      break;
+    case 'appearance':
+      renderAppearanceContent(content);
+      break;
+    case 'chats':
+      renderChatsContent(content);
+      break;
+    case 'about':
+      renderAboutContent(content);
+      break;
+  }
+
+  sub.appendChild(content);
+}
+
+async function renderAccountContent(container: HTMLElement): Promise<void> {
+  const avatarHtml = state.self ? await renderAvatarHtml(state.self) : '';
+  container.innerHTML = `
+    <div class="me-sub-section">
+      <div class="me-sub-title">Account</div>
+      <div class="me-card">
+        <div class="me-card-row" id="me-avatar-row" style="padding: 14px 16px;">
+          <span class="me-row-label">Avatar</span>
+          <div class="me-avatar-md">${avatarHtml}</div>
+          <span class="me-arrow">${iconSvg('chevron-right', { width: 16, height: 16, strokeWidth: 1.5 })}</span>
+        </div>
+      </div>
+      <div class="me-card">
+        <div class="me-card-row" style="padding: 14px 16px;">
+          <span class="me-row-label">Name</span>
+          <input type="text" id="me-name-input" class="me-input" value="${escapeAttr(state.self?.name || '')}" />
+        </div>
+      </div>
+      <div class="me-card">
+        <div class="me-card-row" style="padding: 14px 16px;">
+          <span class="me-row-label">Email</span>
+          <span class="me-row-value">${escapeHtml(state.self?.addr || '—')}</span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Avatar upload
+  container.querySelector('#me-avatar-row')?.addEventListener('click', () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.addEventListener('change', async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const buf = await file.arrayBuffer();
+        const bytes = Array.from(new Uint8Array(buf));
+        const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+        const path = await call<string>('save_avatar_from_bytes', { bytes, ext });
+        await call('update_profile', { name: null, avatarPath: path });
+        state.self = await call<SelfProfile>('get_self_profile');
+        showToast('Avatar updated');
+        await renderAccountContent(container);
+      } catch (e) { showToast(e instanceof Error ? e.message : String(e)); }
+    });
+    input.click();
+  });
+
+  // Name change
+  const nameInput = container.querySelector('#me-name-input') as HTMLInputElement;
+  nameInput?.addEventListener('blur', async () => {
+    const name = nameInput.value.trim();
+    if (name && name !== state.self?.name) {
+      try {
+        await call('update_profile', { name, avatarPath: null });
+        state.self = await call<SelfProfile>('get_self_profile');
+        showToast('Saved');
+      } catch (e) { showToast(e instanceof Error ? e.message : String(e)); }
+    }
+  });
+}
+
+function renderNotificationsContent(container: HTMLElement): void {
+  const desktopEnabled = Notification.permission === 'granted';
+  container.innerHTML = `
+    <div class="me-sub-section">
+      <div class="me-sub-title">Notifications</div>
+      <div class="me-card">
+        <div class="me-card-row" style="padding: 14px 16px;">
+          <span class="me-row-label">Desktop Notifications</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="me-toggle-desktop" ${desktopEnabled ? 'checked' : ''} />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+  `;
+  container.querySelector('#me-toggle-desktop')?.addEventListener('change', async (e) => {
+    const checked = (e.target as HTMLInputElement).checked;
+    if (checked && Notification.permission !== 'granted') {
+      await Notification.requestPermission();
+    }
+  });
+}
+
+function renderAppearanceContent(container: HTMLElement): void {
+  const current = getCurrentTheme();
+  const themes = [
+    { id: 'nowint', label: 'Nowint', cls: 'swatch-nowint' },
+    { id: 'violet', label: 'Violet', cls: 'swatch-violet' },
+    { id: 'goldenhour', label: 'GoldenHour', cls: 'swatch-goldenhour' },
+  ];
+  container.innerHTML = `
+    <div class="me-sub-section">
+      <div class="me-sub-title">Appearance</div>
+      <div class="me-card">
+        ${themes.map((t) => `
+          <div class="me-card-row me-theme-row ${current === t.id ? 'active' : ''}" data-theme="${t.id}" style="padding: 14px 16px;">
+            <div class="theme-swatch ${t.cls}"></div>
+            <span class="me-row-label">${escapeHtml(t.label)}</span>
+            ${current === t.id ? `<span class="me-check">${iconSvg('check', { width: 16, height: 16, strokeWidth: 2 })}</span>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+  container.querySelectorAll<HTMLElement>('.me-theme-row').forEach((el) => {
+    el.addEventListener('click', () => {
+      const theme = el.dataset.theme!;
+      applyTheme(theme);
+      renderAppearanceContent(container);
+    });
+  });
+}
+
+function renderChatsContent(container: HTMLElement): void {
+  container.innerHTML = `
+    <div class="me-sub-section">
+      <div class="me-sub-title">Chats</div>
+      <div class="me-card">
+        <div class="me-card-row" style="padding: 14px 16px;">
+          <span class="me-row-label">Enter to Send</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="me-toggle-enter-send" checked />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderAboutContent(container: HTMLElement): void {
+  container.innerHTML = `
+    <div class="me-sub-section">
+      <div class="me-sub-title">About</div>
+      <div class="me-card">
+        <div class="me-card-row" style="padding: 14px 16px;">
+          <span class="me-row-label">Version</span>
+          <span class="me-row-value">0.5.2</span>
+        </div>
+      </div>
+    </div>
+  `;
+}

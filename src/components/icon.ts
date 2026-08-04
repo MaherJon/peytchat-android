@@ -7,6 +7,7 @@ import {
   Calendar, List, Clock, Inbox,
   Columns3, GitCommitHorizontal,
   RefreshCw, Ban,
+  Menu, ArrowLeft, Contact,
 } from 'lucide';
 import type { IconNode, SVGProps } from 'lucide';
 
@@ -24,7 +25,9 @@ export type IconName =
   // SP7: ViewToggle 视图切换图标 (kanban / timeline)
   | 'calendar' | 'list' | 'clock' | 'inbox' | 'columns' | 'timeline'
   // 图标收口: 刷新 / 禁止 (替代 ↻ / ⛔)
-  | 'refresh-cw' | 'ban';
+  | 'refresh-cw' | 'ban'
+  // M-A2: 移动端导航图标
+  | 'menu' | 'arrow-left' | 'contact';
 
 export interface IconOpts {
   width?: number;
@@ -85,6 +88,9 @@ const iconMap: Record<IconName, IconNode> = {
   'timeline': GitCommitHorizontal,
   'refresh-cw': RefreshCw,
   'ban': Ban,
+  'menu': Menu,
+  'arrow-left': ArrowLeft,
+  'contact': Contact,
 };
 
 const defaultAttributes: SVGProps = {

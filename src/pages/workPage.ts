@@ -5,36 +5,40 @@ import { getSpaceType } from '../shell/navPanel.js';
 import { renderAvatarHtml } from '../components/avatar.js';
 import type { ChannelDto, WorkTab } from '../types.js';
 
-export async function renderWorkPage(panel: HTMLElement): Promise<void> {
+export async function renderWorkPage(container: HTMLElement): Promise<void> {
   const ws = state.workspaces.find((w) => w.id === state.currentWsId);
   const multiWs = state.workspaces.length > 1;
   const headerClickable = multiWs ? 'clickable' : '';
+  const isMobile = window.matchMedia('(max-width:900px)').matches;
   const avatarHtml = state.self ? await renderAvatarHtml(state.self) : '';
 
   const tabsHtml = `
     <div class="nav-tabs">
-      <button class="nav-tab ${state.currentWorkTab === 'channels' ? 'active' : ''}" data-tab="channels">${iconSvg('hash', { width: 12, height: 12 })} 频道</button>
-      <button class="nav-tab ${state.currentWorkTab === 'activity' ? 'active' : ''}" data-tab="activity">${iconSvg('clock', { width: 12, height: 12 })} 活动</button>
+      <button class="nav-tab ${state.currentWorkTab === 'channels' ? 'active' : ''}" data-tab="channels">${iconSvg('hash', { width: 12, height: 12 })} Channels</button>
+      <button class="nav-tab ${state.currentWorkTab === 'activity' ? 'active' : ''}" data-tab="activity">${iconSvg('clock', { width: 12, height: 12 })} Activity</button>
     </div>
   `;
 
-  panel.innerHTML = `
-    <div class="nav-header ${headerClickable}">
-      <div class="nav-title">协作</div>
-      <div class="nav-subtitle">${escapeHtml(ws?.name || '未选择团队')}</div>
-    </div>
-    ${tabsHtml}
-    <div class="nav-list" id="work-list"></div>
-    <div class="nav-user">
-      ${avatarHtml}
-      <div class="nav-user-info">
-        <div class="nav-user-name">${escapeHtml(state.self?.name || 'me')}</div>
+  container.innerHTML = `
+    <div class="mobile-page-content">
+      <div class="nav-header ${headerClickable}">
+        <div class="nav-title">Work</div>
+        <div class="nav-subtitle">${escapeHtml(ws?.name || 'No team selected')}</div>
       </div>
+      ${tabsHtml}
+      <div class="nav-list" id="work-list"></div>
+      ${!isMobile ? `
+      <div class="nav-user">
+        ${avatarHtml}
+        <div class="nav-user-info">
+          <div class="nav-user-name">${escapeHtml(state.self?.name || 'me')}</div>
+        </div>
+      </div>` : ''}
     </div>
   `;
 
   // 绑定 tab 切换
-  panel.querySelectorAll<HTMLElement>('.nav-tab').forEach((tab) => {
+  container.querySelectorAll<HTMLElement>('.nav-tab').forEach((tab: HTMLElement) => {
     tab.onclick = async () => {
       const t = tab.dataset.tab as WorkTab;
       if (t === state.currentWorkTab) return;
@@ -94,11 +98,17 @@ async function renderWorkChannelList(): Promise<void> {
       state.currentCardId = null;
       state.rightDrawerOpen = false;
       saveState();
-      const { renderNavPanel, renderMain } = await import('../shell/navPanel.js');
-      await renderNavPanel();
-      await renderMain();
-      const { renderRightDrawer } = await import('../shell/rightDrawer.js');
-      renderRightDrawer();
+      const isMobile = window.matchMedia('(max-width:900px)').matches;
+      if (isMobile) {
+        const { enterMobileChat } = await import('../shell/mobileShell.js');
+        await enterMobileChat(id);
+      } else {
+        const { renderNavPanel, renderMain } = await import('../shell/navPanel.js');
+        await renderNavPanel();
+        await renderMain();
+        const { renderRightDrawer } = await import('../shell/rightDrawer.js');
+        renderRightDrawer();
+      }
     });
   });
 }

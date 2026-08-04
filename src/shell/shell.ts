@@ -40,6 +40,17 @@ const PEYT_INVITE_PREFIX = '[PEYT_INVITE]';
 const CARD_PREFIX = '[CARD]';
 
 export async function renderShell(): Promise<void> {
+  const isMobile = window.matchMedia('(max-width:900px)').matches;
+  if (isMobile) {
+    await initMobileShell();
+  } else {
+    await initDesktopShell();
+  }
+  registerGlobalEvents();
+}
+
+// ── 桌面端 Shell 初始化 ────────────────────────────────────────────
+async function initDesktopShell(): Promise<void> {
   const app = document.getElementById('app');
   if (!app) return;
   app.innerHTML = `
@@ -53,10 +64,31 @@ export async function renderShell(): Promise<void> {
     </div>
   `;
 
-  // 列宽拖动:启动即应用持久化宽度,再渲染各栏
   bindColumnResizers();
+  await initSharedState();
+  await renderRail();
+  await renderNavPanel();
+  await renderMain();
+  renderRightDrawer();
+  void loadPlugins();
+}
 
-  // 恢复持久化状态
+// ── 移动端 Shell 初始化 ────────────────────────────────────────────
+async function initMobileShell(): Promise<void> {
+  const { renderMobileShell, navigateToMobilePage } = await import('./mobileShell.js');
+  renderMobileShell();
+
+  await initSharedState();
+  const { renderBottomNav } = await import('./bottomNavigation.js');
+  renderBottomNav();
+  // 导航到初始页面 (从持久化状态恢复)
+  const initialPage = state.currentPage || 'messages';
+  await navigateToMobilePage(initialPage);
+  void loadPlugins();
+}
+
+// ── 共享状态初始化 (桌面与移动端共用) ──────────────────────────────
+async function initSharedState(): Promise<void> {
   loadState();
   await refreshWorkspaces();
   try {
@@ -66,25 +98,17 @@ export async function renderShell(): Promise<void> {
     await call('validate_channels');
   } catch {}
 
-  // 根据恢复的状态预加载频道列表;渲染交由 renderNavPanel/renderMain 按 currentPage 路由
   if (state.currentWsId != null && state.workspaces.find((w) => w.id === state.currentWsId)) {
     await refreshChannels();
   }
 
-  // SP6: 初始化 Inbox 未读数 (启动时拉取一次,后续增量更新)
   try {
     state.inboxUnread = await call<number>('get_inbox_unread_count');
   } catch {}
+}
 
-  await renderRail();
-  await renderNavPanel();
-  await renderMain();
-  renderRightDrawer();
-
-  // 加载已启用的插件
-  void loadPlugins();
-
-  // 注册全局事件刷新(保留 shell.js 全部 19 个 handler,仅更新模块引用)
+// ── 全局事件注册 (桌面与移动端共用) ────────────────────────────────
+function registerGlobalEvents(): void {
   onEvent('MsgsChanged', () => {
     if (state.currentChatId != null) void refreshCurrentChat();
     void refreshSidebar();
@@ -104,7 +128,6 @@ export async function renderShell(): Promise<void> {
     void refreshSidebar();
   });
 
-  // Task 13: 自己的头像变了(本机设置 or 多设备同步) → 刷新 state.self + rail 底部头像。
   onEvent('SelfavatarChanged', async () => {
     try {
       state.self = await call('get_self_profile');
@@ -112,7 +135,6 @@ export async function renderShell(): Promise<void> {
     } catch {}
   });
 
-  // Task 8: 消息状态/反应/删除/会话删除等 13 个事件 handler
   onEvent('MsgDelivered', (e) => updateMsgState(e.msg_id as number, 'delivered'));
   onEvent('MsgFailed', (e) => updateMsgState(e.msg_id as number, 'failed'));
   onEvent('MsgDeleted', (e) => removeMsg(e.msg_id as number));
@@ -164,7 +186,6 @@ export async function renderShell(): Promise<void> {
 
   // 全局快捷键
   document.addEventListener('keydown', async (e) => {
-    // Cmd+K / Ctrl+K 搜索
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
       e.preventDefault();
       const { openSearch, closeSearch } = await import('../components/search.js');
@@ -172,7 +193,6 @@ export async function renderShell(): Promise<void> {
       else openSearch();
       return;
     }
-    // ESC 逐级关闭
     if (e.key === 'Escape') {
       if (state.searchOpen) {
         const { closeSearch } = await import('../components/search.js');
@@ -204,12 +224,10 @@ export async function renderShell(): Promise<void> {
     }
   });
 
-  // 请求通知权限
   if ('Notification' in window && Notification.permission === 'default') {
     Notification.requestPermission();
   }
 
-  // 初始 Dock 角标
   void updateBadge();
 }
 
@@ -266,6 +284,11 @@ async function handleIncomingMsg(e: { [key: string]: unknown }): Promise<void> {
         // 刷新频道列表 + 重新渲染 nav panel(替代 channelTree.renderChannelTree)
         await refreshChannels();
         await renderNavPanel();
+        const isMobileInvite = window.matchMedia('(max-width:900px)').matches;
+        if (isMobileInvite) {
+          const { renderBottomNav } = await import('./bottomNavigation.js');
+          renderBottomNav();
+        }
       }
     } catch (err) {
       console.warn('[peyt] invite parse failed', err);
@@ -291,9 +314,16 @@ async function handleIncomingMsg(e: { [key: string]: unknown }): Promise<void> {
           state.currentPage = 'messages';
           state.currentWsId = null;
           saveState();
-          void renderRail().then(() =>
-            renderNavPanel().then(() => renderMain())
-          );
+          const isMobile = window.matchMedia('(max-width:900px)').matches;
+          if (isMobile) {
+            void import('./mobileShell.js').then(({ enterMobileChat }) => {
+              enterMobileChat(chatId);
+            });
+          } else {
+            void renderRail().then(() =>
+              renderNavPanel().then(() => renderMain())
+            );
+          }
           window.focus();
         };
       }
@@ -325,7 +355,16 @@ async function refreshCurrentChat(): Promise<void> {
 async function refreshSidebar(): Promise<void> {
   await refreshWorkspaces();
   await refreshChannels();
-  await renderRail();
+  const isMobile = window.matchMedia('(max-width:900px)').matches;
+  if (isMobile) {
+    const { renderBottomNav } = await import('./bottomNavigation.js');
+    renderBottomNav();
+    // 刷新当前页面内容
+    const { navigateToMobilePage } = await import('./mobileShell.js');
+    await navigateToMobilePage(state.currentPage);
+  } else {
+    await renderRail();
+  }
   await renderNavPanel();
   saveState();
 }

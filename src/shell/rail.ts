@@ -8,6 +8,23 @@ import { showDropdown } from '../components/dropdown.js';
 import { applyTheme } from '../theme.js';
 import type { Page, WorkspaceDto } from '../types.js';
 
+// 共享导航页面定义:desktop Rail 与 mobile BottomNavigation 共用
+export interface NavPageDef {
+  page: Page;
+  icon: IconName;
+  label: string;
+  badge?: number;
+}
+
+export const NAV_PAGES: NavPageDef[] = [
+  { page: 'messages', icon: 'message-circle', label: '消息' },
+  { page: 'contacts', icon: 'contact', label: '联系人' },
+  { page: 'groups', icon: 'users', label: '群组' },
+  { page: 'work', icon: 'layout-grid', label: '协作' },
+  { page: 'inbox', icon: 'inbox', label: '通知' },
+  { page: 'settings', icon: 'settings', label: '设置' },
+];
+
 export async function refreshWorkspaces(): Promise<void> {
   try {
     state.workspaces = await call<WorkspaceDto[]>('list_workspaces');
@@ -83,19 +100,29 @@ function bindPluginsIcon(): void {
   });
 }
 
-async function navigateToPage(page: Page): Promise<void> {
+// 共享导航函数:desktop Rail 与 mobile BottomNavigation 共用同一套导航逻辑。
+// 切换页面时刷新 rail (或 bottom nav)、nav panel、主区、右侧抽屉,并持久化状态。
+export async function navigateToPage(page: Page): Promise<void> {
   state.currentPage = page;
   if (page !== 'settings') {
     state.currentSettingsSection = 'account';
   }
   saveState();
-  await renderRail();
-  const { renderNavPanel } = await import('./navPanel.js');
-  await renderNavPanel();
-  const { renderRightDrawer } = await import('./rightDrawer.js');
-  renderRightDrawer();
-  const { renderMain } = await import('./navPanel.js');
-  await renderMain();
+  const isMobile = window.matchMedia('(max-width:900px)').matches;
+  if (isMobile) {
+    // 移动端:使用新的 WeChat 风格页面导航。
+    const { navigateToMobilePage } = await import('./mobileShell.js');
+    await navigateToMobilePage(page);
+  } else {
+    // 桌面端:刷新 rail、nav panel、右侧抽屉、主区(保持现有行为)。
+    await renderRail();
+    const { renderNavPanel } = await import('./navPanel.js');
+    await renderNavPanel();
+    const { renderRightDrawer } = await import('./rightDrawer.js');
+    renderRightDrawer();
+    const { renderMain } = await import('./navPanel.js');
+    await renderMain();
+  }
 }
 
 function reportError(e: unknown): void {

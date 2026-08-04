@@ -7,3 +7,8 @@ debug.log
 .idea
 .claude/
 src-tauri/gen/android
+*.pkg
+*.keystore
+*.bin
+*.lock
+configfile/android

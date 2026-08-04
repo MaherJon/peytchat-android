@@ -1,6 +1,6 @@
 import { call } from '../api.js';
 import { state } from '../state.js';
-import { renderMessage, bindMessageActions, clearReactionsCache, clearPinnedCache, updatePinnedCache } from './message.js';
+import { renderMessage, bindMessageActions, bindMobileMessageActions, clearReactionsCache, clearPinnedCache, updatePinnedCache } from './message.js';
 import { renderComposer } from './composer.js';
 import { renderRightDrawer } from '../shell/rightDrawer.js';
 import { showToast } from '../toast.js';
@@ -40,7 +40,11 @@ const BUFFER = 20; // 上下各 buffer 20 条
 const VIEWPORT = 30; // 可视区约 30 条
 
 export async function renderChatView(chatId: number): Promise<void> {
-  const main = document.getElementById('chat-main');
+  const mobile = window.matchMedia('(max-width:900px)').matches;
+  // 移动端: 渲染到 mobile page 容器而非 #chat-main
+  const main = mobile
+    ? document.getElementById('mobile-page-messages')
+    : document.getElementById('chat-main');
   if (!main) return;
   // Task 9: 同频道且已有消息且 DOM 已渲染 → 跳过全量重渲染,
   // 保留分页状态(state.messages / messagesOldestId / noMoreMsgs)和 scroll 位置。
@@ -70,8 +74,11 @@ export async function renderChatView(chatId: number): Promise<void> {
   state.currentChatId = chatId;
   (state as LegacyState).homeMode = false;
   main.dataset.renderedChatId = String(chatId);
-  // 加载态
-  main.innerHTML = `<div class="spinner"><span></span></div>`;
+
+  // 加载态 — 移动端使用 Android 风格进度指示器
+  main.innerHTML = mobile
+    ? `<div class="mobile-loading"><div class="mobile-loading-spinner"></div></div>`
+    : `<div class="spinner"><span></span></div>`;
   try {
     // 拉 roles(用于 role tag 和 @mention)
     if (state.currentWsId != null) {
@@ -98,26 +105,32 @@ export async function renderChatView(chatId: number): Promise<void> {
       state.currentMembers = [];
     }
     // 渲染骨架(含 Task 13 头部按钮:members / pin,触发 detail panel)
-    const headerActions = `
-      <div class="chat-header-actions">
-        <button class="chat-header-btn ${state.detailPanelOpen && state.detailTab === 'members' ? 'active' : ''}" data-action="members" title="成员">
-          ${iconSvg('users', { width: 18, height: 18 })}
-        </button>
-        <button class="chat-header-btn ${state.detailPanelOpen && state.detailTab === 'pin' ? 'active' : ''}" data-action="pin" title="置顶 · ${pinCount}">
-          ${iconSvg('pin', { width: 18, height: 18 })}
-        </button>
-      </div>
-    `;
+    // 移动端:简化头部,仅显示 topic (频道名已在顶栏)
+    let headerActions = '';
+    let headerExtra = '';
+    if (!mobile) {
+      headerActions = `
+        <div class="chat-header-actions">
+          <button class="chat-header-btn ${state.detailPanelOpen && state.detailTab === 'members' ? 'active' : ''}" data-action="members" title="成员">
+            ${iconSvg('users', { width: 18, height: 18 })}
+          </button>
+          <button class="chat-header-btn ${state.detailPanelOpen && state.detailTab === 'pin' ? 'active' : ''}" data-action="pin" title="置顶 · ${pinCount}">
+            ${iconSvg('pin', { width: 18, height: 18 })}
+          </button>
+        </div>
+      `;
+    }
     // 成员数标签:state.currentMembers 来自上面 get_chat_info,失败为空则隐藏
     const memberCount = state.currentMembers?.length || 0;
     const membersTag = memberCount > 0
       ? `<span class="ch-members">${memberCount} 成员</span>`
       : '';
+    const headerCls = mobile ? 'chat-header mobile-chat-header' : 'chat-header';
     main.innerHTML = `
-      <div class="chat-header">
+      <div class="${headerCls}">
         <div>
-          <span class="ch-title">${escapeHtml(channelName(chatId))}</span>
-          ${membersTag}
+          ${mobile ? '' : `<span class="ch-title">${escapeHtml(channelName(chatId))}</span>`}
+          ${mobile ? '' : membersTag}
           <span class="ch-topic">${escapeHtml(topic)}</span>
         </div>
         ${headerActions}
@@ -125,25 +138,26 @@ export async function renderChatView(chatId: number): Promise<void> {
       <div class="messages" id="messages"></div>
       <div id="composer-area"></div>
     `;
-    // Task 13: 头部按钮 — 切换 detail panel(members/pin)。
-    // 同 tab 已展开 → 折叠;否则展开并切到该 tab。同时确保 rightDrawerOpen=true 让抽屉可见。
-    const headerEl = main.querySelector<HTMLElement>('.chat-header-actions');
-    if (headerEl) {
-      headerEl.querySelectorAll<HTMLButtonElement>('.chat-header-btn').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const action = btn.dataset.action;
-          const tab = action as 'members' | 'pin';
-          if (state.detailPanelOpen && state.detailTab === tab) {
-            state.detailPanelOpen = false;
-          } else {
-            state.detailPanelOpen = true;
-            state.detailTab = tab;
-            state.rightDrawerOpen = true;
-          }
-          saveState();
-          renderRightDrawer();
+    // Task 13: 头部按钮 — 仅桌面端
+    if (!mobile) {
+      const headerEl = main.querySelector<HTMLElement>('.chat-header-actions');
+      if (headerEl) {
+        headerEl.querySelectorAll<HTMLButtonElement>('.chat-header-btn').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const action = btn.dataset.action;
+            const tab = action as 'members' | 'pin';
+            if (state.detailPanelOpen && state.detailTab === tab) {
+              state.detailPanelOpen = false;
+            } else {
+              state.detailPanelOpen = true;
+              state.detailTab = tab;
+              state.rightDrawerOpen = true;
+            }
+            saveState();
+            renderRightDrawer();
+          });
         });
-      });
+      }
     }
     // 分页状态已在函数开头按频道切换判断重置,此处不再重复
     // Task 12: 在 mark_chat_noticed 之前拉取 unread count,
@@ -156,7 +170,13 @@ export async function renderChatView(chatId: number): Promise<void> {
       currentChatUnread = 0;
     }
     await refreshMessages(chatId);
-    renderComposer(chatId, () => refreshMessages(chatId));
+    // 移动端使用 Android 风格发送器,桌面端使用原版
+    if (mobile) {
+      const { renderMobileComposer } = await import('./mobileComposer.js');
+      renderMobileComposer(chatId, () => refreshMessages(chatId));
+    } else {
+      renderComposer(chatId, () => refreshMessages(chatId));
+    }
     bindScrollListener(chatId);
     try { await call('mark_chat_noticed', { chatId }); } catch {}
     saveState();
@@ -170,13 +190,25 @@ export async function renderChatView(chatId: number): Promise<void> {
         if (area) {
           area.dataset.replyTo = String(msgId);
           if (state.currentChatId != null) {
-            renderComposer(state.currentChatId, () => refreshMessages(state.currentChatId!));
+            if (mobile) {
+              import('./mobileComposer.js').then(({ renderMobileComposer }) => {
+                renderMobileComposer(state.currentChatId!, () => refreshMessages(state.currentChatId!));
+              });
+            } else {
+              renderComposer(state.currentChatId, () => refreshMessages(state.currentChatId!));
+            }
           }
         }
       });
     }
   } catch (e) {
-    main.innerHTML = `<div class="guide-card">加载失败:${escapeHtml(e instanceof Error ? e.message : String(e))}</div>`;
+    main.innerHTML = mobile
+      ? `<div class="mobile-empty-chat">
+           <div class="mobile-empty-icon">${iconSvg('alert-circle', { width: 48, height: 48, strokeWidth: 1.2 })}</div>
+           <div class="mobile-empty-title">加载失败</div>
+           <div class="mobile-empty-desc">${escapeHtml(e instanceof Error ? e.message : String(e))}</div>
+         </div>`
+      : `<div class="guide-card">加载失败:${escapeHtml(e instanceof Error ? e.message : String(e))}</div>`;
     showToast(e instanceof Error ? e.message : String(e));
   }
 }
@@ -229,7 +261,14 @@ async function refreshMessages(chatId: number): Promise<void> {
   const box = document.getElementById('messages');
   if (!box) return;
   if (msgs.length === 0) {
-    box.innerHTML = `<div class="guide-card">这个频道还没有消息,发第一条吧</div>`;
+    const mobile = window.matchMedia('(max-width:900px)').matches;
+    box.innerHTML = mobile
+      ? `<div class="mobile-empty-chat">
+           <div class="mobile-empty-icon">${iconSvg('message-circle', { width: 48, height: 48, strokeWidth: 1.2 })}</div>
+           <div class="mobile-empty-title">暂无消息</div>
+           <div class="mobile-empty-desc">发送第一条消息开始对话</div>
+         </div>`
+      : `<div class="guide-card">这个频道还没有消息,发第一条吧</div>`;
     return;
   }
   // Task 11: 虚拟化渲染 — 初始展示底部(最新消息)范围,spacers 撑住总高度,
@@ -358,6 +397,10 @@ async function renderVisibleMessages(box: HTMLElement, start: number, end: numbe
   const msgContainer = document.createElement('div');
   msgContainer.innerHTML = html;
   bindMessageActions(msgContainer);
+  // 移动端:附加手势事件 (长按/滑动)
+  if (window.matchMedia('(max-width:900px)').matches) {
+    bindMobileMessageActions(msgContainer);
+  }
   while (msgContainer.firstChild) temp.appendChild(msgContainer.firstChild);
   const spacerBottom = document.createElement('div');
   spacerBottom.style.height = ((state.messages.length - end) * ITEM_HEIGHT) + 'px';

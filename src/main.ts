@@ -45,7 +45,10 @@ async function ensurePeytStudio(): Promise<void> {
 // founder 可复制邀请链接分享给同事,或点击"查看频道"跳转到 groups 页。
 // 关闭 banner 后持久化 peytBannerDismissed,后续不再显示。
 function showPeytBanner(inviteLink: string): void {
-  const panel = document.getElementById('channel-tree');
+  const isMobile = window.matchMedia('(max-width:900px)').matches;
+  const panel = isMobile
+    ? document.getElementById('mobile-page-groups')
+    : document.getElementById('channel-tree');
   if (!panel) return;
   const banner = createNavBanner({
     title: 'PEYT Studio 已就绪',
@@ -54,9 +57,15 @@ function showPeytBanner(inviteLink: string): void {
     onViewChannels: () => {
       state.currentPage = 'groups';
       saveState();
-      void renderRail().then(() => {
-        void renderNavPanel();
-      });
+      if (isMobile) {
+        void import('./shell/mobileShell.js').then(({ navigateToMobilePage }) => {
+          void navigateToMobilePage('groups');
+        });
+      } else {
+        void renderRail().then(() => {
+          void renderNavPanel();
+        });
+      }
     },
     onDismiss: () => {
       state.peytBannerDismissed = true;
