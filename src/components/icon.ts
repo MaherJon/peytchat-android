@@ -8,6 +8,7 @@ import {
   Columns3, GitCommitHorizontal,
   RefreshCw, Ban,
   Menu, ArrowLeft, Contact,
+  Camera, Mic,
 } from 'lucide';
 import type { IconNode, SVGProps } from 'lucide';
 
@@ -27,7 +28,9 @@ export type IconName =
   // 图标收口: 刷新 / 禁止 (替代 ↻ / ⛔)
   | 'refresh-cw' | 'ban'
   // M-A2: 移动端导航图标
-  | 'menu' | 'arrow-left' | 'contact';
+  | 'menu' | 'arrow-left' | 'contact'
+  // M-A3: Android UX 增强图标
+  | 'camera' | 'mic';
 
 export interface IconOpts {
   width?: number;
@@ -91,6 +94,8 @@ const iconMap: Record<IconName, IconNode> = {
   'menu': Menu,
   'arrow-left': ArrowLeft,
   'contact': Contact,
+  'camera': Camera,
+  'mic': Mic,
 };
 
 const defaultAttributes: SVGProps = {
