@@ -18,6 +18,32 @@ let closeOnOutsideHandler: ((e: MouseEvent) => void) | null = null;
 let closeOnEscHandler: ((e: KeyboardEvent) => void) | null = null;
 let currentOnClose: (() => void) | null = null;
 
+/** 确保下拉菜单不溢出视口边界 */
+function applyViewportBounds(menu: HTMLElement): void {
+  const PAD = 8; // 与视口边缘的最小间距
+  const menuRect = menu.getBoundingClientRect();
+
+  // 右边界：菜单不能超出视口右侧
+  if (menuRect.right > window.innerWidth - PAD) {
+    menu.style.left = `${window.innerWidth - menuRect.width - PAD}px`;
+  }
+
+  // 左边界：菜单不能超出视口左侧
+  if (menuRect.left < PAD) {
+    menu.style.left = `${PAD}px`;
+  }
+
+  // 下边界：菜单不能超出视口底部
+  if (menuRect.bottom > window.innerHeight - PAD) {
+    menu.style.top = `${window.innerHeight - menuRect.height - PAD}px`;
+  }
+
+  // 上边界：菜单不能超出视口顶部
+  if (menuRect.top < PAD) {
+    menu.style.top = `${PAD}px`;
+  }
+}
+
 export function showDropdown(anchor: HTMLElement, items: DropdownItem[], opts: DropdownOpts = {}): void {
   // 再次点击同一触发按钮:关闭已打开的菜单 (toggle),而非重开
   if (currentDropdown && currentAnchor === anchor) {
@@ -50,6 +76,8 @@ export function showDropdown(anchor: HTMLElement, items: DropdownItem[], opts: D
   } else {
     menu.style.left = `${rect.right - menuRect.width}px`;
   }
+  // 边界检测：避免菜单溢出视口
+  applyViewportBounds(menu);
   // 入场 transform-origin 锚定触发方向 (材料从触发点浮现)
   const originMap: Record<string, string> = {
     'bottom-left': 'top left',
