@@ -66,7 +66,45 @@
 
   --font: -apple-system, 'SF Pro Display', 'Segoe UI Variable', 'Segoe UI', 'Inter', sans-serif;
   --font-mono: 'SF Mono', Menlo, monospace;
+
+  /* M-A3: Material elevation 阴影层 */
+  --elevation-1: 0 1px 2px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.2);
+  --elevation-2: 0 2px 4px rgba(0,0,0,0.3), 0 2px 8px rgba(0,0,0,0.2);
+  --elevation-3: 0 4px 8px rgba(0,0,0,0.3), 0 4px 16px rgba(0,0,0,0.2);
+  --elevation-4: 0 8px 16px rgba(0,0,0,0.3), 0 8px 32px rgba(0,0,0,0.2);
+
+  /* M-A3: 涟漪效果色 (动态颜色未来可映射到 primary) */
+  --ripple-color: var(--text);
+
+  /* M-A3: Material dynamic color 占位 (future-ready) */
+  --material-primary: var(--text);
 }
+
+/* === M-A3: Material Ripple Effect === */
+.ripple {
+  position: relative;
+  overflow: hidden;
+}
+.ripple::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, var(--ripple-color) 10%, transparent 10%);
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+  pointer-events: none;
+}
+.ripple:active::after {
+  opacity: 0.12;
+  transform: scale(10);
+  transition: opacity 0.15s ease-out, transform 0.25s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ripple::after { transition: none !important; }
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; color: var(--text); font-family: var(--font); font-size: var(--font-scale-body); }
 html { background: var(--bg); }
@@ -2944,4 +2982,451 @@ body {
   .mention-item.selected { background: var(--active); }
   .mention-prefix { color: var(--text-mute); font-weight: 600; }
   .mention-name { color: var(--text); }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     M-A3: BOTTOM SHEET
+     ═══════════════════════════════════════════════════════════════════ */
+
+  .bs-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 500;
+    opacity: 0;
+  }
+  .bottom-sheet {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 501;
+    max-height: 85vh;
+    background: var(--surface);
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.4);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .bs-handle {
+    display: flex;
+    justify-content: center;
+    padding: 12px 0 8px;
+    cursor: grab;
+    flex-shrink: 0;
+    touch-action: none;
+  }
+  .bs-handle-bar {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border-strong);
+  }
+  .bs-header {
+    padding: 0 20px 12px;
+    flex-shrink: 0;
+  }
+  .bs-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.2px;
+  }
+  .bs-body {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 0 16px;
+  }
+  .bs-action {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    cursor: pointer;
+    min-height: 48px;
+    transition: background 0.12s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .bs-action:hover { background: var(--capsule); }
+  .bs-action:active { background: var(--active); }
+  .bs-action.danger .bs-action-label { color: var(--danger); }
+  .bs-action-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    color: var(--text-mute);
+    flex-shrink: 0;
+  }
+  .bs-action.danger .bs-action-icon { color: var(--danger); }
+  .bs-action-label {
+    font-size: 15px;
+    color: var(--text);
+    font-weight: 500;
+  }
+  .bs-actions-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     M-A3: SNACKBAR
+     ═══════════════════════════════════════════════════════════════════ */
+
+  .snackbar {
+    position: fixed;
+    bottom: 72px;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    left: 16px;
+    right: 16px;
+    z-index: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg);
+    max-width: 480px;
+    margin: 0 auto;
+  }
+  .snackbar-text {
+    flex: 1;
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .snackbar-action {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .snackbar-action:hover { background: var(--capsule); }
+  .snackbar-action:active { background: var(--active); }
+  .snackbar-dismiss {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--text-mute);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     M-A3: FLOATING ACTION BUTTON
+     ═══════════════════════════════════════════════════════════════════ */
+
+  .fab {
+    position: fixed;
+    bottom: 72px;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    right: 16px;
+    z-index: 400;
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    border: none;
+    background: var(--text);
+    color: var(--on-accent);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .fab:active { transform: scale(0.92); }
+  .fab-extended {
+    width: auto;
+    padding: 0 20px;
+    gap: 8px;
+    border-radius: 16px;
+  }
+  .fab-label {
+    font-size: 14px;
+    font-weight: 600;
+    font-family: var(--font);
+    letter-spacing: 0.2px;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     M-A3: NAVIGATION TRANSITIONS
+     ═══════════════════════════════════════════════════════════════════ */
+
+  .mobile-page {
+    transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1),
+                opacity 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+  }
+  .mobile-page.nav-forward {
+    transform: translateX(30px);
+    opacity: 0;
+  }
+  .mobile-page.nav-back {
+    transform: translateX(-30px);
+    opacity: 0;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     M-A3: ENHANCED SWIPE INDICATOR
+     ═══════════════════════════════════════════════════════════════════ */
+
+  .swipe-indicator {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    color: var(--on-accent);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.1s;
+    z-index: 5;
+  }
+  .swipe-indicator.swipe-left {
+    right: 8px;
+    left: auto;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     M-A3: PULL TO REFRESH
+     ═══════════════════════════════════════════════════════════════════ */
+
+  .pull-refresh-indicator {
+    width: 100%;
+    height: 0;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    transition: height 0.15s ease-out;
+  }
+  .pull-refresh-indicator.refreshing .pull-refresh-spinner {
+    width: 28px;
+    height: 28px;
+    border: 3px solid var(--border);
+    border-top-color: var(--text-mute);
+    border-radius: 50%;
+    animation: mc-spin 0.8s linear infinite;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     M-A3: IMAGE VIEWER (Fullscreen)
+     ═══════════════════════════════════════════════════════════════════ */
+
+  .image-viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.95);
+  }
+  .iv-backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+  .iv-close {
+    position: absolute;
+    top: 12px;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    right: 12px;
+    z-index: 2;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .iv-counter {
+    position: absolute;
+    top: 16px;
+    top: calc(16px + env(safe-area-inset-top, 0px));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2;
+    font-size: 14px;
+    color: rgba(255,255,255,0.8);
+    font-weight: 600;
+  }
+  .iv-prev, .iv-next {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .iv-prev { left: 8px; }
+  .iv-next { right: 8px; }
+  .iv-image-container {
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+  .iv-image-container img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    touch-action: manipulation;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     M-A3: ATTACHMENT PANEL
+     ═══════════════════════════════════════════════════════════════════ */
+
+  .attach-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    padding: 0 20px;
+  }
+  .attach-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 20px 16px;
+    border-radius: 12px;
+    background: var(--capsule);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 80px;
+  }
+  .attach-option:hover { background: var(--active); border-color: var(--border-strong); }
+  .attach-option:active { background: var(--border-strong); transform: scale(0.96); }
+  .attach-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .attach-label {
+    font-size: 13px;
+    color: var(--text);
+    font-weight: 500;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   M-A3: TABLET DUAL-PANE LAYOUT (600dp–900dp)
+   列表 + 聊天详情并排显示,复用桌面端 nav-panel + chat-main 模式。
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (min-width: 601px) and (max-width: 900px) {
+  .mobile-page-container {
+    display: flex;
+    flex-direction: row;
+  }
+
+  /* 窄列表栏: 380px 宽,可独立滚动 */
+  .mobile-page {
+    width: 380px;
+    min-width: 300px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+  }
+
+  /* 第二个 .mobile-page 作为内容区,flex填充剩余宽度 */
+  .mobile-page + .mobile-page {
+    flex: 1;
+    border-right: none;
+  }
+
+  /* 平板模式下的聊天区: 覆盖全屏行为,显示底部导航 */
+  .mobile-shell.tablet-chat-open .mobile-bottom-nav {
+    display: flex !important;
+  }
+
+  /* 平板: Snackbar 避开底部导航 */
+  .snackbar {
+    bottom: 72px;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    left: 16px;
+    right: 16px;
+    max-width: 400px;
+  }
+
+  /* 平板: FAB 在底部导航上方 */
+  .fab {
+    bottom: 72px;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   M-A3: ACCESSIBILITY — 48dp minimum touch target
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 600px) {
+  .bs-action,
+  .attach-option,
+  .me-card-row,
+  .chatlist-item,
+  .nav-channel,
+  .nav-work-item,
+  .bn-tab,
+  .snackbar-action,
+  .snackbar-dismiss {
+    min-height: 48px;
+  }
+  .iv-close,
+  .iv-prev,
+  .iv-next,
+  .fab {
+    min-width: 48px;
+    min-height: 48px;
+  }
 }

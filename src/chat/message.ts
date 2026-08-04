@@ -710,8 +710,7 @@ export function bindMobileMessageActions(container: HTMLElement): void {
   });
 }
 
-// 移动端长按上下文菜单 — 复用 showContextMenuAt 逻辑,
-// 但定位到触摸点而非鼠标位置。
+// 移动端长按上下文菜单 — M-A3: 使用 BottomSheet 替代 dropdown。
 function showMobileContextMenu(msgEl: HTMLElement): void {
   const msgIdStr = msgEl.dataset.msg || '';
   const msgId = Number(msgIdStr);
@@ -726,15 +725,96 @@ function showMobileContextMenu(msgEl: HTMLElement): void {
     if (bubble) bubble.style.opacity = '';
   }, 300);
 
-  // 在触摸点位置显示菜单 (使用 startX/startY)
-  showContextMenuAt(
-    touchState.startX,
-    touchState.startY,
-    msgIdStr,
-    msgId,
-    msg,
-    isOut,
-  );
+  // M-A3: 使用 BottomSheet 显示操作菜单
+  import('../mobile/bottomSheet.js').then(({ showBottomSheet, hideBottomSheet }) => {
+    const actions: string[] = [];
+
+    if (msg?.text) {
+      actions.push(`<div class="bs-action" data-action="copy" role="button" tabindex="0">
+        <span class="bs-action-icon">${iconSvg('copy', { width: 20, height: 20 })}</span>
+        <span class="bs-action-label">复制文本</span>
+      </div>`);
+    }
+    actions.push(`<div class="bs-action" data-action="reply" role="button" tabindex="0">
+      <span class="bs-action-icon">${iconSvg('reply', { width: 20, height: 20 })}</span>
+      <span class="bs-action-label">回复</span>
+    </div>`);
+    actions.push(`<div class="bs-action" data-action="pin" role="button" tabindex="0">
+      <span class="bs-action-icon">${iconSvg('pin', { width: 20, height: 20 })}</span>
+      <span class="bs-action-label">${pinnedMsgIds.has(msgId) ? '取消置顶' : '置顶'}</span>
+    </div>`);
+    actions.push(`<div class="bs-action" data-action="card" role="button" tabindex="0">
+      <span class="bs-action-icon">${iconSvg('layout-grid', { width: 20, height: 20 })}</span>
+      <span class="bs-action-label">转 Card</span>
+    </div>`);
+    actions.push(`<div class="bs-action" data-action="forward" role="button" tabindex="0">
+      <span class="bs-action-icon">${iconSvg('forward', { width: 20, height: 20 })}</span>
+      <span class="bs-action-label">转发</span>
+    </div>`);
+    if (isOut) {
+      actions.push(`<div class="bs-action danger" data-action="delete" role="button" tabindex="0">
+        <span class="bs-action-icon">${iconSvg('trash', { width: 20, height: 20 })}</span>
+        <span class="bs-action-label">删除</span>
+      </div>`);
+    }
+
+    const content = `<div class="bs-actions-list">${actions.join('')}</div>`;
+
+    showBottomSheet({
+      content,
+      showHandle: true,
+      onDismiss: () => {
+        if (bubble) bubble.style.opacity = '';
+      },
+    });
+
+    // 绑定点击事件
+    requestAnimationFrame(() => {
+      document.querySelectorAll<HTMLElement>('.bs-action').forEach((el) => {
+        el.addEventListener('click', () => {
+          const action = el.dataset.action;
+          hideBottomSheet();
+          switch (action) {
+            case 'copy':
+              if (msg?.text) {
+                try {
+                  void navigator.clipboard?.writeText(msg.text);
+                  import('../toast.js').then(({ showToast }) => showToast('已复制'));
+                } catch {
+                  import('../toast.js').then(({ showToast }) => showToast('复制失败'));
+                }
+              }
+              break;
+            case 'reply':
+              dispatchReply(msgId);
+              break;
+            case 'pin':
+              void togglePin(msgId);
+              break;
+            case 'card':
+              void convertToCard(msgId);
+              break;
+            case 'forward':
+              import('../toast.js').then(({ showToast }) => showToast('转发(开发中)'));
+              break;
+            case 'delete':
+              inlineDeleteMsg(msgIdStr);
+              break;
+          }
+        });
+      });
+    });
+  }).catch(() => {
+    // 回退到旧 dropdown 方式
+    showContextMenuAt(
+      touchState.startX,
+      touchState.startY,
+      msgIdStr,
+      msgId,
+      msg,
+      isOut,
+    );
+  });
 }
 
 // 滑动视觉指示器 — 在消息左侧显示回复图标

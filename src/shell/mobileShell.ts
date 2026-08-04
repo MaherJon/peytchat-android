@@ -53,6 +53,11 @@ export async function navigateToMobilePage(page: Page): Promise<void> {
   state.currentChatId = null;
   saveState();
 
+  // M-A3: 推入导航栈
+  import('../mobile/navigation.js').then(({ pushNavigation, animatePageTransition }) => {
+    pushNavigation(page, undefined, PAGE_TITLES[page] || page);
+  }).catch(() => {});
+
   // 隐藏所有页面
   document.querySelectorAll<HTMLElement>('.mobile-page').forEach((p) => {
     p.style.display = 'none';
@@ -69,6 +74,11 @@ export async function navigateToMobilePage(page: Page): Promise<void> {
 
   // 渲染页面内容
   await renderPageContent(page);
+
+  // 页面转场动画
+  import('../mobile/navigation.js').then(({ animatePageTransition }) => {
+    if (pageEl) animatePageTransition(pageEl, 'forward');
+  }).catch(() => {});
 
   // 更新底部导航
   renderBottomNav();
@@ -152,6 +162,11 @@ export async function leaveMobileChat(): Promise<void> {
   state.messages = [];
   saveState();
 
+  // M-A3: 弹出导航栈中的聊天页面
+  import('../mobile/navigation.js').then(({ popNavigation, animatePageTransition }) => {
+    popNavigation();
+  }).catch(() => {});
+
   // 恢复底部导航
   const bottomNav = document.getElementById('bottom-nav');
   if (bottomNav) bottomNav.style.display = '';
@@ -205,9 +220,15 @@ function bindBackButton(): void {
   const backBtn = document.getElementById('mobile-back-btn');
   if (!backBtn) return;
   backBtn.addEventListener('click', async () => {
+    // M-A3: 先尝试弹出导航栈
+    const { handleBackButton } = await import('../mobile/navigation.js');
     if (state.currentChatId != null) {
       await leaveMobileChat();
+    } else if (handleBackButton()) {
+      // 栈非空,处理了回退 → 回到上一页
+      await navigateToMobilePage(previousPage);
     }
+    // 栈为空且在根页面: 不做任何事 (不退出 app)
   });
 }
 

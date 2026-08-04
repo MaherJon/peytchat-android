@@ -174,11 +174,56 @@ export function renderMobileComposer(chatId: number, onSent: () => void): void {
     toggleEmojiPicker(input, emojiBtn);
   });
 
-  // ── 附件按钮 ──
+  // ── 附件按钮 (M-A3: 使用 BottomSheet 附件面板) ──
   const attachBtn = document.getElementById('mc-attach-btn');
   const fileInput = document.getElementById('mc-file-input') as HTMLInputElement | null;
-  attachBtn?.addEventListener('click', () => {
-    fileInput?.click();
+  attachBtn?.addEventListener('click', async () => {
+    // M-A3: 显示附件选择 BottomSheet
+    try {
+      const { showAttachmentSheet } = await import('../mobile/attachmentPanel.js');
+      showAttachmentSheet((type) => {
+        switch (type) {
+          case 'gallery':
+          case 'files':
+            fileInput?.click();
+            break;
+          case 'camera':
+            // 创建 camera input
+            const camInput = document.createElement('input');
+            camInput.type = 'file';
+            camInput.accept = 'image/*';
+            camInput.capture = 'environment';
+            camInput.style.display = 'none';
+            document.body.appendChild(camInput);
+            camInput.addEventListener('change', () => {
+              if (camInput.files && camInput.files.length > 0) {
+                handleAttachmentUpload(chatId, camInput.files, area, onSent);
+              }
+              document.body.removeChild(camInput);
+            });
+            camInput.click();
+            break;
+          case 'audio':
+            // 创建 audio input
+            const audInput = document.createElement('input');
+            audInput.type = 'file';
+            audInput.accept = 'audio/*';
+            audInput.style.display = 'none';
+            document.body.appendChild(audInput);
+            audInput.addEventListener('change', () => {
+              if (audInput.files && audInput.files.length > 0) {
+                handleAttachmentUpload(chatId, audInput.files, area, onSent);
+              }
+              document.body.removeChild(audInput);
+            });
+            audInput.click();
+            break;
+        }
+      });
+    } catch {
+      // 回退: 直接触发 file input
+      fileInput?.click();
+    }
   });
   fileInput?.addEventListener('change', () => {
     if (fileInput.files && fileInput.files.length > 0) {
