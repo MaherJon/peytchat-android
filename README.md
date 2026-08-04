@@ -110,7 +110,7 @@ cd ..
 
 ```bash
 # 首次构建或项目结构变更时需要
-cargo tauri android init
+npx tauri android init
 ```
 
 ### 4. 构建前端
@@ -122,16 +122,30 @@ npm run build
 ### 5. 构建 APK
 ```bash
 # 构建通用 APK（包含所有架构）
-cargo tauri android build --apk
-
-# 或按架构分别构建
-cargo tauri android build --apk --target aarch64
-cargo tauri android build --apk --split-per-abi
+npx tauri android build
 ```
-
-### 6. 构建 AAB（Google Play 发布）
+### 6. 签名apk
 ```bash
-cargo tauri android build --aab
+# 创建 keystore
+keytool -genkey -v -keystore peytchat.keystore -alias peytchat -keyalg RSA -keysize 2048 -validity 10000
+
+# 按提示输入：
+# - 密码（记住！）
+# - 姓名
+# - 组织单位
+# - 组织名称
+# - 城市
+# - 省份
+# - 国家代码（CN）
+
+# 签名
+apksigner sign \
+    --ks peytchat.keystore \
+    --ks-pass pass:你的密码 \
+    --ks-key-alias peytchat \
+    --key-pass pass:你的密码 \
+    src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk
+
 ```
 
 ## 📱 调试与安装
