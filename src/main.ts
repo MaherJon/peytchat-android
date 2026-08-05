@@ -14,6 +14,23 @@ interface EnsurePeytResult {
 
 async function boot(): Promise<void> {
   initTheme();
+
+  // 移动端视口: 使用兼容层移动端入口
+  const isMobile = window.matchMedia('(max-width:900px)').matches;
+  if (isMobile) {
+    const configured = await call<boolean>('is_configured');
+    if (configured) {
+      try {
+        const { bootMobile } = await import('./mobile/app/main.js');
+        await bootMobile();
+        await ensurePeytStudio();
+        return;
+      } catch (err) {
+        console.warn('[mobile] compat boot failed, falling back to legacy:', err);
+      }
+    }
+  }
+
   const configured = await call<boolean>('is_configured');
   if (configured) {
     await renderShell();
@@ -58,7 +75,7 @@ function showPeytBanner(inviteLink: string): void {
       state.currentPage = 'groups';
       saveState();
       if (isMobile) {
-        void import('./shell/mobileShell.js').then(({ navigateToMobilePage }) => {
+        void import('./compat/ui/shell.js').then(({ navigateToMobilePage }) => {
           void navigateToMobilePage('groups');
         });
       } else {

@@ -111,6 +111,8 @@ cd ..
 ```bash
 # 首次构建或项目结构变更时需要
 npx tauri android init
+
+# 将configfile下的xml文件复制到gen/android/app/src下
 ```
 
 ### 4. 构建前端
