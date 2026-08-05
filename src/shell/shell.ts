@@ -79,6 +79,10 @@ async function initMobileShell(): Promise<void> {
   renderMobileShell();
 
   await initSharedState();
+
+  // 移动端事件已在 mobile/app/main.ts 中通过 api.ts 的 onEvent() 直接注册,
+  // 无需经过 EventBridge 转译。此代码块保留为空以便后续扩展。
+
   const { renderBottomNav } = await import('./bottomNavigation.js');
   renderBottomNav();
   // 导航到初始页面 (从持久化状态恢复)

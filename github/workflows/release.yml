@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      discussions: write
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Build Android
+        uses: ./.github/workflows/android-build.yml
+      
+      - name: Build Desktop
+        run: |
+          npm run build
+          npm run tauri build
+      
+      - name: Generate Release Notes
+        id: notes
+        run: |
+          # 从 CHANGELOG.md 提取当前版本的更新内容
+          CHANGES=$(sed -n "/## \[$(echo $GITHUB_REF_NAME | sed 's/v//')\]/,/## \[/p" CHANGELOG.md | head -n -1)
+          echo "changes<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ github.ref_name }}
+          body: ${{ steps.notes.outputs.changes }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
+          files: |
+            src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+            src-tauri/target/release/bundle/**/*

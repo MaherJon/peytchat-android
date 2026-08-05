@@ -1,0 +1,104 @@
+name: PR Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [ main, develop ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate PR
+    runs-on: ubuntu-latest
+    outputs:
+      check_passed: ${{ steps.check.outputs.passed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Check PR title
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+          if ! echo "$TITLE" | grep -qE "^(feat|fix|docs|style|refactor|test|chore|ci|perf|build|revert)(\(.+\))?: .+"; then
+            echo "PR title must follow Conventional Commits"
+            echo "Format: <type>(<scope>): <description>"
+            echo "Example: feat(android): add bottom navigation"
+            exit 1
+          fi
+      
+      - name: Check branch name
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          if [[ ! "$BRANCH" =~ ^(feat|fix|docs|chore|refactor|test|ci|perf|build|revert)/.+ ]]; then
+            echo "Branch name should follow: <type>/<description>"
+            echo "Example: feat/android-ux"
+          fi
+      
+      - name: Check file changes
+        id: check
+        run: |
+          CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          
+          # 检查是否修改了 core
+          if echo "$CHANGED_FILES" | grep -q "^core/"; then
+            echo "core/ directory was modified"
+            echo "core/ is a submodule/external dependency"
+            echo "Changes should be made upstream"
+            echo "::warning::core/ directory modified"
+          fi
+
+  # 详细检查
+  details:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Type check
+        run: npx tsc --noEmit
+      
+      - name: Check for console.log (except in tests)
+        run: |
+          if grep -r "console.log" src/ --include="*.ts" --include="*.tsx" | grep -v "test" | grep -v "debug"; then
+            echo "Found console.log in source files"
+            echo "Please remove or use proper logging"
+          fi
+      
+      - name: Check for TODO/FIXME
+        run: |
+          TODOS=$(grep -r "TODO\|FIXME" src/ --include="*.ts" --include="*.tsx" | wc -l)
+          if [ $TODOS -gt 0 ]; then
+            echo "Found $TODOS TODO/FIXME comments"
+            echo "Please address before merging"
+          fi
+      
+      - name: Check PR size
+        run: |
+          ADDED=$(git diff --shortstat origin/main...HEAD | grep -oP '\d+(?= insertions)' || echo 0)
+          DELETED=$(git diff --shortstat origin/main...HEAD | grep -oP '\d+(?= deletions)' || echo 0)
+          TOTAL=$((ADDED + DELETED))
+          echo "Files changed: $CHANGES"
+          echo "Lines added: $ADDED, deleted: $DELETED, total: $TOTAL"
+          
+          if [ $TOTAL -gt 5000 ]; then
+            echo "Large PR ($TOTAL lines)"
+            echo "Consider splitting into smaller PRs"
+          fi
