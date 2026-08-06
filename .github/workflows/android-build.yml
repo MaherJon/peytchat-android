@@ -50,6 +50,20 @@ jobs:
       
       - name: Build frontend
         run: npm run build
+
+      - name: Init android project
+        run: |
+          npx tauri android init || true
+          if [ -f ./configfile/android/tauri.build.gradle.kts ]; then
+            cp ./configfile/android/tauri.build.gradle.kts ./src-tauri/gen/android
+          else
+            echo "⚠️  config file not found, skipping"
+          fi
+          if [ -f ./configfile/android/tauri.settings.gradle ]; then
+            cp ./configfile/android/tauri.settings.gradle ./src-tauri/gen/android
+          else
+            echo "⚠️  config file not found, skipping"
+          fi
       
       - name: Build Android
         id: build
