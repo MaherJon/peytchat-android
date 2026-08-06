@@ -2,8 +2,10 @@ name: Android Build
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
     tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
     inputs:
       release_type:
@@ -14,6 +16,11 @@ on:
         options:
           - debug
           - release
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  NODE_VERSION: 20
 
 jobs:
   build:
@@ -27,44 +34,92 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
-      
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           target: aarch64-linux-android
-      
+          profile: minimal
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: 11076708
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Build frontend
-        run: npm run build
 
-      - name: Init android project
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Prepare Android NDK toolchain
+        id: ndk
         run: |
-          npx tauri android init || true
-          if [ -f ./configfile/android/tauri.build.gradle.kts ]; then
-            cp ./configfile/android/tauri.build.gradle.kts ./src-tauri/gen/android
-          else
-            echo "⚠️  config file not found, skipping"
+          set -e
+          
+          # 1. Find SDK root
+          SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          if [ -z "$SDK_ROOT" ]; then
+            echo "ERROR: ANDROID_SDK_ROOT / ANDROID_HOME is not set"
+            exit 1
           fi
-          if [ -f ./configfile/android/tauri.settings.gradle ]; then
-            cp ./configfile/android/tauri.settings.gradle ./src-tauri/gen/android
-          else
-            echo "⚠️  config file not found, skipping"
+          echo "SDK_ROOT=$SDK_ROOT"
+          
+          # 2. Find NDK
+          NDK_DIR=$(ls -1 "$SDK_ROOT/ndk" 2>/dev/null | sort -V | tail -n1 || true)
+          if [ -z "$NDK_DIR" ]; then
+            echo "ERROR: No NDK found under $SDK_ROOT/ndk"
+            ls -l "$SDK_ROOT" || true
+            exit 1
           fi
-      
+          export ANDROID_NDK_HOME="$SDK_ROOT/ndk/$NDK_DIR"
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
+          
+          # 3. Toolchain bin path
+          TOOLCHAIN_BIN="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          if [ ! -d "$TOOLCHAIN_BIN" ]; then
+            echo "ERROR: toolchain bin not found: $TOOLCHAIN_BIN"
+            ls -R "$ANDROID_NDK_HOME" || true
+            exit 1
+          fi
+          echo "TOOLCHAIN_BIN=$TOOLCHAIN_BIN"
+          
+          # 4. Add to PATH
+          export PATH="$TOOLCHAIN_BIN:$PATH"
+          echo "PATH=$PATH" >> $GITHUB_ENV
+          
+          # 5. Create symlinks for cross-tool names
+          ln -sf "$TOOLCHAIN_BIN/llvm-ranlib" "$TOOLCHAIN_BIN/aarch64-linux-android-ranlib"
+          ln -sf "$TOOLCHAIN_BIN/llvm-ar" "$TOOLCHAIN_BIN/aarch64-linux-android-ar"
+          ln -sf "$TOOLCHAIN_BIN/llvm-strip" "$TOOLCHAIN_BIN/aarch64-linux-android-strip"
+          
+          # 6. Export CC/AR/RANLIB for aarch64 target
+          echo "CC_aarch64_linux_android=$TOOLCHAIN_BIN/aarch64-linux-android21-clang" >> $GITHUB_ENV
+          echo "AR_aarch64_linux_android=$TOOLCHAIN_BIN/llvm-ar" >> $GITHUB_ENV
+          echo "RANLIB_aarch64_linux_android=$TOOLCHAIN_BIN/llvm-ranlib" >> $GITHUB_ENV
+          
+          # 7. Also set CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER for cargo
+          echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$TOOLCHAIN_BIN/aarch64-linux-android21-clang" >> $GITHUB_ENV
+          
+          # 8. Print sanity info
+          echo "=== Toolchain verification ==="
+          which aarch64-linux-android-ranlib || true
+          aarch64-linux-android-ranlib --version || true
+          echo "NDK toolchain prepared."
+
       - name: Build Android
         id: build
         run: |
@@ -72,12 +127,12 @@ jobs:
             npm run tauri android build
             APK_PATH="src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk"
           else
-            npm run tauri android dev
+            npm run tauri android build -- --debug
             APK_PATH="src-tauri/gen/android/app/build/outputs/apk/debug/app-debug.apk"
           fi
           echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
           echo "APK built: $APK_PATH"
-      
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
@@ -85,16 +140,6 @@ jobs:
           path: ${{ steps.build.outputs.apk_path }}
           retention-days: 30
 
-  test:
-    name: Test APK
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Download APK
-        uses: actions/download-artifact@v4
-        with:
-          name: peytchat-android-${{ github.sha }}
-      
       - name: Verify APK
         run: |
           APK=$(find . -name "*.apk" | head -1)
