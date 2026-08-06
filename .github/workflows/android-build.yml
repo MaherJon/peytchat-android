@@ -20,7 +20,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  NODE_VERSION: 20
+  NODE_VERSION: 24  # 升级到 Node 24，避免弃用警告
 
 jobs:
   build:
@@ -58,12 +58,30 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: 11076708
+          # 安装必要的 SDK 组件：platform-tools, platforms, build-tools, NDK
+          sdk-packages: |
+            platform-tools
+            platforms;android-33
+            build-tools;33.0.2
+            ndk;25.2.9519653
 
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
+
+      # 验证 SDK 安装
+      - name: Verify SDK installation
+        run: |
+          echo "=== SDK Content ==="
+          ls -la $ANDROID_SDK_ROOT || ls -la $ANDROID_HOME
+          echo ""
+          echo "=== NDK Content ==="
+          ls -la $ANDROID_SDK_ROOT/ndk/ 2>/dev/null || echo "NDK not found"
+          echo ""
+          echo "=== NDK Toolchain ==="
+          ls -la $ANDROID_SDK_ROOT/ndk/*/toolchains/llvm/prebuilt/linux-x86_64/bin/ 2>/dev/null | head -20 || echo "Toolchain not found"
 
       - name: Prepare Android NDK toolchain
         id: ndk
@@ -87,6 +105,7 @@ jobs:
           fi
           export ANDROID_NDK_HOME="$SDK_ROOT/ndk/$NDK_DIR"
           echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
           
           # 3. Toolchain bin path
           TOOLCHAIN_BIN="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
@@ -96,10 +115,10 @@ jobs:
             exit 1
           fi
           echo "TOOLCHAIN_BIN=$TOOLCHAIN_BIN"
+          echo "TOOLCHAIN_BIN=$TOOLCHAIN_BIN" >> $GITHUB_ENV
           
           # 4. Add to PATH
-          export PATH="$TOOLCHAIN_BIN:$PATH"
-          echo "PATH=$PATH" >> $GITHUB_ENV
+          echo "$TOOLCHAIN_BIN" >> $GITHUB_PATH
           
           # 5. Create symlinks for cross-tool names
           ln -sf "$TOOLCHAIN_BIN/llvm-ranlib" "$TOOLCHAIN_BIN/aarch64-linux-android-ranlib"
@@ -120,16 +139,62 @@ jobs:
           aarch64-linux-android-ranlib --version || true
           echo "NDK toolchain prepared."
 
+      # ===== 关键修复：初始化 Tauri Android 项目 =====
+      - name: Initialize Tauri Android project
+        run: |
+          set -e
+          echo "=== Initializing Tauri Android project ==="
+          
+          # 使用 npx 调用 tauri CLI 初始化 Android 项目
+          # 尝试多种初始化方式以确保兼容性
+          if npx --yes tauri android init --ci 2>/dev/null; then
+            echo "✅ Android init completed (--ci)"
+          elif npx --yes tauri android init --no-prompt 2>/dev/null; then
+            echo "✅ Android init completed (--no-prompt)"
+          elif npx --yes tauri android init 2>/dev/null; then
+            echo "✅ Android init completed (no flags)"
+          else
+            echo "⚠️  Tauri init failed, trying npm exec..."
+            npm exec -- tauri android init --ci || {
+              echo "⚠️  All init attempts failed, but continuing..."
+            }
+          fi
+          
+          # 验证项目目录是否存在
+          if [ -d "src-tauri/gen/android" ]; then
+            echo "✅ Tauri Android project created at src-tauri/gen/android"
+            ls -la src-tauri/gen/android/
+          else
+            echo "❌ Tauri Android project not created!"
+            # 尝试手动创建
+            mkdir -p src-tauri/gen/android
+            echo "⚠️  Created directory manually, but build may fail"
+          fi
+
+      # ===== 构建 APK =====
       - name: Build Android
         id: build
         run: |
+          set -e
+          echo "=== Building Android APK ==="
+          
+          # 检查项目目录
+          if [ ! -d "src-tauri/gen/android" ]; then
+            echo "⚠️  Android project missing, attempting init again..."
+            npx --yes tauri android init --ci || true
+          fi
+          
           if [ "${{ inputs.release_type }}" = "release" ] || [ "${{ startsWith(github.ref, 'refs/tags/') }}" = "true" ]; then
+            echo "Building RELEASE APK..."
             npm run tauri android build
             APK_PATH="src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk"
           else
+            echo "Building DEBUG APK..."
+            # 使用 --debug 标志构建调试版本
             npm run tauri android build -- --debug
             APK_PATH="src-tauri/gen/android/app/build/outputs/apk/debug/app-debug.apk"
           fi
+          
           echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
           echo "APK built: $APK_PATH"
 
@@ -143,6 +208,13 @@ jobs:
       - name: Verify APK
         run: |
           APK=$(find . -name "*.apk" | head -1)
-          echo "APK: $APK"
-          file "$APK"
-          unzip -l "$APK" | head -20
+          if [ -n "$APK" ]; then
+            echo "✅ APK found: $APK"
+            file "$APK"
+            unzip -l "$APK" | head -20
+          else
+            echo "❌ No APK found!"
+            # 列出可能的输出目录
+            find src-tauri/gen -name "*.apk" 2>/dev/null || true
+            exit 1
+          fi
